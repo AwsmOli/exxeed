@@ -20,6 +20,12 @@ export interface SessionConfig {
   readonly noteSetId: string;
   readonly voiceId: string;
   readonly profile: DriverProfile;
+  /**
+   * Skip §6.4's out-lap gate. Only ever set for a replay — main refuses to pass
+   * it for a live source, because on track the gate is not friction, it is the
+   * rule.
+   */
+  readonly assumeLapComplete?: boolean;
 }
 
 export interface LoadedSession {
@@ -82,7 +88,9 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
   }
 
   return {
-    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), config.profile),
+    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), config.profile, {
+      assumeLapComplete: config.assumeLapComplete ?? false,
+    }),
     noteSet,
     audio,
     mapView,

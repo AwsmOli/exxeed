@@ -130,3 +130,51 @@ describe("parseFrame", () => {
     expect(parseFrame(line)?.playerTrackSurface).toBe(TRK_LOC.NotInWorld);
   });
 });
+
+describe("looping is one continuous session", () => {
+  const collectLooped = async (limit: number) => {
+    const adapter = new ReplayAdapter(FIXTURE, { speed: 0, loop: true });
+    await adapter.connect();
+    const frames = [];
+    for await (const frame of adapter) {
+      frames.push(frame);
+      if (frames.length >= limit) break;
+    }
+    await adapter.close();
+    return frames;
+  };
+
+  it("never rewinds the clock across a pass boundary", async () => {
+    // Reaching the end of a file and starting again is an artefact of replay,
+    // not something that happened to the car. Rewinding tMs made the scheduler
+    // hold a stale busy-until into the next pass.
+    const frames = await collectLooped(2000);
+
+    for (let i = 1; i < frames.length; i++) {
+      expect(frames[i]!.tMs).toBeGreaterThan(frames[i - 1]!.tMs);
+    }
+  });
+
+  it("keeps counting laps, so the out-lap gate can lift", async () => {
+    // §6.4 stays quiet until one lap has completed. A recording whose lap number
+    // resets every pass can never satisfy that, and the engine looks broken while
+    // behaving exactly as specified.
+    const frames = await collectLooped(2000);
+    const laps = [...new Set(frames.map((f) => f.lap))].sort((a, b) => a - b);
+
+    expect(laps.length).toBeGreaterThan(1);
+    // Consecutive, no gaps and no repeats of an earlier lap.
+    expect(laps).toEqual(laps.map((_, i) => laps[0]! + i));
+  });
+
+  it("does not offset anything on a single pass", async () => {
+    const adapter = new ReplayAdapter(FIXTURE, { speed: 0 });
+    await adapter.connect();
+    const frames = [];
+    for await (const frame of adapter) frames.push(frame);
+    await adapter.close();
+
+    expect(frames[0]!.tMs).toBe(0);
+    expect(frames.every((f) => f.lap >= 1 && f.lap <= 3)).toBe(true);
+  });
+});

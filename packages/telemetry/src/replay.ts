@@ -138,6 +138,9 @@ export class ReplayAdapter implements TelemetrySource {
   readonly #loop: boolean;
   #connected = false;
   #identity: SessionIdentity | null = null;
+  /** Accumulated across loop passes — see the note on `#readOnce`. */
+  #tOffsetMs = 0;
+  #lapOffset = 0;
 
   constructor(path: string, options: ReplayOptions = {}) {
     this.#path = path;
@@ -172,6 +175,25 @@ export class ReplayAdapter implements TelemetrySource {
     } while (this.#loop && this.#connected);
   }
 
+  /**
+   * One pass over the file.
+   *
+   * ## Why a looped pass offsets `tMs` and `lap`
+   *
+   * Reaching the end of a recording and starting again is an artefact of replay,
+   * not something that happened to the car: it kept driving. So a looped pass
+   * continues the clock and the lap counter rather than rewinding them.
+   *
+   * Without this, a single extracted lap can never produce a callout. §6.4 holds
+   * everything quiet until one lap has completed since `IsOnTrack` went true, and
+   * a one-lap file reports the same `lap` on every frame of every pass — so the
+   * gate stays shut forever and the engine looks broken when it is behaving
+   * exactly as specified. Rewinding `tMs` was the same class of problem, and the
+   * scheduler grew a guard for it; the guard stays as defence, but the honest fix
+   * is not to rewind in the first place.
+   *
+   * Pacing still works off the file's own timestamps, so playback speed is exact.
+   */
   async *#readOnce(): AsyncGenerator<TelemetryFrame> {
     const lines = createInterface({
       input: createReadStream(this.#path, { encoding: "utf8" }),
@@ -183,28 +205,49 @@ export class ReplayAdapter implements TelemetrySource {
     let firstFrameMs: number | null = null;
     let startedAt = 0;
 
+    let firstLap: number | null = null;
+    let lastFrameMs = 0;
+    let lastLap = 0;
+    let count = 0;
+
     try {
       for await (const line of lines) {
         if (!this.#connected) return;
         if (line.trim() === "") continue;
 
-        const frame = parseFrame(line);
-        if (frame === null) continue;
+        const raw = parseFrame(line);
+        if (raw === null) continue;
 
         if (Number.isFinite(this.#speed)) {
           if (firstFrameMs === null) {
-            firstFrameMs = frame.tMs;
+            firstFrameMs = raw.tMs;
             startedAt = Date.now();
           }
-          const dueAt = startedAt + (frame.tMs - firstFrameMs) / this.#speed;
+          const dueAt = startedAt + (raw.tMs - firstFrameMs) / this.#speed;
           const waitMs = dueAt - Date.now();
           if (waitMs > 1) await sleep(waitMs);
         }
 
-        yield frame;
+        if (firstFrameMs === null) firstFrameMs = raw.tMs;
+        if (firstLap === null) firstLap = raw.lap;
+        lastFrameMs = raw.tMs;
+        lastLap = raw.lap;
+        count++;
+
+        yield this.#tOffsetMs === 0 && this.#lapOffset === 0
+          ? raw
+          : { ...raw, tMs: raw.tMs + this.#tOffsetMs, lap: raw.lap + this.#lapOffset };
       }
     } finally {
       lines.close();
+    }
+
+    if (this.#loop && firstFrameMs !== null && firstLap !== null && count > 1) {
+      // Leave one frame's gap between passes so the join is not a duplicate
+      // timestamp, and credit the laps the pass actually covered.
+      const spanMs = lastFrameMs - firstFrameMs;
+      this.#tOffsetMs += spanMs + spanMs / (count - 1);
+      this.#lapOffset += lastLap - firstLap + 1;
     }
   }
 }

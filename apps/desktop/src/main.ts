@@ -77,11 +77,20 @@ function createSource(): TelemetrySource {
   return new ReplayAdapter(FIXTURE, { speed, loop: true });
 }
 
-async function createSession(): Promise<LoadedSession | null> {
+async function createSession(replaying: boolean): Promise<LoadedSession | null> {
   const noteSetId = env("EXXEED_NOTES");
   if (noteSetId === undefined) return null;
 
+  // EXXEED_SKIP_OUTLAP only means anything against a recording. On a live
+  // session the out-lap gate is the rule, not friction, so it is not negotiable
+  // from an environment variable.
+  const skipOutLap = replaying && env("EXXEED_SKIP_OUTLAP") !== undefined;
+  if (skipOutLap) {
+    process.stdout.write("skipping the out-lap gate — replay only (§6.4)\n");
+  }
+
   return loadSession({
+    assumeLapComplete: skipOutLap,
     dataDir: env("EXXEED_DATA") ?? `${REPO_ROOT}/data/demo`,
     noteSetId,
     voiceId: env("EXXEED_VOICE") ?? "en_test",
@@ -152,10 +161,11 @@ const describeIdentity = (identity: SessionIdentity | null): string =>
 
 async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
   const source = createSource();
+  const replaying = source instanceof ReplayAdapter;
 
   let session: LoadedSession | null = null;
   try {
-    session = await createSession();
+    session = await createSession(replaying);
   } catch (err) {
     process.stderr.write(`could not load note set: ${String(err)}\n`);
   }

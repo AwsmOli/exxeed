@@ -130,9 +130,18 @@ locks it again; the position is remembered.
 > converts DX11 exclusive fullscreen to a composited path, so it may appear to
 > work anyway — but borderless windowed is the supported configuration.
 
+Replay runs at real time unless you ask otherwise — `EXXEED_SPEED=8` to hurry.
+
+> **A recording that starts mid-session needs `EXXEED_SKIP_OUTLAP=1`.** Two
+> separate rules keep the engine quiet until a lap has been completed: §6.4's
+> gate, and §6.2 starting every note spent. A single extracted lap satisfies
+> neither, so it plays back in silence — correct behaviour that looks exactly
+> like a broken engine. The flag relaxes both, and main refuses to honour it for
+> a live source.
+
 Environment variables: `EXXEED_REPLAY` (recording path), `EXXEED_SPEED`,
 `EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_LEAD_ADJUST`,
-`EXXEED_OVERLAY`.
+`EXXEED_OVERLAY`, `EXXEED_SKIP_OUTLAP`.
 
 **iRacing is Windows-only, and so is the telemetry SDK.** `@irsdk-node/native`
 ships prebuilds for `win32-x64` and `win32-arm64` only; off Windows its installer

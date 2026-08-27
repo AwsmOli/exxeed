@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Note } from "@exxeed/core";
-import { aheadM, metres, mps, NoteEngine } from "@exxeed/core";
+import { aheadM, DEFAULT_PROFILE, metres, mps, NoteEngine } from "@exxeed/core";
 
 import { spaGt3Notes, SPA_LENGTH_M } from "./fixtures.js";
 import { Car, drops, plays } from "./harness.js";
@@ -69,6 +69,30 @@ describe("out-lap silence", () => {
   });
 });
 
+describe("assumeLapComplete", () => {
+  it("arms every note as well as opening the §6.4 gate", () => {
+    // Opening the gate alone does almost nothing. §6.2 starts notes SPENT, and a
+    // note re-arms only once its point is more than half a lap away — so from the
+    // line, only the back half of the lap would ever speak. On Daytona that was
+    // one note out of six, which reads as "the fix did not work".
+    const engine = new NoteEngine(entryBrakeOnly, SPA, DEFAULT_PROFILE, {
+      assumeLapComplete: true,
+    });
+    expect(engine.stateOf("t1_entry_brake")).toBe("ARMED");
+
+    const car = new Car(0.98);
+    expect(plays(car.drive(engine, 0.05 * SPA_LENGTH_M))).toHaveLength(1);
+  });
+
+  it("leaves notes SPENT by default, so the out-lap stays silent", () => {
+    const engine = new NoteEngine(entryBrakeOnly, SPA);
+    expect(engine.stateOf("t1_entry_brake")).toBe("SPENT");
+
+    const car = new Car(0.98);
+    expect(car.drive(engine, 0.05 * SPA_LENGTH_M)).toHaveLength(0);
+  });
+});
+
 describe("start/finish double-fire — the §9 required test", () => {
   // Verified by mutation: implementing the naive firedThisLap design makes every
   // test in this block fail.
@@ -82,7 +106,7 @@ describe("start/finish double-fire — the §9 required test", () => {
 
     expect(plays(events)).toHaveLength(1);
     expect(plays(events)[0]?.noteId).toBe("t1_entry_brake");
-    expect(plays(events)[0]?.atPct).toBeCloseTo(0.99496, 3);
+    expect(plays(events)[0]?.atPct).toBeCloseTo(0.99014, 3);
   });
 
   it("stays silent for the rest of the approach after crossing the line", () => {
@@ -117,7 +141,7 @@ describe("start/finish double-fire — the §9 required test", () => {
     const events = plays(car.drive(engine, 2 * SPA_LENGTH_M, { stepM: 2 }));
 
     expect(events).toHaveLength(2);
-    expect(events[0]?.atPct).toBeCloseTo(0.98264, 2);
+    expect(events[0]?.atPct).toBeCloseTo(0.97771, 2);
   });
 });
 
@@ -129,10 +153,10 @@ describe("where the callout starts", () => {
     const [event] = plays(car.drive(engine, 0.06 * SPA_LENGTH_M, { stepM: 0.5 }));
     expect(event).toBeDefined();
 
-    // 1.24 s audio + 0.5 s buffer − 0.2 s author adjustment = 1.54 s.
-    // At 69 m/s that is 106.3 m, i.e. pct 0.99781 − 0.01518 = 0.98263.
-    expect(event!.leadM).toBeCloseTo(106.26, 1);
-    expect(event!.atPct).toBeCloseTo(0.98263, 3);
+    // 1.24 s audio + 1.0 s buffer − 0.2 s author adjustment = 2.04 s.
+    // At 69 m/s that is 140.8 m, i.e. pct 0.99781 − 0.02010 = 0.97771.
+    expect(event!.leadM).toBeCloseTo(140.76, 1);
+    expect(event!.atPct).toBeCloseTo(0.97771, 3);
     expect(event!.variant).toBe("full");
   });
 

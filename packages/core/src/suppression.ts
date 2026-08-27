@@ -51,6 +51,22 @@ export type SuppressionReason =
   | "crawling"
   | "out_lap";
 
+export interface SuppressionOptions {
+  /**
+   * Treat the out-lap as already served.
+   *
+   * For replaying a recording that starts mid-session — most obviously a single
+   * extracted lap, where the gate would otherwise hold from the first frame to
+   * the last and the engine would look broken while behaving exactly as
+   * specified. §9's argument applies: waiting a full lap of real time before
+   * hearing anything is the same friction as needing to drive to iterate.
+   *
+   * Never set this for a live session. The gate is there because a driver leaving
+   * the pits has not yet seen the lap they are about to be talked through.
+   */
+  readonly assumeLapComplete?: boolean;
+}
+
 /**
  * Stateful because three of the rules are: the reset counter needs its previous
  * value, the off-track hold needs a deadline, and the out-lap gate needs to know
@@ -60,6 +76,11 @@ export class SuppressionGate {
   #lastResetCounter: number | null = null;
   #offTrackHoldUntilMs: number | null = null;
   #outLapUntilLap: number | null = null;
+  readonly #assumeLapComplete: boolean;
+
+  constructor(options: SuppressionOptions = {}) {
+    this.#assumeLapComplete = options.assumeLapComplete ?? false;
+  }
 
   /** The reason to stay quiet, or null to speak. */
   evaluate(input: SuppressionInput): SuppressionReason | null {
@@ -71,8 +92,9 @@ export class SuppressionGate {
       this.#outLapUntilLap = null;
     } else if (this.#outLapUntilLap === null) {
       // First tick back on track — require one completed lap before arming
-      // anything (§6.4).
-      this.#outLapUntilLap = input.lap + 1;
+      // anything (§6.4), unless the caller has said this recording starts
+      // mid-session.
+      this.#outLapUntilLap = this.#assumeLapComplete ? input.lap : input.lap + 1;
     }
 
     if (input.offTrack) {

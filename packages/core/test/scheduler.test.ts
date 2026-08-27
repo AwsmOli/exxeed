@@ -27,7 +27,18 @@ const noteAt = (id: string, priority: number, overrides: Partial<Note> = {}): No
   ...overrides,
 });
 
-const at = (eventPct: number, note: Note): Candidate => ({ note, eventPct: pct(eventPct) });
+/**
+ * A candidate that has been waiting since before this tick, so the fit test in
+ * §6.3 actually applies. A note handed over on the tick it became due skips it —
+ * the trigger already decided (see Scheduler.#chooseVariant) — so tests that want
+ * to exercise fitting have to look like notes that waited.
+ */
+const at = (eventPct: number, note: Note): Candidate =>
+  ({ note, eventPct: pct(eventPct), dueAtMs: -1 });
+
+/** A candidate handed straight over on the tick it became due. */
+const dueNow = (eventPct: number, note: Note, tMs: number): Candidate =>
+  ({ note, eventPct: pct(eventPct), dueAtMs: tMs });
 
 const input = (lapDistPct: number, tMs: number, speedMps = V250): PumpInput => ({
   tMs,
@@ -47,7 +58,7 @@ function scheduler(startPct = 0.5): Scheduler {
 describe("fit test and the short-form fallback", () => {
   it("plays the full form when there is room", () => {
     const s = scheduler(0.3);
-    // Event 400 m ahead; the full form needs 1.74 s × 69 = 120 m.
+    // Event 400 m ahead; the full form needs 2.24 s × 69 = 155 m.
     s.admit(at(0.3 + 400 / SPA_LENGTH_M, noteAt("n", 1)), input(0.3, 16));
 
     const [event] = s.pump(input(0.3, 16));
@@ -58,8 +69,9 @@ describe("fit test and the short-form fallback", () => {
 
   it("falls back to the short form when the full one no longer fits", () => {
     const s = scheduler(0.3);
-    // Event 100 m ahead. Full needs 120 m, short needs (0.72+0.5)×69 = 84.2 m.
-    s.admit(at(0.3 + 100 / SPA_LENGTH_M, noteAt("n", 1)), input(0.3, 16));
+    // Event 130 m ahead. Full needs (1.24+1.0)×69 = 154.6 m, short needs
+    // (0.72+1.0)×69 = 118.7 m — so only the short form still fits.
+    s.admit(at(0.3 + 130 / SPA_LENGTH_M, noteAt("n", 1)), input(0.3, 16));
 
     const [event] = s.pump(input(0.3, 16));
     expect(event?.kind === "play" && event.variant).toBe("short");
@@ -89,6 +101,37 @@ describe("fit test and the short-form fallback", () => {
     expect(events[0]?.kind).toBe("drop");
     expect(events[1]?.kind).toBe("play");
     expect(events[1]?.noteId).toBe("in_time");
+  });
+});
+
+describe("the trigger is the fit test for an immediate hand-off", () => {
+  it("plays the full form on the tick a note became due, even when it looks tight", () => {
+    // Found on Daytona's turn 4. The car was accelerating, so the lead
+    // REQUIREMENT grew while dAhead shrank — 150m to 153m against 174m to 159m —
+    // and the two closed faster than the car travelled. The trigger fired, the
+    // scheduler then re-derived the same inequality, disagreed with it, and fell
+    // back to the short form for no reason a listener could account for.
+    const s = scheduler(0.3);
+    const note = noteAt("accelerating", 1);
+
+    // 140 m: inside the full form's 154.6 m, so a note that had WAITED would be
+    // downgraded here. This one did not wait.
+    const eventPct = 0.3 + 140 / SPA_LENGTH_M;
+    s.admit(dueNow(eventPct, note, 16), input(0.3, 16));
+
+    const [event] = s.pump(input(0.3, 16));
+    expect(event?.kind === "play" && event.variant).toBe("full");
+  });
+
+  it("still applies the fit test to a note that waited in the queue", () => {
+    // Here dAhead really has shrunk since the trigger, so the question is real.
+    // 130 m: the full form needs 154.6 m and no longer fits, the short form's
+    // 118.7 m does.
+    const s = scheduler(0.3);
+    s.admit(at(0.3 + 130 / SPA_LENGTH_M, noteAt("waited", 1)), input(0.3, 16));
+
+    const [event] = s.pump(input(0.3, 16));
+    expect(event?.kind === "play" && event.variant).toBe("short");
   });
 });
 

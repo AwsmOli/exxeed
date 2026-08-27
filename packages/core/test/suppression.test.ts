@@ -139,3 +139,34 @@ describe("precedence", () => {
     expect(reason).toBe("not_on_track");
   });
 });
+
+describe("assumeLapComplete", () => {
+  it("lets a mid-session recording speak from the first frame", () => {
+    // A single extracted lap reports the same lap number on every frame, so the
+    // gate would hold from the first to the last and the engine would look
+    // broken while behaving exactly as specified.
+    const gate = new SuppressionGate({ assumeLapComplete: true });
+    expect(gate.evaluate(driving({ lap: 4 }))).toBeNull();
+  });
+
+  it("is off by default", () => {
+    expect(new SuppressionGate().evaluate(driving({ lap: 4 }))).toBe("out_lap");
+  });
+
+  it("does not disable the other conditions", () => {
+    // It says "the driver has seen this lap", not "say something regardless".
+    const gate = new SuppressionGate({ assumeLapComplete: true });
+    expect(gate.evaluate(driving({ inPitLane: true }))).toBe("pit_lane");
+    expect(gate.evaluate(driving({ offTrack: true }))).toBe("off_track");
+    expect(gate.evaluate(driving({ speedMps: mps(2), tMs: 99_000 }))).toBe("crawling");
+  });
+
+  it("still re-gates after a return to the garage", () => {
+    // Going back to the garage is a real out-lap, not a recording that happens
+    // to start mid-session.
+    const gate = new SuppressionGate({ assumeLapComplete: true });
+    expect(gate.evaluate(driving({ lap: 4 }))).toBeNull();
+    gate.evaluate(driving({ inGarage: true, lap: 4 }));
+    expect(gate.evaluate(driving({ lap: 4 }))).toBeNull();
+  });
+});

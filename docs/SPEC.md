@@ -641,7 +641,14 @@ const leadM  = speedMps * leadSecondsFor(note, note.audio, profile);
 if (state === ARMED && dAhead <= leadM) fire(note);
 ```
 
-`REACTION_BUFFER_S = 0.5`.
+`REACTION_BUFFER_S = 1.0`.
+
+**This constant, not the word count, is what sets how much air a callout has.**
+The lead is derived from the clip duration, so shortening the text moves the
+trigger later by the same amount it shortens the speech and the gap before the
+event barely moves — measured at Daytona, halving every clip changed it by
+0.02-0.08 s. If a callout feels rushed, raise the buffer or the note's
+`leadAdjustS`; rewriting it shorter will not help.
 
 **Adjustments are in seconds, not metres.** "It's a little late" is a complaint
 about reaction time, and reaction time is what has to scale with speed — the same
@@ -660,7 +667,7 @@ preference gets baked into a shared note set.
 > changing the lead feel identical to a driver on one lap and diverge completely
 > across speeds, so the editor must keep them visibly distinct (§7.4).
 
-At 250 km/h (69 m/s) a 2.0 s callout plus buffer triggers **173 m early**. On a
+At 250 km/h (69 m/s) a 2.0 s callout plus buffer triggers **207 m early**. On a
 short track that can land before the previous corner — hence the scheduler.
 
 ### 6.2 Per-note state machine — this is where the S/F bug lives
@@ -670,9 +677,9 @@ The obvious design — a `firedThisLap` set cleared at the start/finish line —
 
 Worked example, Spa. The failure needs the **trigger on one side of the line and
 the event on the other**, so anchor to turn 1's *entry* at pct 0.0121 — 84.7 m
-into the lap. A 1.24 s callout at 69 m/s needs 120 m of lead, so it fires at pct
-0.99496, before the line. The car then crosses start/finish, the set is cleared,
-and `dAhead` is 84.7 m against a 120 m lead — so it **fires again**, in the same
+into the lap. A 1.24 s callout at 69 m/s needs 155 m of lead, so it fires at pct
+0.99003, before the line. The car then crosses start/finish, the set is cleared,
+and `dAhead` is 84.7 m against a 155 m lead — so it **fires again**, in the same
 approach, a beat before the corner.
 
 > Note the anchor that does *not* reproduce it. A note on the 100 board itself, at
@@ -904,7 +911,7 @@ This turns three otherwise-invisible problems into things you can see:
    dropping a note at runtime. Render it as a conflict marker and the author fixes
    it at authoring time instead of discovering it mid-corner.
 2. **Callouts that start before the previous corner.** At 250 km/h a 2 s callout
-   spans 173 m. On a short track the arc visibly reaches back past the last apex.
+   spans 207 m. On a short track the arc visibly reaches back past the last apex.
 3. **The cost of a longer sentence.** Editing the text re-renders the arc, so
    "brake at the hundred metre board on the right" visibly eats another 40 m of
    track compared to "brake, hundred board".

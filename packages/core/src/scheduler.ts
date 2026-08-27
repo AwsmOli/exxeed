@@ -78,6 +78,13 @@ export type EngineEvent = PlayEvent | DropEvent;
 export interface Candidate {
   readonly note: Note;
   readonly eventPct: Pct;
+  /**
+   * The tick on which the trigger said this note was due.
+   *
+   * Kept so the fit test can tell an immediate hand-off from one that waited in
+   * the queue — see `#chooseVariant`.
+   */
+  readonly dueAtMs: number;
 }
 
 export interface PumpInput {
@@ -110,7 +117,6 @@ export class Scheduler {
   #queue: Candidate[] = [];
   #busyUntilMs = 0;
   #lastTMs: number | null = null;
-  #dtS = 0;
 
   constructor(lengthM: Metres, profile: DriverProfile) {
     this.#lengthM = lengthM;
@@ -118,10 +124,8 @@ export class Scheduler {
   }
 
   /**
-   * Advance the clock. Called once per engine tick BEFORE admit/pump, and
-   * crucially also on suppressed ticks — otherwise the first tick after
-   * suppression lifts would see a dt spanning the whole excursion, or none at
-   * all, and mis-size the fit tolerance below.
+   * Advance the clock. Called once per engine tick BEFORE admit/pump, including
+   * on suppressed ticks, so a rewind is noticed wherever it happens.
    */
   advance(tMs: number): void {
     // Time going backwards means a new session on the same engine — a looped
@@ -133,7 +137,6 @@ export class Scheduler {
       this.#lastTMs = null;
     }
 
-    this.#dtS = this.#lastTMs === null ? 0 : (tMs - this.#lastTMs) / 1000;
     this.#lastTMs = tMs;
   }
 
@@ -238,13 +241,34 @@ export class Scheduler {
    * form almost every time and everything would speak in short form. One tick of
    * travel is the exact amount of slack that costs.
    */
+  /**
+   * The §6.3 fit test, full form first.
+   *
+   * **A note served on the tick it became due always gets the full form.** The
+   * trigger fired precisely because `dAhead` had fallen to the full lead (§6.1),
+   * so re-deriving the same inequality here can only disagree with itself.
+   *
+   * It did disagree, and the reason is worth recording. On an accelerating
+   * approach the lead requirement *grows* while `dAhead` shrinks — measured at
+   * Daytona's turn 4, `fullLead` climbing 150 m to 153 m as `dAhead` fell 174 m
+   * to 159 m. The two close at their combined rate, not at the car's speed, so
+   * at the crossing tick `dAhead` can sit further below `fullLead` than the car
+   * travelled. An earlier version allowed one tick of the car's own travel as
+   * slack, which is not enough, and the note fell back to the short form for no
+   * reason a listener could account for. It is the same root cause §7.4 names for
+   * exit cues landing late: a constant-speed approximation on a car that is not
+   * at constant speed.
+   *
+   * So the fit test applies only to notes that actually waited — which is what
+   * §6.3 means by "at the moment a note would start playing". For those, `dAhead`
+   * has genuinely shrunk since the trigger and the question is real.
+   */
   #chooseVariant(
     candidate: Candidate,
     input: PumpInput,
     dAheadM: Metres,
   ): PlayEvent | null {
     const { note, eventPct } = candidate;
-    const toleranceM = input.speedMps * this.#dtS;
 
     const build = (variant: AudioVariantName, leadM: Metres): PlayEvent => {
       const audio = variant === "full" ? note.audio : note.audioShort;
@@ -266,13 +290,15 @@ export class Scheduler {
       input.speedMps,
       leadSecondsFor(note, note.audio, this.#profile),
     );
-    if (dAheadM >= fullLeadM - toleranceM) return build("full", fullLeadM);
+
+    if (candidate.dueAtMs === input.tMs) return build("full", fullLeadM);
+    if (dAheadM >= fullLeadM) return build("full", fullLeadM);
 
     const shortLeadM = leadDistanceM(
       input.speedMps,
       leadSecondsFor(note, note.audioShort, this.#profile),
     );
-    if (dAheadM >= shortLeadM - toleranceM) return build("short", shortLeadM);
+    if (dAheadM >= shortLeadM) return build("short", shortLeadM);
 
     return null;
   }

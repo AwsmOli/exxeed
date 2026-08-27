@@ -16,18 +16,18 @@ import { spaGt3Notes } from "./fixtures.js";
 const brakeNote = spaGt3Notes.notes[0]!; // audio 1240 ms, leadAdjustS −0.2
 const throttleNote = spaGt3Notes.notes[1]!; // audio 900 ms, leadAdjustS 0
 
-/** 250 km/h — the speed SPEC.md §6.1 works its 173 m example at. */
+/** 250 km/h — the speed SPEC.md §6.1 works its 207 m example at. */
 const V250 = mps(69);
 
 describe("leadSecondsFor", () => {
   it("is duration + reaction buffer + both adjustments", () => {
-    // 0.9 s of audio, +0.5 s buffer, no adjustments either side.
+    // 0.9 s of audio, plus the buffer, no adjustments either side.
     expect(leadSecondsFor(throttleNote, throttleNote.audio, DEFAULT_PROFILE)).toBeCloseTo(
       0.9 + REACTION_BUFFER_S,
       6,
     );
 
-    // 1.24 s of audio, +0.5 s buffer, −0.2 s author adjustment.
+    // 1.24 s of audio, plus the buffer, −0.2 s author adjustment.
     expect(leadSecondsFor(brakeNote, brakeNote.audio, DEFAULT_PROFILE)).toBeCloseTo(
       1.24 + REACTION_BUFFER_S - 0.2,
       6,
@@ -42,7 +42,7 @@ describe("leadSecondsFor", () => {
     const withoutPreference = leadSecondsFor(brakeNote, brakeNote.audio, DEFAULT_PROFILE);
 
     expect(withPreference - withoutPreference).toBeCloseTo(0.4, 6);
-    expect(withPreference).toBeCloseTo(1.24 + 0.5 - 0.2 + 0.4, 6);
+    expect(withPreference).toBeCloseTo(1.24 + REACTION_BUFFER_S - 0.2 + 0.4, 6);
   });
 
   it("never schedules the voice to still be talking after its own event", () => {
@@ -73,7 +73,7 @@ describe("leadSecondsFor", () => {
 });
 
 describe("leadDistanceM", () => {
-  it("reproduces the §6.1 worked example: a 2 s callout at 250 km/h starts 173 m early", () => {
+  it("reproduces the §6.1 worked example: a 2 s callout at 250 km/h starts 207 m early", () => {
     const twoSecondCallout: Note = {
       ...brakeNote,
       leadAdjustS: 0,
@@ -81,8 +81,8 @@ describe("leadDistanceM", () => {
     };
     const leadS = leadSecondsFor(twoSecondCallout, twoSecondCallout.audio, DEFAULT_PROFILE);
 
-    expect(leadS).toBeCloseTo(2.5, 6);
-    expect(leadDistanceM(V250, leadS)).toBeCloseTo(172.5, 1);
+    expect(leadS).toBeCloseTo(2 + REACTION_BUFFER_S, 6);
+    expect(leadDistanceM(V250, leadS)).toBeCloseTo(207, 1);
   });
 
   it("scales with speed — which is why a static trigger pct would be wrong", () => {

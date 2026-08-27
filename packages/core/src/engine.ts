@@ -43,7 +43,11 @@ import type { DriverProfile } from "./profile.js";
 import { DEFAULT_PROFILE } from "./profile.js";
 import type { Candidate, EngineEvent, PumpInput } from "./scheduler.js";
 import { compareCandidates, Scheduler } from "./scheduler.js";
-import type { SuppressionInput, SuppressionReason } from "./suppression.js";
+import type {
+  SuppressionInput,
+  SuppressionOptions,
+  SuppressionReason,
+} from "./suppression.js";
 import { SuppressionGate } from "./suppression.js";
 import { leadDistanceM, leadSecondsFor } from "./trigger.js";
 import type { Metres, Pct } from "./units.js";
@@ -68,15 +72,17 @@ export class NoteEngine {
   readonly #halfLapM: number;
   readonly #profile: DriverProfile;
   readonly #state = new Map<string, NoteState>();
-  readonly #gate = new SuppressionGate();
+  readonly #gate: SuppressionGate;
   readonly #scheduler: Scheduler;
 
   constructor(
     notes: readonly Note[],
     lengthM: Metres,
     profile: DriverProfile = DEFAULT_PROFILE,
+    suppression: SuppressionOptions = {},
   ) {
-    this.#notes = notes.map((note) => ({ note, eventPct: pct(note.pct) }));
+    this.#gate = new SuppressionGate(suppression);
+    this.#notes = notes.map((note) => ({ note, eventPct: pct(note.pct), dueAtMs: -1 }));
     this.#lengthM = lengthM;
     this.#halfLapM = lengthM / 2;
     this.#profile = profile;
@@ -85,7 +91,16 @@ export class NoteEngine {
     // Start everything SPENT so the out-lap is silent (§6.2). Belt and braces
     // with the out-lap suppression rule in §6.4 — they cover the same ground from
     // different directions, and neither alone covers a mid-session note-set swap.
-    for (const note of notes) this.#state.set(note.id, "SPENT");
+    //
+    // Which means `assumeLapComplete` has to relax BOTH, or it does almost
+    // nothing: opening the §6.4 gate on a single extracted lap still leaves every
+    // note spent, and a note only re-arms once its point is more than half a lap
+    // away. Starting at the line, that is true of the back half of the lap and no
+    // more — on Daytona exactly one note out of six. If a lap really has been
+    // completed then every note has been half a lap away at some point, so ARMED
+    // is what the flag means.
+    const initial: NoteState = suppression.assumeLapComplete === true ? "ARMED" : "SPENT";
+    for (const note of notes) this.#state.set(note.id, initial);
   }
 
   stateOf(noteId: string): NoteState | undefined {
@@ -163,7 +178,7 @@ export class NoteEngine {
         // note that stayed ARMED would re-enter the trigger test every tick for
         // the rest of its window and flood the log (§6.2).
         this.#state.set(note.id, "SPENT");
-        due.push(candidate);
+        due.push({ ...candidate, dueAtMs: input.tMs });
       }
     }
 
