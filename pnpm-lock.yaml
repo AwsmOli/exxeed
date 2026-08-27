@@ -95,6 +95,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/telemetry
 
+  tools/trackmap:
+    dependencies:
+      '@exxeed/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@exxeed/repo':
+        specifier: workspace:*
+        version: link:../../packages/repo
+      '@exxeed/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+
 packages:
 
   '@electron/get@2.0.3':

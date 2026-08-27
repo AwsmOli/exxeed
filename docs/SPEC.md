@@ -303,8 +303,16 @@ recorded laps.
 
 ### 4.1.1 Deriving the centreline
 
-The SDK exposes `Lat` and `Lon` in degrees. Project them to a local planar frame
-about the track's mean latitude during map generation:
+> **Settled at M0b: `Lat`/`Lon` are not usable.** They read a constant zero for
+> the whole session — 1 distinct pair across 4,364 frames of the Daytona
+> reference lap. The equirectangular route below is therefore **not** the one
+> taken; dead reckoning is. Kept here because it is still the right approach if
+> the channels ever start reporting, and because knowing it was tried and
+> rejected is worth more than a clean page.
+
+The SDK exposes `Lat` and `Lon` in degrees. If they were populated, you would
+project them to a local planar frame about the track's mean latitude during map
+generation:
 
 ```ts
 const R = 6_378_137;                       // WGS84 equatorial radius, metres
@@ -313,13 +321,34 @@ const y = R * toRad(lat - lat0);
 ```
 
 Equirectangular is accurate to well under a metre over a 7 km circuit, which is
-far below what a schematic map needs. Resample onto the same pct grid as everything
-else, then the map, the corners, the landmarks and the traces all share one index
-space.
+far below what a schematic map needs.
 
-The dead-reckoning alternative — integrating `VelocityX` / `VelocityY` against
-`YawNorth` — works but accumulates drift and needs a closure correction at
-start/finish. Use Lat/Lon unless it turns out to be unavailable.
+**What is actually implemented** is the dead-reckoning alternative: integrate
+`VelocityX` / `VelocityY` against `YawNorth`. It accumulates drift and needs a
+closure correction at start/finish, as predicted — the Daytona lap closes to
+21.6 m over a 5,701 m path, 0.4%, which is then distributed along the lap in
+proportion to *distance travelled* rather than sample index. That distinction
+matters: samples bunch up where the car is slow, so an index-weighted correction
+would push the corners around and leave the straights alone.
+
+Dead reckoning brings a hazard the Lat/Lon route does not. **The handedness of
+`YawNorth` cannot be assumed, and closure will not tell you it is wrong** —
+negating the yaw very nearly mirrors the path, and a mirrored loop closes just as
+well as the correct one. A mirrored map is silently wrong in the §12 sense: it
+draws a plausible circuit with every left turned into a right, and nothing
+downstream can tell.
+
+So the yaw sign is chosen by checking the drawn curvature against the steering
+input, whose own convention was measured on a real lap (§5). Refuse to emit a
+centreline when the two agree less than 80% of the time in either yaw sense.
+
+Note what that does and does not buy: it derives the yaw sign *from* the steering
+sign, so it cannot catch a steering sign that is itself wrong. The independent
+confirmation is the drawn map — Daytona's banking comes out left-handed, which is
+correct for the circuit, and a flipped constant would mirror it visibly.
+
+Either way, resample onto the same pct grid as everything else, so the map, the
+corners, the landmarks and the traces all share one index space.
 
 This comes free from the lap you already record in **M1**, so generate it there
 rather than bolting it on later.
@@ -469,13 +498,16 @@ nearest start/finish.
 ### 4.7 Resolving an anchor to `eventPct`
 
 ```ts
-function resolveEventPct(note, map, landmarks): number {
+function resolveEventPct(note, map, landmarks): Pct | null {
   if (note.anchor.type === "landmark") {
-    const lm = landmarks.byId[note.anchor.id];
+    const lm = landmarks.get(note.anchor.id);
+    if (lm === undefined) return null;
     // offsetM: positive = further along the track (later), negative = earlier
     return wrapPct(lm.pct + note.anchor.offsetM / map.lengthM);
   }
-  const c = map.corners[note.anchor.cornerIndex];
+  // By the `index` FIELD, not by array position — see below.
+  const c = map.corners.find((corner) => corner.index === note.anchor.cornerIndex);
+  if (c === undefined) return null;
   return PHASE_PCT[note.phase](c);
 }
 
@@ -489,6 +521,27 @@ const PHASE_PCT = {
   line:     c => c.exitPct,
 };
 ```
+
+**Corner indices are not array positions.** They are 1-based, and a
+`corners.override.json` (§5.2) can merge, split or insert corners — so
+`map.corners[note.anchor.cornerIndex]` is off by one at best and silently wrong
+after any override at worst. Look up by the `index` field.
+
+**Resolution returns null rather than throwing.** A landmark id that is not in the
+inventory, or a corner index from a note set cut against a different `mapVersion`
+(§4.0), is a data problem, not a per-tick condition. Resolve every note once at
+load time, surface the unresolvable ones in the editor's flag queue (§7.4), and
+drop them there — the runtime does no work at 60 Hz that could have been done at
+load time (§1).
+
+A **missing landmark inventory is not an error.** The anchor is a discriminated
+union, and `{ type: "corner", ... }` resolves through `PHASE_PCT` without touching
+one. An inventory is what §10 stage 3 needs, so the model can be handed a closed
+set of landmark ids rather than free-texting a corner reference. A note set that
+anchors everything to corners — which is what the hand-authored sets in §11's M2
+do — needs no inventory at all, so loaders must not demand one up front. A missing
+inventory degrades to unresolvable anchors on the specific notes that wanted a
+landmark, and those are already reported per note.
 
 ---
 
@@ -607,10 +660,19 @@ short track that can land before the previous corner — hence the scheduler.
 The obvious design — a `firedThisLap` set cleared at the start/finish line — is
 **wrong**, and it fails exactly at the corners nearest S/F.
 
-Worked example, Spa: `t1_brake` anchored at pct 0.99781, at 69 m/s with
-`leadM` 173 m. It fires at pct ≈ 0.9731. The car then crosses start/finish, the
-set is cleared, and `dAhead` is still well inside `leadM` — so it **fires again**,
-in the same approach, a second before turn 1.
+Worked example, Spa. The failure needs the **trigger on one side of the line and
+the event on the other**, so anchor to turn 1's *entry* at pct 0.0121 — 84.7 m
+into the lap. A 1.24 s callout at 69 m/s needs 120 m of lead, so it fires at pct
+0.99496, before the line. The car then crosses start/finish, the set is cleared,
+and `dAhead` is 84.7 m against a 120 m lead — so it **fires again**, in the same
+approach, a beat before the corner.
+
+> Note the anchor that does *not* reproduce it. A note on the 100 board itself, at
+> pct 0.99781, has its event *before* the line: by the time the set is cleared the
+> event is 6,988 m behind and even the broken design cannot re-fire. Getting this
+> the wrong way round means writing a regression test that passes against the bug
+> — verify any such test by actually implementing `firedThisLap` and watching it
+> fail.
 
 Use a per-note state machine keyed by note id, with no lap concept at all:
 
@@ -1012,10 +1074,26 @@ lap 3  pct 0.0203  spd  98kph  DROP t1_line      reason: no_fit_after_short
 3. Golden-file tests assert exact fire points for a checked-in recording. Any
 change to the trigger math that moves a fire point shows up as a diff.
 
+**The recording has to contain more than one lap.** §6.4 stays quiet until one lap
+has completed since `IsOnTrack` went true, so a single extracted lap suppresses
+as `out_lap` from the first frame to the last and the engine says nothing at all.
+That makes it a fine source for a track map and a useless one for a callout
+timeline — check in two or three laps, not the one clean one.
+
+**Verify a regression test by breaking the code.** Both of the engine bugs found
+so far survived their first test: the S/F test passed against the naive
+`firedThisLap` design because it used the wrong anchor, and neither the
+past-the-event nor the rewound-clock bug was caught by unit tests at all — both
+turned up on replaying a timeline. A test written from a spec listing proves
+nothing until the listing has been implemented wrongly and seen to fail.
+
 **Required tests, not optional:**
 
-- The S/F double-fire case from §6.2 — a note anchored at pct 0.998 approached
-  from pct 0.97 must fire exactly once.
+- The S/F double-fire case from §6.2 — a note whose **trigger falls before the
+  line and whose event falls after it** must fire exactly once. At Spa that is a
+  brake cue anchored to turn 1's entry (pct 0.0121), fired from around pct 0.995.
+  A note anchored at pct 0.998 does *not* exercise this: its event is before the
+  line, and the test passes against the naive design too.
 - `deltaM` across the wrap boundary in both directions.
 - `brakeOnsetPct` returns the onset, not a sample near corner entry.
 - Corner detection against a checked-in lap with a hand-verified corner list.
@@ -1156,13 +1234,28 @@ windowed warning, overlay layout editor, note-set picker UI.
 - **Never clear fired-state at start/finish.** Use the §6.2 state machine. This is
   a real bug, not a hypothetical — it double-fires turn 1 at most tracks.
 - **Never subtract percentages directly.** `deltaM` / `aheadM` from §4.6, always.
+- **`aheadM` cannot say "behind".** It always returns a positive distance the long
+  way round, so an event two metres behind the car reads as 6,990 m ahead — which
+  sails through any fit test you care to write, and speaks a callout for a corner
+  the driver has already been through. Check the half-lap threshold explicitly
+  before testing whether something fits.
+- **Never assume `Lat`/`Lon` are populated.** At M0b they read a constant zero.
+  The centreline comes from dead reckoning, and its handedness has to be
+  *derived*, not assumed — closure will not catch a mirrored map (§4.1.1).
+- **Never carry playback state across a clock that went backwards.** A looped
+  replay restarts `tMs` at zero; a scheduler holding `busyUntilMs` from the
+  previous pass mutes itself into the next one. Treat time going backwards as a
+  new session.
 - **Never precompute a static trigger pct.** It moves with speed.
 - **Never do timing work in a renderer.** They get throttled when occluded.
 - **Never render TTS at runtime**, and never estimate audio duration — `ffprobe` it.
 - **Never use MP3** for callouts. WAV, preloaded into memory.
 - **Never let the LLM free-text a corner reference.** Enum or null.
 - **Never auto-merge two note sets.** Two coaches will contradict each other.
-- **Never assume the steering sign.** Measure it (§5).
+- **Never assume the steering sign.** Measure it (§5). Measured at M0b: right is
+  **negative** (MX-5, Daytona Road Course). Everything downstream inherits it —
+  corner directions, and the centreline's yaw sense — so a wrong value mirrors the
+  whole map without failing anything.
 - **Never store kph.** SI internally, convert at render only (§3).
 - **Anchor triggers to corner entry, not to a detected brake point.** Brake points
   are car- and driver-dependent; corner geometry is not. The landmark in the
