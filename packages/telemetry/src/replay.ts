@@ -13,7 +13,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 
-import { mps, pct, radians, seconds } from "@exxeed/core";
+import { metres, mps, pct, radians, seconds } from "@exxeed/core";
 
 import { isTrkLoc, TRK_LOC, type TelemetryFrame, type TrkLoc } from "./frame.js";
 import type { SessionIdentity, TelemetrySource } from "./source.js";
@@ -51,6 +51,18 @@ export function parseFrame(line: string): TelemetryFrame | null {
   };
   const bool = (key: string): boolean => r[key] === true;
 
+  /**
+   * For channels added to the frame after recordings already existed. A missing
+   * one is an older lap, not a corrupt line, so it defaults rather than throwing
+   * — the checked-in fixture and every lap driven before M1 predate the motion
+   * channels. Anything consuming them has to reject an all-zero lap on its own;
+   * see the centreline builder.
+   */
+  const numOr = (key: string, fallback: number): number => {
+    const v = r[key];
+    return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  };
+
   const surface = num("playerTrackSurface");
   const trkLoc: TrkLoc = isTrkLoc(surface) ? surface : TRK_LOC.NotInWorld;
 
@@ -66,6 +78,10 @@ export function parseFrame(line: string): TelemetryFrame | null {
     steerRad: radians(num("steerRad")),
     lat: num("lat"),
     lon: num("lon"),
+    velocityXMps: mps(numOr("velocityXMps", 0)),
+    velocityYMps: mps(numOr("velocityYMps", 0)),
+    yawNorthRad: radians(numOr("yawNorthRad", 0)),
+    lapDistM: metres(numOr("lapDistM", 0)),
     isOnTrack: bool("isOnTrack"),
     onPitRoad: bool("onPitRoad"),
     isInGarage: bool("isInGarage"),

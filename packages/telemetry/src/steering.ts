@@ -17,18 +17,22 @@
 /**
  * Whether the constant below has been measured against a real lap yet.
  *
- * @todo M0b — flip to true once measured. See TODO.md.
+ * Measured M0b, 2026-08-27: Mazda MX-5 Cup, Daytona Road Course, live SDK.
  */
-export const STEER_SIGN_MEASURED = false;
+export const STEER_SIGN_MEASURED = true;
 
 /**
  * Sign of `steerRad` when turning RIGHT.
  *
- * PLACEHOLDER. Do not trust this until STEER_SIGN_MEASURED is true. Corner
- * detection must refuse to write a track map while it is false, rather than
- * emitting one with every direction possibly inverted.
+ * MEASURED, not assumed (§12). Driving a known right-hander gives a **negative**
+ * `SteeringWheelAngle`; a left-hander gives positive. So right is −1.
+ *
+ * This agrees with iRacing reporting the angle as the wheel's rotation about the
+ * vertical axis, counter-clockwise positive — but the agreement is a
+ * cross-check, not the source. The source is a driver turning right and reading
+ * the sign.
  */
-export const STEER_SIGN_RIGHT: 1 | -1 = 1;
+export const STEER_SIGN_RIGHT: 1 | -1 = -1;
 
 /**
  * Call this before writing anything that records a corner `direction`.

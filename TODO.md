@@ -50,22 +50,54 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 Step-by-step: **[docs/WINDOWS.md](docs/WINDOWS.md)**.
 
-- [ ] `irsdk-node` connects and prints `LapDistPct`, `Speed`, `Throttle`, `Brake`, `Gear`, `SteeringWheelAngle`, `IsOnTrack`, `OnPitRoad`, `PlayerTrackSurface` at 60 Hz
-- [ ] **Measure the steering sign convention** and hardcode it as a named constant with a test (§5)
-  §12: never assume it. Get it backwards and every corner's `direction` inverts silently, with no crash to tell you.
-- [ ] Confirm `Lat`/`Lon` are actually populated
-  §4.1.1's centreline depends on it; the dead-reckoning fallback drifts and needs a closure correction.
+- [x] `irsdk-node` connects and prints `LapDistPct`, `Speed`, `Throttle`, `Brake`, `Gear`, `SteeringWheelAngle`, `IsOnTrack`, `OnPitRoad`, `PlayerTrackSurface` at 60 Hz
+- [x] **Measure the steering sign convention** and hardcode it as a named constant with a test (§5)
+  Measured 2026-08-27, MX-5 at Daytona: **right is negative**, left positive. `STEER_SIGN_RIGHT = -1`, `STEER_SIGN_MEASURED = true`, covered by `packages/telemetry/test/steering.test.ts`. Agrees with iRacing's counter-clockwise-positive convention, but the agreement is a cross-check — the source is a driver turning right and reading the sign.
+- [x] Confirm `Lat`/`Lon` are actually populated
+  **They are not.** Not zero — *absent* from the telemetry variable list (`"Lat" in telemetry === false`). §4.1.1's primary centreline path does not exist on iRacing, so the dead-reckoning fallback is the only one. See M1 below.
+- [x] Record the channels dead reckoning needs, before driving the M1 lap
+  `VelocityX`, `VelocityY`, `YawNorth` all present and now in `TelemetryFrame`, along with `LapDist` (metres). Done ahead of the lap deliberately: a lap recorded without them cannot produce a centreline, and the fix would have been to drive it again.
+- [x] Label recordings with track and car, and group them by both
+  `data/recordings/<track>/<car>/<timestamp>.ndjson`, ids from the sim's own `TrackName`/`CarPath`. The header repeats it, so a file moved out of the tree still says what it is. `ReplayAdapter.identity` reads it back.
 - [ ] Drive a lap, get a recording, check it into the repo as the M1 fixture
+  Still owed, and it is the deliverable. Needs **Okayama**, not Daytona — M1's *done when* is Okayama's corners coming out right.
   *Done when:* you can drive a lap and get a recording, and you know which sign is left.
+
+Three things came out of doing this that were not visible from macOS:
+
+- `LapDist` cross-checks the pct grid exactly: at Daytona, `lapDistPct` 0.04174 ×
+  5687.3 m = 237.4 m against a reported `lapDistM` of 237.39. §4.3's assumption
+  that pct is evenly spaced in distance holds, and now there is a channel to keep
+  checking it against rather than trusting it.
+- `getTelemetry()` **aborts the process** — not throws — if called before the
+  session data is mapped. It has to be gated on `sessionStatusOK`, which only
+  refreshes when `waitForData` is called. Nothing in the SDK docs says so.
+- `waitForData` blocks the calling thread, and in Electron that thread also pumps
+  Chromium's message loop. A blocking wait there starves IPC to the renderer:
+  frames reach the recorder and the window shows nothing.
 
 ## M1 — Replay harness + track map builder
 
-- [ ] Replay a recording on a virtual clock
+- [x] Replay a recording on a virtual clock
+  Landed early, in M0a — §9 puts the harness before the engine, so it had to.
+- [ ] Resample a recorded lap onto the fixed pct grid (§4.3)
+  Everything else in M1 consumes this, not raw frames: corner detection, the onset
+  functions and the centreline all assume one lap on one evenly-spaced grid. It is
+  also where a lap gets rejected as unusable — off-track, a reset, or a wrap that
+  never happens.
 - [ ] Corner detection (§5) → `corners.json`, plus `corners.override.json` for hand fixes
   Don't try to solve chicanes and fast kinks algorithmically — ten minutes per track beats a week of tuning.
+  Unblocked now the steering sign is measured: `directionFromSteer()` throws until it is, by design.
 - [ ] `brakeOnsetPct` / `throttleOnPct` (§5.1) → `ReferenceLap.perCorner`
   One definition shared by reference and live driver, or §6.5's error metric compares different quantities.
-- [ ] Centreline from Lat/Lon, equirectangular about mean latitude (§4.1.1)
+- [ ] Centreline by **dead reckoning**, with a closure correction at start/finish (§4.1.1)
+  **Changed from the spec, and not by choice.** §4.1.1 says use Lat/Lon and treat
+  dead reckoning as the fallback; iRacing does not expose Lat/Lon at all (M0b), so
+  the fallback is the whole plan. Integrate `velocityXMps`/`velocityYMps` rotated
+  by `yawNorthRad`, then distribute the closure error around the lap — an
+  uncorrected loop does not join up, and the editor (§7.4) draws its map from this.
+  Must reject an all-zero-velocity lap loudly: every recording made before these
+  channels existed parses fine and integrates to a single point.
 - [ ] Throwaway script rendering detected corners so you can eyeball them
   *Done when:* Okayama's corners come out right without hand-editing.
 

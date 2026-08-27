@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { mps, pct, radians, seconds } from "@exxeed/core";
+import { metres, mps, pct, radians, seconds } from "@exxeed/core";
 import {
   NdjsonRecorder,
   ReplayAdapter,
@@ -39,6 +39,10 @@ const frame = (tMs: number): TelemetryFrame => ({
   steerRad: radians(0),
   lat: 0,
   lon: 0,
+  velocityXMps: mps(40),
+  velocityYMps: mps(0),
+  yawNorthRad: radians(1.2),
+  lapDistM: metres(2000),
   isOnTrack: true,
   onPitRoad: false,
   isInGarage: false,

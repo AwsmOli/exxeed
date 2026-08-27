@@ -8,7 +8,7 @@
  * allowed to be called.
  */
 
-import type { Mps, Pct, Radians, Seconds } from "@exxeed/core";
+import type { Metres, Mps, Pct, Radians, Seconds } from "@exxeed/core";
 
 /**
  * `irsdk_TrkLoc` — SPEC.md §6.4.
@@ -58,11 +58,40 @@ export interface TelemetryFrame {
    * Degrees, straight off the SDK. Projected to a local planar frame during map
    * generation (§4.1.1), not here.
    *
-   * Recorded from M0a onward specifically so the centreline comes free from laps
-   * you already drove, rather than needing a second driving session at M1.
+   * **M0b finding: iRacing does not expose these.** `Lat` and `Lon` are not
+   * merely zero, they are absent from the telemetry variable list entirely, so
+   * §4.1.1's primary centreline path does not exist. Kept in the frame because
+   * another sim may populate them and old recordings carry the field, but the
+   * centreline has to come from dead reckoning — see the motion channels below.
    */
   readonly lat: number;
   readonly lon: number;
+
+  /**
+   * Velocity in the car's own frame, m/s: X forward, Y lateral. With
+   * `yawNorthRad` these are what §4.1.1's dead-reckoning fallback integrates,
+   * and since `Lat`/`Lon` turned out to be absent, that fallback is the only
+   * centreline path there is.
+   *
+   * Dead reckoning accumulates drift and needs a closure correction at
+   * start/finish (§4.1.1) — that correction is M1's problem, but it cannot be
+   * done at all unless these are in the recording, which is why they are here
+   * before the M1 lap gets driven rather than after.
+   */
+  readonly velocityXMps: Mps;
+  readonly velocityYMps: Mps;
+
+  /** Heading relative to north, radians. The frame the velocities rotate into. */
+  readonly yawNorthRad: Radians;
+
+  /**
+   * Distance travelled along the lap, metres — the SDK's own `LapDist`.
+   *
+   * Redundant with `lapDistPct × lengthM`, and that is the point: it gives the
+   * true track length off a recording without trusting a session-info field, and
+   * it is a direct check that the pct grid is spaced the way §4.3 assumes.
+   */
+  readonly lapDistM: Metres;
 
   // Suppression inputs — SPEC.md §6.4. All of them, from the first recording, so
   // a lap recorded today can still be replayed against the engine at M2.

@@ -28,7 +28,7 @@
  * step — the single biggest source of pain with Electron plus native modules.
  */
 
-import { mps, pct, radians, seconds } from "@exxeed/core";
+import { metres, mps, pct, radians, seconds } from "@exxeed/core";
 
 import { isTrkLoc, TRK_LOC, type TelemetryFrame, type TrkLoc } from "./frame.js";
 import {
@@ -61,8 +61,14 @@ interface IRacingTelemetry {
   readonly Brake?: { value?: number[] | number };
   readonly Gear?: { value?: number[] | number };
   readonly SteeringWheelAngle?: { value?: number[] | number };
+  // Absent in practice — see the note on TelemetryFrame.lat. Read anyway, so the
+  // day a sim does populate them the centreline gets the better source for free.
   readonly Lat?: { value?: number[] | number };
   readonly Lon?: { value?: number[] | number };
+  readonly VelocityX?: { value?: number[] | number };
+  readonly VelocityY?: { value?: number[] | number };
+  readonly YawNorth?: { value?: number[] | number };
+  readonly LapDist?: { value?: number[] | number };
   readonly IsOnTrack?: { value?: boolean[] | boolean };
   readonly OnPitRoad?: { value?: boolean[] | boolean };
   readonly IsInGarage?: { value?: boolean[] | boolean };
@@ -254,6 +260,10 @@ export function toFrame(t: IRacingTelemetry, tMs: number): TelemetryFrame {
     steerRad: radians(first(t.SteeringWheelAngle?.value, 0)),
     lat: first(t.Lat?.value, 0),
     lon: first(t.Lon?.value, 0),
+    velocityXMps: mps(first(t.VelocityX?.value, 0)),
+    velocityYMps: mps(first(t.VelocityY?.value, 0)),
+    yawNorthRad: radians(first(t.YawNorth?.value, 0)),
+    lapDistM: metres(first(t.LapDist?.value, 0)),
     isOnTrack: first(t.IsOnTrack?.value, false),
     onPitRoad: first(t.OnPitRoad?.value, false),
     isInGarage: first(t.IsInGarage?.value, false),
