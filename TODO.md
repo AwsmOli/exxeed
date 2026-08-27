@@ -101,14 +101,24 @@ Three things came out of doing this that were not visible from macOS:
 - [ ] Throwaway script rendering detected corners so you can eyeball them
   *Done when:* Daytona Road Course's corners come out right, with `corners.override.json` used only for the cases §5.2 already says are unsolvable.
 
-Daytona is a harder first track than Okayama was going to be, and in a specific,
-predictable way: it contains **both** of §5.2's failure modes in one lap. The
-banked oval sections are sustained turns held at high speed on very little
-steering input, and the infield hairpin puts a big angle into the same lap, which
-raises the P98 threshold the banking then falls under. Expect the banking to need
-an override entry. Worth knowing before tuning thresholds against it and
-concluding detection is broken — §5.2's answer is ten minutes of hand-editing per
-track, not a week of tuning.
+Daytona contains **both** of §5.2's failure modes in one lap: the banked oval
+sections are sustained turns held at high speed on very little steering input,
+and the infield hairpin puts a big angle into the same lap, raising the P98
+threshold the banking then falls under. So detection will probably miss the
+banking.
+
+**That is acceptable here, because the banking needs no callouts** — it is not a
+corner anyone has to be taught. Do not tune thresholds trying to recover it; a
+missed corner that would never carry a note costs nothing.
+
+One thing it does still cost, and it is worth settling before authoring anything:
+**corner numbering.** iRacing reports Daytona Road as 12 turns, and a coach in a
+video says "turn six" meaning the conventional sixth. If detection emits only the
+corners it found, our `index` values silently mean something different from every
+external reference — including the corner list M5 stage 3 hands the model as an
+enum (§10). Number the corners to match the track's convention via
+`corners.override.json`, including entries for corners carrying no notes, rather
+than numbering whatever detection happened to return.
 
 ## M2 — Note engine + audio
 
