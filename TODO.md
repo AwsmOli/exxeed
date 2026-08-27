@@ -4,27 +4,45 @@ duplicated here.
 
 ## M0a — Skeleton (platform-neutral, works on macOS)
 
-- [ ] pnpm workspace + strict tsconfig
+- [x] pnpm workspace + strict tsconfig
   All of §3's flags on, `noUncheckedIndexedAccess` included. No `.js` sources, no `allowJs`.
-- [ ] Lint rule enforcing `packages/core` purity
+- [x] Lint rule enforcing `packages/core` purity
   §3 asks for it to be enforced, not documented. Ban `fs`/`path`/`electron`/`irsdk-node` imports there.
-- [ ] Branded units (§3) — `Pct`, `Metres`, `Mps`, `Seconds`
+- [x] Branded units (§3) — `Pct`, `Metres`, `Mps`, `Seconds`
   Constructors at I/O boundaries only.
-- [ ] `wrapPct` / `aheadM` / `deltaM` (§4.6)
+- [x] `wrapPct` / `aheadM` / `deltaM` (§4.6)
   Every distance comparison in the codebase goes through these.
-- [ ] `TrackKey` / `TrackRef` (§4.0) and Zod schemas for the §4 artefacts
-- [ ] `resolveEventPct` + `PHASE_PCT` (§4.7)
-- [ ] `TelemetryFrame` + `TelemetrySource` interface
+- [x] `TrackKey` / `TrackRef` (§4.0) and Zod schemas for the §4 artefacts
+- [x] `resolveEventPct` + `PHASE_PCT` (§4.7)
+- [x] `TelemetryFrame` + `TelemetrySource` interface
   Include `Lat`/`Lon` from the start so M1's centreline comes free rather than needing a second driving session.
-- [ ] NDJSON telemetry recorder (§9.1) — record every frame, always, cheaply
-- [ ] `ReplayAdapter` — virtual clock at 1x/Nx, the adapter everything is developed against
-- [ ] `IRacingAdapter` with a lazy import behind a win32 guard
+- [x] NDJSON telemetry recorder (§9.1) — record every frame, always, cheaply
+- [x] `ReplayAdapter` — virtual clock at 1x/Nx, the adapter everything is developed against
+- [x] `IRacingAdapter` with a lazy import behind a win32 guard
   Keeps the whole tree importable and typecheckable off Windows.
-- [ ] Repository interfaces + `LocalFile*` implementations (§8)
+- [x] Repository interfaces + `LocalFile*` implementations (§8)
   `ReferenceLapRepository` is keyed by `TrackKey`, **not** `TrackRef` — that asymmetry is the point of §4.0.
-- [ ] Electron shell; telemetry loop in **main**, never a renderer (§7)
-- [ ] `tools/replay` CLI over a checked-in NDJSON fixture
-- [ ] Tests green with no sim: wrap boundary both directions, branded-unit `@ts-expect-error`, schema fixtures, replay ordering
+- [x] Electron shell; telemetry loop in **main**, never a renderer (§7)
+- [x] `tools/replay` CLI over a checked-in NDJSON fixture
+- [x] Tests green with no sim: wrap boundary both directions, branded-unit `@ts-expect-error`, schema fixtures, replay ordering
+
+M0a is done: 59 tests green, `pnpm typecheck` and `pnpm lint` clean, Electron boots
+on macOS against `ReplayAdapter`. Two things worth knowing that came out of building it:
+
+- `@irsdk-node/native` does **not** fail off Windows — its installer substitutes a
+  **mock** that returns fabricated telemetry. `IRacingAdapter` guards on platform
+  and throws anyway, because an app that appears to connect and streams plausible
+  garbage is worse than one that refuses.
+- SPEC.md §4.7's listing does `map.corners[note.anchor.cornerIndex]`, which indexes
+  by array *position*. Corner indices are 1-based and §5.2's override file can
+  renumber them, so the implementation looks up by the `index` field instead.
+
+## Small stuff
+
+- [ ] Replay CLI needs an absolute path
+  `pnpm --filter` runs the script from `tools/replay/`, so relative paths resolve against the wrong directory. Fix by resolving against `INIT_CWD`.
+- [ ] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
+- [ ] Install `ffprobe` before starting M5 stage 6
 
 ## M0b — Live SDK (needs a Windows machine with iRacing)
 
