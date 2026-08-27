@@ -59,9 +59,12 @@ Step-by-step: **[docs/WINDOWS.md](docs/WINDOWS.md)**.
   `VelocityX`, `VelocityY`, `YawNorth` all present and now in `TelemetryFrame`, along with `LapDist` (metres). Done ahead of the lap deliberately: a lap recorded without them cannot produce a centreline, and the fix would have been to drive it again.
 - [x] Label recordings with track and car, and group them by both
   `data/recordings/<track>/<car>/<timestamp>.ndjson`, ids from the sim's own `TrackName`/`CarPath`. The header repeats it, so a file moved out of the tree still says what it is. `ReplayAdapter.identity` reads it back.
-- [ ] Drive a lap, get a recording, check it into the repo as the M1 fixture
-  Still owed, and it is the deliverable. **Daytona Road Course** — the first track is whichever one is being driven, and that is this week's. The Daytona laps already recorded predate the motion channels, so they can feed corner detection but not the centreline; the fixture lap has to be a fresh one.
-  *Done when:* you can drive a lap and get a recording, and you know which sign is left.
+- [x] Drive a lap, get a recording, check it into the repo as the M1 fixture
+  `data/reference/daytona-2011-road-mx5-lap.ndjson` — 4364 frames, 135.39 s, MX-5 at Daytona Road, 100% grid coverage and no warnings from the resampler. Picked from a 22-minute session that yielded three fully clean laps (136.8 / 140.5 / 135.4 s); this is the fastest. `tMs` is rebased to zero so it stands alone, and the header says which track, car and source session it came from.
+  *Done when:* you can drive a lap and get a recording, and you know which sign is left. **Both done.**
+
+**M0b is closed.** The remaining M1 work is all platform-neutral again — it runs
+off that one committed lap, so it does not need Windows or the sim.
 
 Three things came out of doing this that were not visible from macOS:
 
@@ -80,36 +83,74 @@ Three things came out of doing this that were not visible from macOS:
 
 - [x] Replay a recording on a virtual clock
   Landed early, in M0a — §9 puts the harness before the engine, so it had to.
-- [ ] Resample a recorded lap onto the fixed pct grid (§4.3)
-  Everything else in M1 consumes this, not raw frames: corner detection, the onset
-  functions and the centreline all assume one lap on one evenly-spaced grid. It is
-  also where a lap gets rejected as unusable — off-track, a reset, or a wrap that
-  never happens.
-- [ ] Corner detection (§5) → `corners.json`, plus `corners.override.json` for hand fixes
-  Don't try to solve chicanes and fast kinks algorithmically — ten minutes per track beats a week of tuning.
-  Unblocked now the steering sign is measured: `directionFromSteer()` throws until it is, by design.
+- [x] Resample a recorded lap onto the fixed pct grid (§4.3)
+  `resampleLap` in `packages/core/src/resample.ts`. Linear interpolation, not
+  nearest-sample snapping — a grid cell holds ~4 samples in a slow corner and none
+  on a straight, so snapping aliases the fast sections. Gear steps rather than
+  interpolating. Refuses a lap whose pct goes backwards (a reset or two laps
+  concatenated) instead of sorting it into plausibility; partial laps and dropped
+  frames come back as warnings plus a coverage figure.
+- [x] Corner detection (§5) — the algorithm
+  `detectCorners` in `packages/core/src/corners.ts`, §5 implemented plainly with no
+  cleverness added, per §5.2. Wrap-spanning corners are joined (Spa's turn 1 is that
+  case). `steerSignRight` is a required option with no default — a default would be
+  an assumption wearing a parameter's clothes — and there is a test asserting that
+  flipping it inverts every direction while changing nothing else about the output.
+- [ ] `corners.override.json` and the `corners.json` it produces
+  Detection gives 13 regions on the fixture lap; the track has 12 turns. The
+  corrections, confirmed against the telemetry:
+  - detected 1 covers **T1 and T2** — split, around pct 0.113. Fragile: those two sit
+    31 m apart against a 30 m merge rule, so they merge or split depending on the lap.
+  - detected 5 is not a corner, it is **T6's entry** — a 0.153 rad left flick under
+    braking (throttle 0, brake 0.5–0.7). Merge into detected 6.
+  - detected 8 + 9 are one corner, **T8**.
+  - detected 10 hides a sign change and is really **T9 (left) + T10 (right)**: a
+    0.471 rad sustained left at 0.6675 before the 0.677 right at 0.6885. Detection
+    averaged the two and reported "right". Detected 11 is **T11** — left-right-left.
+  - detected 12 + 13 are one corner, **T12**.
+  Note the two sign-change cases pull opposite ways: T6's entry must merge across a
+  sign flip, T9/T10 must split at one. Three times the magnitude separates them,
+  which is exactly why §5.2 says hand-fix rather than tune a rule.
 - [ ] `brakeOnsetPct` / `throttleOnPct` (§5.1) → `ReferenceLap.perCorner`
   One definition shared by reference and live driver, or §6.5's error metric compares different quantities.
 - [ ] Centreline by **dead reckoning**, with a closure correction at start/finish (§4.1.1)
   **Changed from the spec, and not by choice.** §4.1.1 says use Lat/Lon and treat
   dead reckoning as the fallback; iRacing does not expose Lat/Lon at all (M0b), so
   the fallback is the whole plan. Integrate `velocityXMps`/`velocityYMps` rotated
-  by `yawNorthRad`, then distribute the closure error around the lap — an
-  uncorrected loop does not join up, and the editor (§7.4) draws its map from this.
-  Must reject an all-zero-velocity lap loudly: every recording made before these
-  channels existed parses fine and integrates to a single point.
+  by `yawNorthRad`, then distribute the closure error around the lap.
+  Prototyped against the fixture lap and it works far better than §4.1.1's warning
+  about drift suggests: **1.9 m closure error over a 5701 m integrated path**
+  (0.03%), against a true length of 5687.3 m (0.24% long). Eyeballed against the
+  real circuit and it is unmistakably Daytona.
+  Two things the prototype settled that the production version should keep:
+  - The **yaw handedness is discovered, not assumed** — integrate both signs and
+    keep whichever closes the loop. Negative gives 1.9 m, positive 21.6 m. That is
+    a self-calibration, and it is a better answer than a hardcoded constant.
+  - `velocityX` is confirmed as the car-forward component: median |velocityX −
+    speed| is 0.000 m/s over 26,825 moving frames, p95 0.081.
+  Must still reject an all-zero-velocity lap loudly: every recording made before
+  these channels existed parses fine and integrates to a single point.
 - [ ] Throwaway script rendering detected corners so you can eyeball them
+  Prototyped and used — it is how the 13 regions above got checked and corrected —
+  but it lives in a scratchpad as `.mjs` and is not committed, so it is not
+  reproducible from the repo. Landing it means a TypeScript tool (§3 allows no
+  `.js` sources, build scripts included), which is the natural home for the
+  corners.json builder too.
   *Done when:* Daytona Road Course's corners come out right, with `corners.override.json` used only for the cases §5.2 already says are unsolvable.
 
-Daytona contains **both** of §5.2's failure modes in one lap: the banked oval
-sections are sustained turns held at high speed on very little steering input,
-and the infield hairpin puts a big angle into the same lap, raising the P98
-threshold the banking then falls under. So detection will probably miss the
-banking.
+**A prediction made here was wrong, and it is worth keeping the correction.** The
+expectation was that Daytona would hit both of §5.2's failure modes — that the
+banked sections, held at high speed on very little steering, would fall under a
+P98 threshold raised by the infield hairpin, and would need an override entry.
 
-**That is acceptable here, because the banking needs no callouts** — it is not a
-corner anyone has to be taught. Do not tune thresholds trying to recover it; a
-missed corner that would never carry a note costs nothing.
+They did not. The banking is detected comfortably, as two long gentle arcs (614 m
+and 503 m, 155 and 181 kph, peak 0.17 rad against a 0.118 threshold). §5's
+adaptive threshold handled a track that was supposed to defeat it. The real
+failures were elsewhere and were the opposite shape: **regions merged that should
+have split**, because averaging the steering over a region hides a sign change.
+
+The banking still needs no callouts — it is not a corner anyone has to be taught —
+but that is now a note-set decision about what to say, not a detection problem.
 
 One thing it does still cost, and it is worth settling before authoring anything:
 **corner numbering.** iRacing reports Daytona Road as 12 turns, and a coach in a

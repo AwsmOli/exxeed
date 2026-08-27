@@ -11,6 +11,12 @@ out/
 data/recordings/*
 !data/recordings/.gitkeep
 
+# data/reference/ is the exception and IS committed: the hand-picked clean laps
+# that track maps and reference laps are cut from. A recording is per-machine
+# noise, but the one lap a map was built from is the provenance of every corner
+# in it — regenerating a map from "some lap I drove that evening" is not a thing
+# you can do six months later. Big files, few of them, added deliberately.
+
 # data/demo/ is committed: the Spa turn-1 fixture as real artefacts, so the
 # replay CLI and the desktop app have something to run against out of the box.
 # Everything below is generated or per-machine.
