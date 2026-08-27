@@ -96,7 +96,34 @@ Three things came out of doing this that were not visible from macOS:
   case). `steerSignRight` is a required option with no default — a default would be
   an assumption wearing a parameter's clothes — and there is a test asserting that
   flipping it inverts every direction while changing nothing else about the output.
-- [ ] `corners.override.json` and the `corners.json` it produces
+- [x] `applyOverrides` (§5.2) and Daytona's `corners.override.json`
+  `packages/core/src/overrides.ts` plus
+  `data/tracks/iracing/192/road_course/corners.override.json`. Operations address
+  **detected** indices and all resolve against the original detection, so a file is
+  order-independent and adding one does not renumber the rest. Un-gitignored on
+  purpose: it is hand-written source, not output — regenerating a map is cheap,
+  regenerating the judgement in it is a person watching a lap again.
+  Yields **12 corners on the fixture, matching iRacing's own count**, with T9–T11
+  recovered as left-right-left.
+- [x] `brakeOnsetPct` / `throttleOnPct` (§5.1) → `ReferenceLap.perCorner`
+  `packages/core/src/onsets.ts`. In core, not the builder, because §5.1 requires the
+  reference lap and the live driver to use the *same* function; two implementations
+  that agree today would drift, and the symptom would be a callout that never fades.
+  §9's required test ("returns the onset, not a sample near corner entry") is there.
+  Note the 300 m search window clamps rather than running back forever, so on a
+  braking zone longer than that the value is the window edge, not a real onset.
+- [x] Centreline by **dead reckoning**, with a closure correction at start/finish (§4.1.1)
+  `packages/core/src/centreline.ts`. 5701 m integrated against a true 5687.3 m,
+  closing to within 2 m.
+  **A mirrored map was shipped and confirmed before this was caught**, so the
+  reasoning is worth keeping: negating yaw very nearly mirrors the path, and a
+  mirrored loop closes just as well. On the fixture the *wrong* sense closed to
+  1.94 m and the right one to 21.63 m — closure actively preferred the mirror, and
+  choosing by it was choosing by noise. Handedness is now decided by checking the
+  drawn curvature against the measured steering convention: 98.1% agreement one
+  way, 2.8% the other. Below 80% it refuses to emit rather than draw a plausible
+  circuit with every left turned into a right (§12).
+- [ ] The builder tool: `corners.json` / `map.json` / `ReferenceLap` on disk
   Detection gives 13 regions on the fixture lap; the track has 12 turns. The
   corrections, confirmed against the telemetry:
   - detected 1 covers **T1 and T2** — split, around pct 0.113. Fragile: those two sit
@@ -113,23 +140,6 @@ Three things came out of doing this that were not visible from macOS:
   which is exactly why §5.2 says hand-fix rather than tune a rule.
 - [ ] `brakeOnsetPct` / `throttleOnPct` (§5.1) → `ReferenceLap.perCorner`
   One definition shared by reference and live driver, or §6.5's error metric compares different quantities.
-- [ ] Centreline by **dead reckoning**, with a closure correction at start/finish (§4.1.1)
-  **Changed from the spec, and not by choice.** §4.1.1 says use Lat/Lon and treat
-  dead reckoning as the fallback; iRacing does not expose Lat/Lon at all (M0b), so
-  the fallback is the whole plan. Integrate `velocityXMps`/`velocityYMps` rotated
-  by `yawNorthRad`, then distribute the closure error around the lap.
-  Prototyped against the fixture lap and it works far better than §4.1.1's warning
-  about drift suggests: **1.9 m closure error over a 5701 m integrated path**
-  (0.03%), against a true length of 5687.3 m (0.24% long). Eyeballed against the
-  real circuit and it is unmistakably Daytona.
-  Two things the prototype settled that the production version should keep:
-  - The **yaw handedness is discovered, not assumed** — integrate both signs and
-    keep whichever closes the loop. Negative gives 1.9 m, positive 21.6 m. That is
-    a self-calibration, and it is a better answer than a hardcoded constant.
-  - `velocityX` is confirmed as the car-forward component: median |velocityX −
-    speed| is 0.000 m/s over 26,825 moving frames, p95 0.081.
-  Must still reject an all-zero-velocity lap loudly: every recording made before
-  these channels existed parses fine and integrates to a single point.
 - [ ] Throwaway script rendering detected corners so you can eyeball them
   Prototyped and used — it is how the 13 regions above got checked and corrected —
   but it lives in a scratchpad as `.mjs` and is not committed, so it is not
