@@ -1,0 +1,25 @@
+{
+  "name": "@exxeed/telemetry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sim adapters and the NDJSON recorder. IRacingAdapter and ReplayAdapter implement TelemetrySource.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@exxeed/core": "workspace:*"
+  },
+  "optionalDependencies": {
+    "irsdk-node": "^4.4.0"
+  }
+}

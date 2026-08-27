@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    // packages/core is pure (SPEC.md §3). No "node" types here — the absence of
+    // @types/node is a second line of defence behind the lint rule, so `fs` does
+    // not even resolve.
+    "types": []
+  },
+  "include": ["src/**/*.ts"]
+}

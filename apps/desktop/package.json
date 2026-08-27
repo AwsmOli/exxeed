@@ -1,0 +1,22 @@
+{
+  "name": "@exxeed/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Electron shell. Owns the telemetry loop, the note engine and audio — never a renderer.",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --build && electron .",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@exxeed/core": "workspace:*",
+    "@exxeed/overlays": "workspace:*",
+    "@exxeed/repo": "workspace:*",
+    "@exxeed/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^33.0.2"
+  }
+}

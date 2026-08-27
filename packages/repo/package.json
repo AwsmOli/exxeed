@@ -1,0 +1,22 @@
+{
+  "name": "@exxeed/repo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repository interfaces and local-file implementations. The only place that touches disk for artefacts.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@exxeed/core": "workspace:*"
+  }
+}

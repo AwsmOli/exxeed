@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+  M0 channel readout — SPEC.md §11.
+
+  Plain HTML on purpose. The Vue overlays land at M3; this window exists only to
+  prove the telemetry loop runs in main and reaches a renderer. Ugly is fine.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+    <title>Exxeed — M0 telemetry</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        padding: 24px 28px;
+        background: #101215;
+        color: #e6e9ee;
+        font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      h1 { margin: 0 0 4px; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+      .src { color: #8a93a0; margin-bottom: 20px; }
+      table { border-collapse: collapse; width: 100%; max-width: 420px; }
+      td { padding: 3px 0; }
+      td:first-child { color: #8a93a0; width: 190px; }
+      td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+      .note { margin-top: 24px; max-width: 560px; color: #8a93a0; font-size: 12.5px; }
+      .note code { color: #c9d1d9; }
+    </style>
+  </head>
+  <body>
+    <h1>Exxeed — M0 telemetry</h1>
+    <div class="src">source: <span id="source">waiting…</span></div>
+
+    <table>
+      <tbody>
+        <tr><td>LapDistPct</td><td id="lapDistPct">—</td></tr>
+        <tr><td>Speed (m/s)</td><td id="speedMps">—</td></tr>
+        <tr><td>Speed (km/h)</td><td id="speedKph">—</td></tr>
+        <tr><td>Throttle</td><td id="throttle">—</td></tr>
+        <tr><td>Brake</td><td id="brake">—</td></tr>
+        <tr><td>Gear</td><td id="gear">—</td></tr>
+        <tr><td>Lap</td><td id="lap">—</td></tr>
+        <tr><td>Frames received</td><td id="frames">0</td></tr>
+      </tbody>
+    </table>
+
+    <p class="note">
+      Speed is stored in m/s everywhere and converted to km/h only here, in render
+      code — SPEC.md §3. <code>LapDistPct</code> is 0..1, not 0..100: the SDK's
+      <code>"%"</code> unit string is a lie.
+    </p>
+
+    <script type="module">
+      const cell = (id) => document.getElementById(id);
+      const fixed = (v, n) => (typeof v === "number" ? v.toFixed(n) : "—");
+      let frames = 0;
+
+      window.exxeed?.onStateFrame((f) => {
+        frames++;
+        cell("source").textContent = f.sourceName ?? "—";
+        cell("lapDistPct").textContent = fixed(f.lapDistPct, 5);
+        cell("speedMps").textContent = fixed(f.speedMps, 2);
+        cell("speedKph").textContent = fixed(f.speedMps * 3.6, 1);
+        cell("throttle").textContent = fixed(f.throttle, 2);
+        cell("brake").textContent = fixed(f.brake, 2);
+        cell("gear").textContent = String(f.gear ?? "—");
+        cell("lap").textContent = String(f.lap ?? "—");
+        cell("frames").textContent = String(frames);
+      });
+    </script>
+  </body>
+</html>

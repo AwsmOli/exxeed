@@ -1,0 +1,24 @@
+{
+  // Test sources are typechecked, but not built into any package's dist/. This is
+  // also what enforces the `@ts-expect-error` assertions in
+  // packages/core/test/units.test.ts — a transpile-only runner would let a broken
+  // branded-unit type pass silently, which would quietly undo SPEC.md §3.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@exxeed/core": ["./packages/core/src/index.ts"],
+      "@exxeed/telemetry": ["./packages/telemetry/src/index.ts"],
+      "@exxeed/repo": ["./packages/repo/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/test/**/*.ts", "tools/*/test/**/*.ts"]
+}

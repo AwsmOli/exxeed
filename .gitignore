@@ -1,1 +1,25 @@
 .DS_Store
+
+node_modules/
+dist/
+out/
+.tsbuild/
+*.tsbuildinfo
+
+# Telemetry recordings are large and per-machine. The small synthetic fixture the
+# tests replay lives in packages/telemetry/test/fixtures/ and IS checked in.
+data/recordings/*
+!data/recordings/.gitkeep
+
+# Generated artefacts — regenerated from recordings, not source of truth.
+data/tracks/*
+!data/tracks/.gitkeep
+data/reflaps/*
+!data/reflaps/.gitkeep
+data/audio/*
+!data/audio/.gitkeep
+data/profile/*
+!data/profile/.gitkeep
+
+.env
+.env.local

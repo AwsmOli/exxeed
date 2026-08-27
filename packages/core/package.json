@@ -1,0 +1,22 @@
+{
+  "name": "@exxeed/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure domain logic: units, pct helpers, schemas, corner detection, note engine. No I/O.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

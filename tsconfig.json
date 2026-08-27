@@ -1,0 +1,20 @@
+{
+  // Root project. Covers the repo-level config files so that "TypeScript
+  // everywhere" (SPEC.md §3) includes the build tooling, and references every
+  // workspace package so `tsc --build` typechecks the whole tree in one pass.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./.tsbuild/root",
+    "rootDir": "."
+  },
+  "include": ["vitest.config.ts"],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/telemetry" },
+    { "path": "./packages/repo" },
+    { "path": "./packages/overlays" },
+    { "path": "./apps/desktop" },
+    { "path": "./tools/replay" },
+    { "path": "./services/ingest" }
+  ]
+}

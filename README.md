@@ -67,11 +67,24 @@ pnpm typecheck
 pnpm lint
 ```
 
+Replay a recording through the harness, or boot the app against one:
+
+```sh
+pnpm --filter @exxeed/replay start /abs/path/to/recording.ndjson --speed 10
+EXXEED_REPLAY=/abs/path/to/recording.ndjson pnpm dev
+```
+
 **iRacing is Windows-only, and so is the telemetry SDK.** `@irsdk-node/native`
-ships prebuilds for `win32-x64` and `win32-arm64` only. Everything else — the
-engine, the schemas, the replay harness, the tests — is platform-neutral and
-developed against recorded laps via `ReplayAdapter`, so the bulk of the work
-happens anywhere. Only the live adapter needs Windows.
+ships prebuilds for `win32-x64` and `win32-arm64` only; off Windows its installer
+substitutes a **mock** that returns fabricated telemetry rather than failing. So
+`IRacingAdapter` guards on platform and throws instead — plausible-looking fake
+data is worse than a clear error.
+
+Everything else — the engine, the schemas, the replay harness, the tests — is
+platform-neutral and developed against recorded laps via `ReplayAdapter`, so the
+bulk of the work happens anywhere. With no recording to hand the app falls back to
+a small synthetic fixture, which is enough to see frames flowing but is not real
+telemetry and must never be used to cut a track map.
 
 ## License
 
