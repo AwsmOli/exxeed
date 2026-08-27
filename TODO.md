@@ -42,6 +42,8 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 - [ ] Replay CLI needs an absolute path
   `pnpm --filter` runs the script from `tools/replay/`, so relative paths resolve against the wrong directory. Fix by resolving against `INIT_CWD`.
 - [ ] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
+- [ ] Correct §6.2's and §9's start/finish worked examples in docs/SPEC.md
+  Both illustrate the double-fire with a note anchored at pct 0.998. That event sits *before* the line, so by the time a naive `firedThisLap` set is cleared the event is a whole lap behind (6988 m) and even the broken design cannot re-fire. The bug needs the trigger on one side of the line and the **event on the other** — turn 1's *entry* at 0.0121, not the 100 board at 0.99781. Bug is real; the illustration is off by one anchor. See `packages/core/test/engine.test.ts`.
 - [ ] Install `ffprobe` before starting M5 stage 6
 
 ## M0b — Live SDK (needs a Windows machine with iRacing)
@@ -67,9 +69,10 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 ## M2 — Note engine + audio
 
-- [ ] Per-note state machine (§6.2) — ARMED/SPENT, no lap concept
-  §12: never clear fired-state at start/finish. It double-fires turn 1 at most tracks.
-- [ ] `leadSecondsFor` (§6.1) as the single source of truth for lead time
+- [x] Per-note state machine (§6.2) — ARMED/SPENT, no lap concept
+  §12: never clear fired-state at start/finish. It double-fires turn 1 at most tracks. Regression test verified by mutation: the naive `firedThisLap` design fails all three S/F tests.
+- [x] `leadSecondsFor` (§6.1) as the single source of truth for lead time
+  Both adjustment layers separate and additive, with a floor so a negative adjustment can never leave the voice still talking after its own event.
 - [ ] Scheduler: fit test, short-form fallback, priority admission, tie-break by event position (§6.3)
 - [ ] Suppression (§6.4)
 - [ ] Preload WAVs at session start; never touch disk at trigger time
