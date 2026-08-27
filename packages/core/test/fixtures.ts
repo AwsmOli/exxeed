@@ -79,19 +79,19 @@ const audio = (file: string, durationMs: number) => ({ file, durationMs });
 
 export const spaGt3Notes: NoteSet = {
   id: "spa-gt3-fixture",
-  trackRef: spaMap.trackRef,
+  trackKey: { sim: "iracing", trackId: 266, configId: "grand_prix" },
+  lengthM: SPA_LENGTH_M,
   carClass: "gt3",
   source: { type: "manual", title: "Fixture", channel: "—" },
   status: "draft",
   createdAt: "2026-08-27T00:00:00Z",
   notes: [
     {
+      // At the 100 board — pct 0.99781, behind the start/finish line (§4.2).
       id: "t1_brake",
-      cornerIndex: 1,
-      phase: "brake",
+      pct: 0.99781,
       text: "Brake at the hundred board",
       textShort: "Hundred board",
-      anchor: { type: "landmark", id: "t1_board_100", offsetM: 0 },
       priority: 1,
       leadAdjustS: -0.2,
       confidence: 0.86,
@@ -102,12 +102,11 @@ export const spaGt3Notes: NoteSet = {
       dirty: false,
     },
     {
+      // At La Source's apex.
       id: "t1_throttle",
-      cornerIndex: 1,
-      phase: "throttle",
+      pct: 0.018,
       text: "Kerb — throttle",
       textShort: "Throttle",
-      anchor: { type: "corner", cornerIndex: 1, offsetM: 0 },
       priority: 2,
       leadAdjustS: 0,
       confidence: 0.74,

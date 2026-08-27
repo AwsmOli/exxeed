@@ -39,6 +39,12 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 ## Small stuff
 
+- [ ] No way to regenerate a note set's placeholder audio
+  `data/audio/` is gitignored, so the Daytona pack exists only on this machine —
+  a fresh clone gets "no audio pack, running silent". It was rendered by a
+  throwaway script. Wants to be a small command, and it is most of stage 6's
+  shape anyway (render both variants, measure, write the pack).
+
 - [ ] Check in a multi-lap slice of the Daytona session as an engine fixture
   `data/reference/daytona-2011-road-mx5-lap.ndjson` is one extracted lap, so §6.4
   suppresses every one of its 4,364 frames as `out_lap` and the engine says
@@ -216,7 +222,8 @@ than numbering whatever detection happened to return.
   All seven conditions, plus the 2 s off-track hold and the out-lap gate.
 - [x] Preload WAVs at session start; never touch disk at trigger time
   Clips are read, duration-checked and shipped to the renderer once; decoding happens there at preload, not on play. A pack whose declared `durationMs` disagrees with the file is a warning, not a shrug — it mistimes every callout for that note.
-- [ ] Corners too close together share one callout, anchored at the first
+- [x] Corners too close together share one callout, anchored at the first
+  Falls out of the model rather than needing a rule: T9-T11 is one note at 0.6563. So does the throttle cue that used to be its own line.
   There is no time to say two things between two corners a second apart, so a
   complex gets one note covering the sequence rather than one note per corner.
   **This is a NoteSet decision, not a TrackMap one** — the gap that matters is in
@@ -226,7 +233,8 @@ than numbering whatever detection happened to return.
   Measured at Daytona in the MX-5: only T3→T4 (1.61 s) is tight enough to force
   it. Everything else clears the ~1.9 s a full-form callout needs — including the
   T9–T11 complex, at 2.67 s and 4.07 s. Expect more pairs to collapse in a GT3.
-- [ ] Hand-author note sets for Daytona Road Course and Spa (long, turn 1 wraps — deliberately the hard case)
+- [x] Hand-author note sets for Daytona Road Course and Spa (long, turn 1 wraps — deliberately the hard case)
+  Daytona is 6 notes, one per braking point, merged from 12 — one callout every ~22 s over the lap. Text is still placeholder and every note is `dirty`, so it stays `draft` until there is a real voice.
   **Blocked on M0b.** A note set needs a TrackMap and a LandmarkInventory to anchor against, and both come from a recorded lap. `data/demo/` holds a two-corner Spa stub to develop against; inventing full corner geometry for a braking-point app would be worse than waiting.
 - [ ] Pick a voice provider (§13 Q4) and render real audio
   The audio path is built and runs on placeholder tones at the declared durations. Timing logic is verifiable now; whether a callout *feels* early or late is not, until the words are real.

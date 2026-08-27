@@ -1,30 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import type { Note, ResolvedNote } from "@exxeed/core";
-import { aheadM, indexLandmarks, metres, mps, NoteEngine, resolveNotes } from "@exxeed/core";
+import type { Note } from "@exxeed/core";
+import { aheadM, metres, mps, NoteEngine } from "@exxeed/core";
 
-import { spaGt3Notes, spaLandmarks, spaMap, SPA_LENGTH_M } from "./fixtures.js";
+import { spaGt3Notes, SPA_LENGTH_M } from "./fixtures.js";
 import { Car, drops, plays } from "./harness.js";
 
 const SPA = metres(SPA_LENGTH_M);
-const landmarks = indexLandmarks(spaLandmarks);
 
-const resolved = (notes: readonly Note[]): readonly ResolvedNote[] =>
-  resolveNotes(notes, spaMap, landmarks).resolved;
-
-/** The 100 board note. Event at pct 0.99781 — before the start/finish line. */
-const brakeOnly = resolved([spaGt3Notes.notes[0]!]);
+/** The 100 board note. Its point is pct 0.99781 — before the start/finish line. */
+const brakeOnly = [spaGt3Notes.notes[0]!];
 
 /**
  * The note that actually reproduces the start/finish double-fire.
  *
  * The bug needs the trigger point on ONE side of the line and the event on the
  * OTHER. Both illustrations in the spec (§6.2's worked example and §9's required
- * test) describe a note anchored at 0.998 — but that event sits BEFORE the line,
+ * test) put the note at 0.998 — but that point sits BEFORE the line,
  * so by the time a naive fired-set is cleared the event is a whole lap behind
  * (6988 m) and even the broken design cannot re-fire.
  *
- * Anchor to turn 1's ENTRY instead (pct 0.0121, i.e. 84.7 m into the lap) and the
+ * Put the note at turn 1's entry instead — pct 0.0121, 84.7 m into the lap — and the
  * numbers line up: a 1.24 s callout at 69 m/s needs 120 m of lead, so it fires at
  * pct 0.99496 — before the line — for an event 84.7 m AFTER it. Clear the set at
  * the line and dAhead is 84.7 m against a 120 m lead, so it speaks a second time,
@@ -33,18 +29,17 @@ const brakeOnly = resolved([spaGt3Notes.notes[0]!]);
 const t1EntryBrake: Note = {
   ...spaGt3Notes.notes[0]!,
   id: "t1_entry_brake",
-  phase: "brake",
-  anchor: { type: "corner", cornerIndex: 1, offsetM: 0 },
+  pct: 0.0121,
   leadAdjustS: 0,
 };
 
-const entryBrakeOnly = resolved([t1EntryBrake]);
+const entryBrakeOnly = [t1EntryBrake];
 
 /**
  * An engine and a car past the out-lap gate (§6.4 requires one completed lap) and
  * with every note armed, parked just before the approach to turn 1.
  */
-function ready(notes: readonly ResolvedNote[], leadAdjustS = 0) {
+function ready(notes: readonly Note[], leadAdjustS = 0) {
   const engine = new NoteEngine(notes, SPA, { leadAdjustS });
   const car = new Car(0.05);
   car.drive(engine, 1.1 * SPA_LENGTH_M, { stepM: 5 });
@@ -213,7 +208,7 @@ describe("state machine", () => {
   });
 
   it("tracks notes independently", () => {
-    const { engine, car } = ready(resolved(spaGt3Notes.notes));
+    const { engine, car } = ready(spaGt3Notes.notes);
     const spoken = plays(car.drive(engine, SPA_LENGTH_M, { stepM: 1 }));
 
     expect(spoken.map((e) => e.noteId).sort()).toEqual(["t1_brake", "t1_throttle"]);
@@ -239,7 +234,7 @@ describe("state machine", () => {
 
 describe("suppression drops queued notes", () => {
   it("discards the queue rather than releasing a burst on rejoining", () => {
-    const { engine, car } = ready(resolved(spaGt3Notes.notes));
+    const { engine, car } = ready(spaGt3Notes.notes);
 
     // Two notes become due while the channel is busy, then the car goes off.
     car.teleport(0.98);

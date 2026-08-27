@@ -1,11 +1,11 @@
 {
   "id": "daytona-mx5-draft",
-  "trackRef": {
+  "trackKey": {
     "sim": "iracing",
     "trackId": 192,
-    "configId": "road_course",
-    "mapVersion": 1
+    "configId": "road_course"
   },
+  "lengthM": 5687.290045843393,
   "carClass": "mx5",
   "source": {
     "type": "manual",
@@ -16,302 +16,110 @@
   "createdAt": "2026-08-27T00:00:00Z",
   "notes": [
     {
-      "id": "t1_brake",
-      "cornerIndex": 1,
-      "phase": "brake",
-      "text": "Brake, turn 1, left",
+      "id": "t1",
+      "pct": 0.06125000000000003,
+      "text": "Brake, turn 1, left, second out",
       "textShort": "Left",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 1,
-        "offsetM": 0
-      },
       "priority": 1,
       "leadAdjustS": 0,
-      "confidence": 0.5,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t1_brake.wav",
-        "durationMs": 1360
+        "file": "daytona-mx5-draft/en_test/t1.wav",
+        "durationMs": 2140
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t1_brake_short.wav",
-        "durationMs": 580
+        "file": "daytona-mx5-draft/en_test/t1_short.wav",
+        "durationMs": 640
       },
       "dirty": true
     },
     {
-      "id": "t1_throttle",
-      "cornerIndex": 1,
-      "phase": "throttle",
-      "text": "Throttle, second",
-      "textShort": "Throttle",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 1,
-        "offsetM": 0
-      },
-      "priority": 2,
-      "leadAdjustS": 0,
-      "confidence": 0.5,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_test/t1_throttle.wav",
-        "durationMs": 840
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t1_throttle_short.wav",
-        "durationMs": 580
-      },
-      "dirty": true
-    },
-    {
-      "id": "t2_brake",
-      "cornerIndex": 2,
-      "phase": "brake",
-      "text": "Brake, turn 2, left",
+      "id": "t2",
+      "pct": 0.11299999999999999,
+      "text": "Brake, turn 2, left, third out",
       "textShort": "Left",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 2,
-        "offsetM": 0
-      },
       "priority": 1,
       "leadAdjustS": 0,
-      "confidence": 0.5,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t2_brake.wav",
-        "durationMs": 1360
+        "file": "daytona-mx5-draft/en_test/t2.wav",
+        "durationMs": 2140
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t2_brake_short.wav",
-        "durationMs": 580
+        "file": "daytona-mx5-draft/en_test/t2_short.wav",
+        "durationMs": 640
       },
       "dirty": true
     },
     {
-      "id": "t2_throttle",
-      "cornerIndex": 2,
-      "phase": "throttle",
-      "text": "Throttle, third",
-      "textShort": "Throttle",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 2,
-        "offsetM": 0
-      },
-      "priority": 2,
-      "leadAdjustS": 0,
-      "confidence": 0.5,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_test/t2_throttle.wav",
-        "durationMs": 840
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t2_throttle_short.wav",
-        "durationMs": 580
-      },
-      "dirty": true
-    },
-    {
-      "id": "t4_brake",
-      "cornerIndex": 4,
-      "phase": "brake",
-      "text": "Brake, turn 4, right",
+      "id": "t4",
+      "pct": 0.15274999999999994,
+      "text": "Brake, turn 4, right, first out",
       "textShort": "Right",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 4,
-        "offsetM": 0
-      },
       "priority": 1,
       "leadAdjustS": 0,
-      "confidence": 0.5,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t4_brake.wav",
-        "durationMs": 1360
+        "file": "daytona-mx5-draft/en_test/t4.wav",
+        "durationMs": 2140
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t4_brake_short.wav",
-        "durationMs": 580
+        "file": "daytona-mx5-draft/en_test/t4_short.wav",
+        "durationMs": 640
       },
       "dirty": true
     },
     {
-      "id": "t4_throttle",
-      "cornerIndex": 4,
-      "phase": "throttle",
-      "text": "Throttle, first",
-      "textShort": "Throttle",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 4,
-        "offsetM": 0
-      },
-      "priority": 2,
-      "leadAdjustS": 0,
-      "confidence": 0.5,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_test/t4_throttle.wav",
-        "durationMs": 840
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t4_throttle_short.wav",
-        "durationMs": 580
-      },
-      "dirty": true
-    },
-    {
-      "id": "t6_brake",
-      "cornerIndex": 6,
-      "phase": "brake",
-      "text": "Brake, turn 6, right",
+      "id": "t6",
+      "pct": 0.28475000000000006,
+      "text": "Brake, turn 6, right, first out",
       "textShort": "Right",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 6,
-        "offsetM": 0
-      },
       "priority": 1,
       "leadAdjustS": 0,
-      "confidence": 0.5,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t6_brake.wav",
-        "durationMs": 1360
+        "file": "daytona-mx5-draft/en_test/t6.wav",
+        "durationMs": 2140
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t6_brake_short.wav",
-        "durationMs": 580
+        "file": "daytona-mx5-draft/en_test/t6_short.wav",
+        "durationMs": 640
       },
       "dirty": true
     },
     {
-      "id": "t6_throttle",
-      "cornerIndex": 6,
-      "phase": "throttle",
-      "text": "Throttle, first",
-      "textShort": "Throttle",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 6,
-        "offsetM": 0
-      },
-      "priority": 2,
-      "leadAdjustS": 0,
-      "confidence": 0.5,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_test/t6_throttle.wav",
-        "durationMs": 840
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t6_throttle_short.wav",
-        "durationMs": 580
-      },
-      "dirty": true
-    },
-    {
-      "id": "t7_brake",
-      "cornerIndex": 7,
-      "phase": "brake",
-      "text": "Brake, turn 7, left",
+      "id": "t7",
+      "pct": 0.36675000000000013,
+      "text": "Brake, turn 7, left, second out",
       "textShort": "Left",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 7,
-        "offsetM": 0
-      },
       "priority": 1,
       "leadAdjustS": 0,
-      "confidence": 0.5,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t7_brake.wav",
-        "durationMs": 1360
+        "file": "daytona-mx5-draft/en_test/t7.wav",
+        "durationMs": 2140
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t7_brake_short.wav",
-        "durationMs": 580
+        "file": "daytona-mx5-draft/en_test/t7_short.wav",
+        "durationMs": 640
       },
       "dirty": true
     },
     {
-      "id": "t7_throttle",
-      "cornerIndex": 7,
-      "phase": "throttle",
-      "text": "Throttle, second",
-      "textShort": "Throttle",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 7,
-        "offsetM": 0
-      },
-      "priority": 2,
-      "leadAdjustS": 0,
-      "confidence": 0.5,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_test/t7_throttle.wav",
-        "durationMs": 840
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t7_throttle_short.wav",
-        "durationMs": 580
-      },
-      "dirty": true
-    },
-    {
-      "id": "t9_brake",
-      "cornerIndex": 9,
-      "phase": "brake",
-      "text": "Brake, turns 9 to 11, left right left",
+      "id": "t9",
+      "pct": 0.65625,
+      "text": "Brake, turns 9 to 11, left right left, third out",
       "textShort": "Left",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 9,
-        "offsetM": 0
-      },
       "priority": 1,
       "leadAdjustS": 0,
-      "confidence": 0.5,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t9_brake.wav",
-        "durationMs": 2400
+        "file": "daytona-mx5-draft/en_test/t9.wav",
+        "durationMs": 3340
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t9_brake_short.wav",
-        "durationMs": 580
-      },
-      "dirty": true
-    },
-    {
-      "id": "t11_throttle",
-      "cornerIndex": 11,
-      "phase": "throttle",
-      "text": "Throttle, third",
-      "textShort": "Throttle",
-      "anchor": {
-        "type": "corner",
-        "cornerIndex": 11,
-        "offsetM": 0
-      },
-      "priority": 2,
-      "leadAdjustS": 0,
-      "confidence": 0.5,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_test/t11_throttle.wav",
-        "durationMs": 840
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t11_throttle_short.wav",
-        "durationMs": 580
+        "file": "daytona-mx5-draft/en_test/t9_short.wav",
+        "durationMs": 640
       },
       "dirty": true
     }

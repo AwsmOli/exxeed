@@ -7,14 +7,8 @@
  * mid-stint cannot silently stop the callouts.
  */
 
-import type { DriverProfile, NoteSet, TrackMap } from "@exxeed/core";
-import {
-  indexLandmarks,
-  metres,
-  NoteEngine,
-  resolveNotes,
-  type LandmarkIndex,
-} from "@exxeed/core";
+import type { DriverProfile, NoteSet } from "@exxeed/core";
+import { metres, NoteEngine } from "@exxeed/core";
 import type { PreloadedAudio } from "@exxeed/repo";
 import { localRepositories, preloadAudio } from "@exxeed/repo";
 
@@ -28,7 +22,6 @@ export interface SessionConfig {
 export interface LoadedSession {
   readonly engine: NoteEngine;
   readonly noteSet: NoteSet;
-  readonly map: TrackMap;
   readonly audio: PreloadedAudio | null;
   readonly warnings: readonly string[];
 }
@@ -42,23 +35,9 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     throw new Error(`no note set "${config.noteSetId}" under ${config.dataDir}`);
   }
 
-  const map = await repos.trackMaps.get(noteSet.trackRef);
-  if (map === null) {
-    throw new Error(`no track map for ${JSON.stringify(noteSet.trackRef)}`);
-  }
-
-  // A landmark inventory is optional. A note set anchored entirely to corners
-  // (§4.7) never touches it, and refusing to load one because the track has no
-  // inventory yet blocks exactly the hand-authored sets M2 asks for. When it is
-  // missing, landmark anchors simply fail to resolve — which is already reported
-  // per note below, and says which notes are affected rather than none of them.
-  const inventory = await repos.landmarks.get(noteSet.trackRef);
-  const landmarks: LandmarkIndex = inventory === null ? new Map() : indexLandmarks(inventory);
-
-  const { resolved, unresolved } = resolveNotes(noteSet.notes, map, landmarks);
-  for (const note of unresolved) {
-    warnings.push(`note "${note.id}" has an unresolvable anchor, skipping`);
-  }
+  // No TrackMap, no LandmarkInventory. A note is a point and a message (§4.4),
+  // so the runtime needs the note set and its audio and nothing else. The map is
+  // an authoring input.
 
   // A missing audio pack is survivable — the engine still runs and the dev
   // overlay still shows what it would have said. A WRONG one is not, so
@@ -85,9 +64,8 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
   }
 
   return {
-    engine: new NoteEngine(resolved, metres(map.lengthM), config.profile),
+    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), config.profile),
     noteSet,
-    map,
     audio,
     warnings,
   };

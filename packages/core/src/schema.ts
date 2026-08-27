@@ -157,53 +157,46 @@ export const ReferenceLapSchema = z.object({
 // NoteSet (§4.4)
 // ---------------------------------------------------------------------------
 
-export const PHASES = [
-  "approach",
-  "brake",
-  "turn_in",
-  "apex",
-  "throttle",
-  "exit",
-  "line",
-] as const;
-
-export const PhaseSchema = z.enum(PHASES);
-
-export const AnchorSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("landmark"),
-    id: z.string().min(1),
-    /** Positive = further along the track (later), negative = earlier (§4.7). */
-    offsetM: z.number().default(0),
-  }),
-  z.object({
-    type: z.literal("corner"),
-    cornerIndex: z.number().int().positive(),
-    offsetM: z.number().default(0),
-  }),
-]);
-
 export const AudioVariantSchema = z.object({
   file: z.string().min(1),
-  /** ffprobe'd, never estimated (§10, §12). This is an input to the trigger, so a
+  /** Measured, never estimated (§10, §12). This is an input to the trigger, so a
    *  wrong duration is a mistimed callout, not just a cosmetic error. */
   durationMs: z.number().positive(),
 });
 
+/**
+ * A note is a point on the track and something to say there.
+ *
+ * That is the whole model. There is no phase taxonomy and no corner association:
+ * the engine does not need to know whether a message is about braking, throttle,
+ * a bump, or where the pit entry is. It knows where and it knows the words.
+ *
+ * Two consequences worth stating, because they read as losses and are not:
+ *
+ *  - **Merging beats splitting.** If the throttle application at a corner is
+ *    worth mentioning, it belongs in that corner's message, not in a second
+ *    callout. One point, one message. The input traces (§7.1) carry the detail a
+ *    driver wants to check afterwards; the voice carries what they need now.
+ *  - **`pct` is the most stable anchor available**, not the least. A lap position
+ *    is a physical property of the tarmac; corner numbering is a derived artefact
+ *    that a `corners.override.json` can renumber (§5.2). Anchoring to the derived
+ *    thing is what would be fragile.
+ */
 export const NoteSchema = z.object({
   id: z.string().min(1),
-  cornerIndex: z.number().int().positive(),
-  phase: PhaseSchema,
+  /** Where on the lap this is relevant, 0..1. The event the callout aims at. */
+  pct: z.number().min(0).max(1),
   text: z.string().min(1),
+  /** Short form, for when the full one no longer fits before `pct` (§6.3). */
   textShort: z.string().min(1),
-  anchor: AnchorSchema,
   /** 1 = highest. */
   priority: z.number().int().min(1),
   /** The AUTHOR's timing fix for this note, shipped inside the note set for
    *  everyone. Distinct from profile.leadAdjustS, which is one driver's
    *  preference and never leaves their machine (§6.1). */
   leadAdjustS: z.number().default(0),
-  confidence: z.number().min(0).max(1),
+  /** Ingest metadata (§10). Absent on hand-authored notes. */
+  confidence: z.number().min(0).max(1).optional(),
   /** Timestamp in the source video, for the editor's jump-to-source (§7.4). */
   sourceTs: z.string().optional(),
   fadeable: z.boolean().default(true),
@@ -228,8 +221,20 @@ export const NoteSetSourceSchema = z.object({
 
 export const NoteSetSchema = z.object({
   id: z.string().min(1),
-  /** TrackRef — this holds corner indices, so it is tied to a map version (§4.0). */
-  trackRef: TrackRefSchema,
+  /**
+   * TrackKey, NOT TrackRef. A note set holds lap positions, not corner indices,
+   * so re-cutting the track map cannot invalidate it — the same reasoning §4.0
+   * applies to ReferenceLap.
+   */
+  trackKey: TrackKeySchema,
+  /**
+   * Track length in metres. Denormalised deliberately: it is the only piece of
+   * geometry the runtime needs, it cannot change for a given TrackKey, and
+   * carrying it makes a note set self-sufficient. The engine then needs exactly
+   * one artefact plus its audio — no TrackMap, no LandmarkInventory. Those are
+   * authoring inputs (§5, §10), not runtime ones.
+   */
+  lengthM: z.number().positive(),
   carClass: z.string().min(1),
   source: NoteSetSourceSchema,
   status: NoteSetStatusSchema,
@@ -268,8 +273,6 @@ export type Landmark = z.infer<typeof LandmarkSchema>;
 export type LandmarkInventory = z.infer<typeof LandmarkInventorySchema>;
 export type PerCorner = z.infer<typeof PerCornerSchema>;
 export type ReferenceLap = z.infer<typeof ReferenceLapSchema>;
-export type Phase = z.infer<typeof PhaseSchema>;
-export type Anchor = z.infer<typeof AnchorSchema>;
 export type AudioVariant = z.infer<typeof AudioVariantSchema>;
 export type Note = z.infer<typeof NoteSchema>;
 export type NoteSetStatus = z.infer<typeof NoteSetStatusSchema>;
@@ -281,7 +284,7 @@ export type AudioPack = z.infer<typeof AudioPackSchema>;
  *  carry `notes`, so a picker can list a track's sets without loading them. */
 export interface NoteSetSummary {
   id: string;
-  trackRef: z.infer<typeof TrackRefSchema>;
+  trackKey: z.infer<typeof TrackKeySchema>;
   carClass: string;
   title: string;
   channel: string;
@@ -293,7 +296,7 @@ export interface NoteSetSummary {
 
 export const summariseNoteSet = (set: NoteSet): NoteSetSummary => ({
   id: set.id,
-  trackRef: set.trackRef,
+  trackKey: set.trackKey,
   carClass: set.carClass,
   title: set.source.title ?? "(untitled)",
   channel: set.source.channel ?? "(unknown)",

@@ -17,7 +17,7 @@ export * from "./corners.js";
 export * from "./centreline.js";
 export * from "./onsets.js";
 export * from "./overrides.js";
-export * from "./anchor.js";
+export * from "./map.js";
 export * from "./profile.js";
 export * from "./trigger.js";
 export * from "./suppression.js";

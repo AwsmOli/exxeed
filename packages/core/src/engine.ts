@@ -11,15 +11,15 @@
  * It is wrong, and it fails at exactly the corners people care most about.
  *
  * The failure needs the trigger on one side of the line and the event on the
- * other. Turn 1 at Spa: a brake cue anchored to the corner entry at pct 0.0121
- * (84.7 m into the lap) with a 120 m lead fires at pct 0.99496, before the line.
- * Clear the fired-set at the line and `dAhead` is 84.7 m against a 120 m lead —
- * so it speaks again, a beat before the corner.
+ * other. Turn 1 at Spa: a note at pct 0.0121 — 84.7 m into the lap — with a
+ * 120 m lead fires at pct 0.99496, before the line. Clear the fired-set at the
+ * line and `dAhead` is 84.7 m against a 120 m lead, so it speaks again, a beat
+ * before the corner.
  *
  * (Note that §6.2's and §9's own worked examples put the note at pct 0.998. That
  * event sits *before* the line, so once the set is cleared the event is a whole
  * lap behind and even the broken design cannot re-fire. The bug is real; the
- * illustration is off by one anchor. See engine.test.ts.)
+ * illustration is off by one position. See engine.test.ts.)
  *
  * So this state machine has no concept of a lap at all:
  *
@@ -38,15 +38,16 @@
  */
 
 import { aheadM } from "./pct.js";
-import type { ResolvedNote } from "./anchor.js";
+import type { Note } from "./schema.js";
 import type { DriverProfile } from "./profile.js";
 import { DEFAULT_PROFILE } from "./profile.js";
-import type { EngineEvent, PumpInput } from "./scheduler.js";
+import type { Candidate, EngineEvent, PumpInput } from "./scheduler.js";
 import { compareCandidates, Scheduler } from "./scheduler.js";
 import type { SuppressionInput, SuppressionReason } from "./suppression.js";
 import { SuppressionGate } from "./suppression.js";
 import { leadDistanceM, leadSecondsFor } from "./trigger.js";
 import type { Metres, Pct } from "./units.js";
+import { pct } from "./units.js";
 
 export type NoteState = "ARMED" | "SPENT";
 
@@ -61,7 +62,8 @@ export interface TickResult {
 }
 
 export class NoteEngine {
-  readonly #notes: readonly ResolvedNote[];
+  /** Branded once, at construction. The hot path never calls a unit constructor. */
+  readonly #notes: readonly Candidate[];
   readonly #lengthM: Metres;
   readonly #halfLapM: number;
   readonly #profile: DriverProfile;
@@ -70,11 +72,11 @@ export class NoteEngine {
   readonly #scheduler: Scheduler;
 
   constructor(
-    notes: readonly ResolvedNote[],
+    notes: readonly Note[],
     lengthM: Metres,
     profile: DriverProfile = DEFAULT_PROFILE,
   ) {
-    this.#notes = notes;
+    this.#notes = notes.map((note) => ({ note, eventPct: pct(note.pct) }));
     this.#lengthM = lengthM;
     this.#halfLapM = lengthM / 2;
     this.#profile = profile;
@@ -83,7 +85,7 @@ export class NoteEngine {
     // Start everything SPENT so the out-lap is silent (§6.2). Belt and braces
     // with the out-lap suppression rule in §6.4 — they cover the same ground from
     // different directions, and neither alone covers a mid-session note-set swap.
-    for (const { note } of notes) this.#state.set(note.id, "SPENT");
+    for (const note of notes) this.#state.set(note.id, "SPENT");
   }
 
   stateOf(noteId: string): NoteState | undefined {
@@ -136,11 +138,11 @@ export class NoteEngine {
     return { events, suppressedBy: null };
   }
 
-  #collectDue(input: TickInput): ResolvedNote[] {
-    const due: ResolvedNote[] = [];
+  #collectDue(input: TickInput): Candidate[] {
+    const due: Candidate[] = [];
 
-    for (const resolved of this.#notes) {
-      const { note, eventPct } = resolved;
+    for (const candidate of this.#notes) {
+      const { note, eventPct } = candidate;
       const dAheadM = aheadM(input.lapDistPct, eventPct, this.#lengthM);
 
       if (this.#state.get(note.id) === "SPENT") {
@@ -161,7 +163,7 @@ export class NoteEngine {
         // note that stayed ARMED would re-enter the trigger test every tick for
         // the rest of its window and flood the log (§6.2).
         this.#state.set(note.id, "SPENT");
-        due.push(resolved);
+        due.push(candidate);
       }
     }
 

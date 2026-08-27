@@ -261,7 +261,7 @@ recorded laps.
 | `TrackMap` | `TrackRef` | iRacing repaves or changes a layout |
 | `LandmarkInventory` | `TrackRef` | rarely, once built |
 | `ReferenceLap` | `TrackKey` + `carId` | a faster lap is recorded |
-| `NoteSet` | `TrackRef` + carClass + source | per video, many per track |
+| `NoteSet` | `TrackKey` + carClass + source | per video, many per track — holds lap positions, not corner indices (§4.4) |
 | `AudioPack` | noteSetId + voiceId | notes or voice change |
 
 ### 4.1 TrackMap
@@ -359,7 +359,16 @@ geometry-dominated and stable enough to share; `baselineCarId` records which.
 
 ### 4.2 LandmarkInventory
 
-The asset that is genuinely hard to acquire. Build it carefully.
+**Not a runtime artefact.** The engine never loads one: a note is a point and a
+message (§4.4), and a landmark reference in the *words* — "brake at the hundred
+board" — is just a string. This exists so §10 stage 3 can hand the model a closed
+set of ids instead of letting it invent a reference to something that is not there.
+
+Which means it is not needed to hand-author a note set, and building one is not a
+prerequisite for anything before M5.
+
+The asset that is genuinely hard to acquire, when you do need it. Build it
+carefully.
 
 ```jsonc
 {
@@ -416,43 +425,69 @@ time alignment.
 
 ### 4.4 NoteSet
 
+**A note is a point on the track and something to say there.** That is the entire
+model. There is no phase, no corner index, no anchor union.
+
 ```jsonc
 {
-  "id": "spa-gt3-abc123",
-  "trackRef": { "sim": "iracing", "trackId": 266,
-                "configId": "grand_prix", "mapVersion": 3 },
-  "carClass": "gt3",
-  "source": { "type": "youtube", "videoId": "…", "url": "…",
-              "title": "…", "channel": "…" },
+  "id": "daytona-mx5-draft",
+  // TrackKey, not TrackRef — see below.
+  "trackKey": { "sim": "iracing", "trackId": 192, "configId": "road_course" },
+  "lengthM": 5687.3,
+  "carClass": "mx5",
+  "source": { "type": "manual" },
   "status": "draft",                // draft | review | published
   "createdAt": "2026-08-27T00:00:00Z",
   "notes": [
     {
-      "id": "t1_brake",
-      "cornerIndex": 1,
-      "phase": "brake",             // approach|brake|turn_in|apex|throttle|exit|line
-      "text":      "Brake at the hundred board",
-      "textShort": "Hundred board",
-      "anchor": { "type": "landmark", "id": "t1_board_100", "offsetM": 0 },
+      "id": "t1",
+      "pct": 0.0613,                // where this is relevant. That is the anchor.
+      "text":      "Brake, turn 1, left, second out",
+      "textShort": "Left",
       "priority": 1,                // 1 = highest
-      "leadAdjustS": -0.2,          // author's timing fix for THIS note (§7.4)
-      "confidence": 0.86,
-      "sourceTs": "01:23",          // jump back to the video during review
+      "leadAdjustS": 0,             // author's timing fix for THIS note (§6.1)
       "fadeable": true,
-      "audio":      { "file": "gt3/en_amy/t1_brake.wav",       "durationMs": 1240 },
-      "audioShort": { "file": "gt3/en_amy/t1_brake_short.wav", "durationMs": 720 }
+      "dirty": true,                // text edited since the audio was rendered
+      "audio":      { "file": "…/t1.wav",       "durationMs": 2140 },
+      "audioShort": { "file": "…/t1_short.wav", "durationMs": 940 }
     }
   ]
 }
 ```
 
+**Why there is no phase.** The engine does not need to know whether a message is
+about braking, throttle, a bump, or where the pit entry is. It needs to know
+*where* and it needs the words. A phase taxonomy buys nothing at runtime and
+excludes everything that is not a corner phase.
+
+**Merge, do not split.** If the throttle application at a corner is worth
+mentioning, it belongs in that corner's message — not a second callout 250 m
+later. Two lines per corner is more than a driver can use, and the input traces
+(§7.1) carry the detail they want to check afterwards. The voice carries what
+they need now. On Daytona this is the difference between 12 callouts a lap and 6.
+
+**Why `pct` and not a corner reference.** A lap position is a physical property of
+the tarmac. Corner numbering is a derived artefact that a `corners.override.json`
+can renumber (§5.2). Anchoring to the derived thing would be the fragile choice,
+not the stable one.
+
+That is also why a NoteSet is keyed by **`TrackKey`, not `TrackRef`** — the same
+reasoning §4.0 applies to `ReferenceLap`. Re-cutting a track map cannot invalidate
+a note set, because a note set holds no corner indices.
+
+**`lengthM` is carried on the set** rather than looked up. It is the only piece of
+geometry the runtime needs and it cannot change for a given `TrackKey`. Carrying
+it makes a note set self-sufficient: **the runtime loads one artefact plus its
+audio.** No `TrackMap`, no `LandmarkInventory` — those are authoring inputs (§5,
+§10), not runtime ones.
+
 Both `audio` and `audioShort` are required — the scheduler's short-form fallback
 (§6.3) needs a real duration to compute lead distance, so both must be rendered
-and `ffprobe`d.
+and measured.
 
 ```ts
 type NoteSetSummary = {
-  id: string; trackRef: TrackRef; carClass: string;
+  id: string; trackKey: TrackKey; carClass: string;
   title: string; channel: string; sourceUrl: string;
   noteCount: number; status: "draft" | "review" | "published";
   createdAt: string;
@@ -495,53 +530,26 @@ Every distance comparison in the codebase goes through one of these. Plain
 `|a - b|` on percentages is a bug, and it will only show up at the one corner
 nearest start/finish.
 
-### 4.7 Resolving an anchor to `eventPct`
+### 4.7 There is nothing to resolve
 
-```ts
-function resolveEventPct(note, map, landmarks): Pct | null {
-  if (note.anchor.type === "landmark") {
-    const lm = landmarks.get(note.anchor.id);
-    if (lm === undefined) return null;
-    // offsetM: positive = further along the track (later), negative = earlier
-    return wrapPct(lm.pct + note.anchor.offsetM / map.lengthM);
-  }
-  // By the `index` FIELD, not by array position — see below.
-  const c = map.corners.find((corner) => corner.index === note.anchor.cornerIndex);
-  if (c === undefined) return null;
-  return PHASE_PCT[note.phase](c);
-}
+A note carries its own `pct`. That is the event position — no phase table, no
+landmark lookup, no anchor union to discriminate, and no failure mode where a note
+cannot be placed. A note set is loadable or it is not.
 
-const PHASE_PCT = {
-  approach: c => c.entryPct,
-  brake:    c => c.entryPct,
-  turn_in:  c => c.entryPct,
-  apex:     c => c.apexPct,
-  throttle: c => c.apexPct,
-  exit:     c => c.exitPct,
-  line:     c => c.exitPct,
-};
-```
+What this deleted, and why none of it is missed:
 
-**Corner indices are not array positions.** They are 1-based, and a
-`corners.override.json` (§5.2) can merge, split or insert corners — so
-`map.corners[note.anchor.cornerIndex]` is off by one at best and silently wrong
-after any override at worst. Look up by the `index` field.
+- **`PHASE_PCT`** mapped a phase onto entry, apex or exit. The author decides where
+  the callout belongs; a table cannot know better.
+- **Landmark anchors.** The `LandmarkInventory` (§4.2) is not on the runtime path
+  at all. It exists so §10 stage 3 can hand the model a closed set of ids rather
+  than letting it free-text a corner reference. **A landmark reference in the
+  words needs no landmark record** — "brake at the hundred board" is a string.
+- **The unresolvable-note case**, and with it every caller that had to decide what
+  to do about one.
 
-**Resolution returns null rather than throwing.** A landmark id that is not in the
-inventory, or a corner index from a note set cut against a different `mapVersion`
-(§4.0), is a data problem, not a per-tick condition. Resolve every note once at
-load time, surface the unresolvable ones in the editor's flag queue (§7.4), and
-drop them there — the runtime does no work at 60 Hz that could have been done at
-load time (§1).
-
-A **missing landmark inventory is not an error.** The anchor is a discriminated
-union, and `{ type: "corner", ... }` resolves through `PHASE_PCT` without touching
-one. An inventory is what §10 stage 3 needs, so the model can be handed a closed
-set of landmark ids rather than free-texting a corner reference. A note set that
-anchors everything to corners — which is what the hand-authored sets in §11's M2
-do — needs no inventory at all, so loaders must not demand one up front. A missing
-inventory degrades to unresolvable anchors on the specific notes that wanted a
-landmark, and those are already reported per note.
+Corner geometry still matters at *authoring* time — that is how you decide a note
+belongs at 0.0613 — and the editor (§7.4) still draws corners from the `TrackMap`.
+The runtime never opens it.
 
 ---
 
@@ -745,13 +753,14 @@ true before arming anything.
 
 ### 6.5 Fading — the differentiating feature
 
-**v1 fades only `phase ∈ {approach, brake}` and `phase === "throttle"`** — the two
-phases with a measurable driver metric. Other phases ignore `fadeable` for now;
-per-phase metrics are a v2 problem.
+**v1 fades a note against the braking for the point it sits at.** Braking is the
+thing being learned and the thing there is a clean measurement for; a note carries
+no phase to key on (§4.4), so there is nothing finer to be had and nothing finer
+is needed.
 
-Per `(trackRef, carId, cornerIndex, phase)`, keep a rolling window comparing the
-driver's own onset against the reference, using the **same** functions from §5.1
-and the **wraparound-safe** `deltaM` from §4.6:
+Per `(trackKey, carId, noteId)`, keep a rolling window comparing the driver's own
+brake onset near the note's `pct` against the reference lap's, using the **same**
+function from §5.1 and the **wraparound-safe** `deltaM` from §4.6:
 
 ```ts
 const errorM = Math.abs(deltaM(driverOnsetPct, refOnsetPct, lengthM));
@@ -759,13 +768,18 @@ const errorM = Math.abs(deltaM(driverOnsetPct, refOnsetPct, lengthM));
 if (errorM < 15)        consecutiveGood++, consecutiveBad = 0;
 else if (errorM > 22.5) consecutiveBad++,  consecutiveGood = 0;
 
-if (consecutiveGood >= 3) mute(corner, phase);
-if (consecutiveBad  >= 2) unmute(corner, phase);
+if (consecutiveGood >= 3) mute(noteId);
+if (consecutiveBad  >= 2) unmute(noteId);
 ```
 
 The dead band between 15 m and 22.5 m is deliberate hysteresis — without it a
 driver hovering at the threshold gets a callout flickering on and off, which is
 maddening.
+
+A note with no braking near it — a pit entry marker, a warning about a bump —
+has nothing to measure, so it never fades. That is the right answer: those are
+reminders, not skills, and a driver does not "learn" them in a way the telemetry
+can see. Set `fadeable: false` on anything that should stay regardless.
 
 Only count laps that were valid (no suppression event, no off-track). Persist per
 user profile in `/data/profile/`.
@@ -864,13 +878,15 @@ interactive, changes at human speed, and needs hit-testing on every element.
 The track drawn from `TrackMap.centreline` (§4.1.1), fit to the viewport, with:
 
 - **Corner arcs** along the centreline from `entryPct` to `exitPct`, tinted by how
-  well covered they are — no notes, some phases, all phases.
+  well covered they are — corners with no note at all are the ones to look at.
 - **Landmark ticks** perpendicular to the centreline, labelled on hover.
 - **Note pills** anchored beside their corner showing `text`, so the whole lap's
   script is readable at a glance without clicking anything. That was the ask, and
   it's also the fastest way to spot a corner the model skipped.
-- A **side panel** for the selected corner: its notes in phase order, each with
-  text, phase, priority, audio duration, confidence, and a play button.
+- A **side panel** listing notes in track order, each with text, `pct`, priority,
+  audio duration, confidence, and a play button. Track order, not corner order:
+  notes are points on a lap and some of them — pit entry, a bump, traffic — belong
+  to no corner at all.
 
 **Double-click a note pill to edit its text inline.** Escape cancels, Enter
 commits.
@@ -941,8 +957,8 @@ trigger — so a stale note is not merely mispronounced, it is mistimed.
 - **Flag queue**: notes failing stage 4 validation (§10) or below a confidence
   threshold are listed for triage, so review starts with what's likely wrong
   rather than corner 1.
-- **Add a note** by clicking a point on the centreline: pre-fills the nearest
-  corner and phase, leaves text empty.
+- **Add a note** by clicking a point on the centreline. That click *is* the note's
+  `pct` — nothing to pre-fill but the position, and the text starts empty.
 
 #### Milestone
 
@@ -1125,9 +1141,14 @@ or 2.
 ### Prompting rules for stage 3
 
 - Pass the corner list and the landmark inventory **as enums**. Require every note
-  to use a `cornerIndex` and an `anchor.id` from those sets, or emit `null`. This
-  eliminates fuzzy string matching entirely and gives you a clean unassigned
-  bucket for review.
+  to name a `cornerIndex` from that set, or emit `null`. This eliminates fuzzy
+  string matching entirely and gives you a clean unassigned bucket for review.
+  Note that the corner index is a *stage 3 output only*: the pipeline resolves it
+  to a `pct` before writing the note (§4.4), so nothing downstream carries it.
+- **One note per corner.** If the throttle application or the gear is worth
+  saying, it goes in that corner's message. Do not emit an approach note and an
+  apex note and an exit note for the same corner — that is three lines where a
+  driver can use one (§4.4).
 - Give the model the lap start and end timestamps in the video. For a continuous
   onboard lap, video time maps monotonically to track position, so it can resolve
   *"brake here"* to a corner from elapsed position. Not exact, but enough to pick
@@ -1215,8 +1236,7 @@ tracks, in two cars, with the S/F test green.
 **M3 — Overlays.** Input trace vs reference, delta bar, dev callout overlay.
 *Done when:* you can see your brake trace lagging the reference in real time.
 
-**M4 — Fading + profile.** Per-corner-per-phase learning state, hysteresis,
-persistence. *Done when:* twenty laps of Daytona Road Course leaves only the
+**M4 — Fading + profile.** Per-note learning state, hysteresis, persistence. *Done when:* twenty laps of Daytona Road Course leaves only the
 corners you keep getting wrong.
 
 **M5 — Ingest pipeline** *(parallel from the start, separate package)*. Stages
@@ -1252,6 +1272,9 @@ windowed warning, overlay layout editor, note-set picker UI.
 - **Never use MP3** for callouts. WAV, preloaded into memory.
 - **Never let the LLM free-text a corner reference.** Enum or null.
 - **Never auto-merge two note sets.** Two coaches will contradict each other.
+- **One point, one message.** If the throttle application at a corner is worth
+  saying, it belongs in that corner's callout, not a second one 250 m later. A
+  driver can use one line per corner; the input traces (§7.1) carry the rest.
 - **Never assume the steering sign.** Measure it (§5). Measured at M0b: right is
   **negative** (MX-5, Daytona Road Course). Everything downstream inherits it —
   corner directions, and the centreline's yaw sense — so a wrong value mirrors the

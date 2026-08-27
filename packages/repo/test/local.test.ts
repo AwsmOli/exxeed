@@ -104,15 +104,17 @@ describe("map versioning", () => {
 });
 
 describe("note set listing", () => {
-  it("lists only sets cut against the requested map version", async () => {
+  it("lists only sets for the requested track", async () => {
     await repos.noteSets.put(spaGt3Notes);
     await repos.noteSets.put({
       ...spaGt3Notes,
-      id: "spa-gt3-oldmap",
-      trackRef: { ...spaMap.trackRef, mapVersion: 2 },
+      id: "spa-other-track",
+      trackKey: { sim: "iracing", trackId: 999, configId: "grand_prix" },
     });
 
-    const current = await repos.noteSets.listForTrack(spaMap.trackRef);
+    // Keyed by TrackKey, not TrackRef: a note set holds lap positions, so
+    // re-cutting the map cannot orphan it (§4.0, §4.4).
+    const current = await repos.noteSets.listForTrack(trackKeyOf(spaMap.trackRef));
     expect(current.map((s) => s.id)).toEqual(["spa-gt3-fixture"]);
   });
 
@@ -120,14 +122,14 @@ describe("note set listing", () => {
     await repos.noteSets.put(spaGt3Notes);
     await repos.noteSets.put({ ...spaGt3Notes, id: "spa-mx5", carClass: "mx5" });
 
-    expect(await repos.noteSets.listForTrack(spaMap.trackRef, "gt3")).toHaveLength(1);
-    expect(await repos.noteSets.listForTrack(spaMap.trackRef, "mx5")).toHaveLength(1);
-    expect(await repos.noteSets.listForTrack(spaMap.trackRef)).toHaveLength(2);
+    expect(await repos.noteSets.listForTrack(trackKeyOf(spaMap.trackRef), "gt3")).toHaveLength(1);
+    expect(await repos.noteSets.listForTrack(trackKeyOf(spaMap.trackRef), "mx5")).toHaveLength(1);
+    expect(await repos.noteSets.listForTrack(trackKeyOf(spaMap.trackRef))).toHaveLength(2);
   });
 
   it("summarises without loading notes into the listing", async () => {
     await repos.noteSets.put(spaGt3Notes);
-    const [summary] = await repos.noteSets.listForTrack(spaMap.trackRef);
+    const [summary] = await repos.noteSets.listForTrack(trackKeyOf(spaMap.trackRef));
     expect(summary?.noteCount).toBe(2);
     expect(summary).not.toHaveProperty("notes");
   });

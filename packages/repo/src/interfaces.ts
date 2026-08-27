@@ -43,7 +43,8 @@ export interface ReferenceLapRepository {
 }
 
 export interface NoteSetRepository {
-  listForTrack(ref: TrackRef, carClass?: string): Promise<NoteSetSummary[]>;
+  /** Keyed by TrackKey: a note set holds lap positions, not corner indices. */
+  listForTrack(key: TrackKey, carClass?: string): Promise<NoteSetSummary[]>;
   get(id: string): Promise<NoteSet | null>;
   put(set: NoteSet): Promise<void>;
 }

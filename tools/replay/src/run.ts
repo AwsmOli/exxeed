@@ -8,14 +8,8 @@
 
 import { resolve } from "node:path";
 
-import type { DriverProfile, NoteSet, TrackMap } from "@exxeed/core";
-import {
-  indexLandmarks,
-  metres,
-  NoteEngine,
-  resolveNotes,
-  type LandmarkIndex,
-} from "@exxeed/core";
+import type { DriverProfile, NoteSet } from "@exxeed/core";
+import { metres, NoteEngine } from "@exxeed/core";
 import { localRepositories } from "@exxeed/repo";
 import { ReplayAdapter, toTickInput } from "@exxeed/telemetry";
 
@@ -50,24 +44,12 @@ export async function loadEngine(
   const noteSet: NoteSet | null = await repos.noteSets.get(noteSetId);
   if (noteSet === null) throw new Error(`no note set "${noteSetId}" under ${dataDir}`);
 
-  const map: TrackMap | null = await repos.trackMaps.get(noteSet.trackRef);
-  if (map === null) throw new Error(`no track map for ${JSON.stringify(noteSet.trackRef)}`);
-
-  // Optional — see the note in apps/desktop/src/session.ts. A set anchored
-  // entirely to corners needs no inventory, and a missing one degrades to
-  // unresolvable anchors on the notes that wanted a landmark, not to a refusal.
-  const inventory = await repos.landmarks.get(noteSet.trackRef);
-  const landmarks: LandmarkIndex = inventory === null ? new Map() : indexLandmarks(inventory);
-
-  const { resolved, unresolved } = resolveNotes(noteSet.notes, map, landmarks);
-
-  // Unresolvable notes are a data problem, and silently dropping them is how a
-  // note set ends up quietly half-working. Say so once, at load.
-  const warnings = unresolved.map(
-    (note) => `note "${note.id}" has an unresolvable anchor, skipping`,
-  );
-
-  return { engine: new NoteEngine(resolved, metres(map.lengthM), profile), warnings };
+  // No TrackMap, no LandmarkInventory: a note is a point and a message (§4.4),
+  // and the note set carries the one bit of geometry the engine needs.
+  return {
+    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), profile),
+    warnings: [],
+  };
 }
 
 export async function run(options: RunOptions): Promise<RunSummary> {

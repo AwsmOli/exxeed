@@ -77,9 +77,20 @@ describe("NoteSchema", () => {
     expect(parsed.dirty).toBe(false);
   });
 
-  it("discriminates landmark and corner anchors", () => {
-    expect(NoteSchema.parse(spaGt3Notes.notes[0]!).anchor.type).toBe("landmark");
-    expect(NoteSchema.parse(spaGt3Notes.notes[1]!).anchor.type).toBe("corner");
+  it("is a point and a message — nothing else is required", () => {
+    // No phase, no corner index, no anchor union. The engine does not need to
+    // know whether a message is about braking, throttle, or where the pit entry
+    // is (§4.4).
+    const parsed = NoteSchema.parse(spaGt3Notes.notes[0]!);
+    expect(parsed.pct).toBeCloseTo(0.99781, 6);
+    expect(parsed.text).toBe("Brake at the hundred board");
+    expect(parsed).not.toHaveProperty("phase");
+    expect(parsed).not.toHaveProperty("anchor");
+    expect(parsed).not.toHaveProperty("cornerIndex");
+  });
+
+  it("rejects a point outside 0..1", () => {
+    expect(() => NoteSchema.parse({ ...spaGt3Notes.notes[0]!, pct: 1.4 })).toThrow();
   });
 });
 
@@ -87,7 +98,7 @@ describe("summariseNoteSet", () => {
   it("drops the notes but keeps the count, so a picker can list without loading", () => {
     const summary = summariseNoteSet(spaGt3Notes);
     expect(summary.noteCount).toBe(2);
-    expect(summary.trackRef.mapVersion).toBe(3);
+    expect(summary.trackKey.trackId).toBe(266);
     expect(summary).not.toHaveProperty("notes");
   });
 });

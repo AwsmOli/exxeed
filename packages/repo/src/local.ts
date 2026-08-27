@@ -28,7 +28,7 @@ import {
   ReferenceLapSchema,
   TrackMapSchema,
   summariseNoteSet,
-  trackRefEquals,
+  trackKeyEquals,
 } from "@exxeed/core";
 
 import type {
@@ -138,7 +138,7 @@ export class LocalFileNoteSetRepository implements NoteSetRepository {
     return raw === null ? null : NoteSetSchema.parse(raw);
   }
 
-  async listForTrack(ref: TrackRef, carClass?: string): Promise<NoteSetSummary[]> {
+  async listForTrack(key: TrackKey, carClass?: string): Promise<NoteSetSummary[]> {
     const files = (await listDir(this.#dir())).filter((f) => f.endsWith(".json"));
     const summaries: NoteSetSummary[] = [];
 
@@ -146,9 +146,9 @@ export class LocalFileNoteSetRepository implements NoteSetRepository {
       const raw = await readJson(join(this.#dir(), file));
       if (raw === null) continue;
       const set = NoteSetSchema.parse(raw);
-      // Match on TrackRef, not TrackKey: a note set cut against map version 2 is
-      // meaningless against version 3's corner numbering (§4.0).
-      if (!trackRefEquals(set.trackRef, ref)) continue;
+      // Match on TrackKey. A note set holds lap positions, not corner indices, so
+      // it survives every re-cut of the track map (§4.0, §4.4).
+      if (!trackKeyEquals(set.trackKey, key)) continue;
       if (carClass !== undefined && set.carClass !== carClass) continue;
       summaries.push(summariseNoteSet(set));
     }
