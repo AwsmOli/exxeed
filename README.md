@@ -48,6 +48,12 @@ a recording, and free to run — the AI cost is paid once per video, never per l
 Node 20 · TypeScript (strict, everywhere) · Electron · Vue 3 · pnpm workspaces ·
 Vitest. Local-first in v1, with a repository layer already shaped for Supabase.
 
+## Testing on Windows
+
+The live SDK, the steering sign convention, and recording a real lap all need a
+Windows machine with iRacing. **[docs/WINDOWS.md](docs/WINDOWS.md)** is the
+step-by-step.
+
 ## Documentation
 
 **[docs/SPEC.md](docs/SPEC.md)** is the source of truth — data model, note engine,

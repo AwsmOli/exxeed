@@ -48,6 +48,8 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 ## M0b — Live SDK (needs a Windows machine with iRacing)
 
+Step-by-step: **[docs/WINDOWS.md](docs/WINDOWS.md)**.
+
 - [ ] `irsdk-node` connects and prints `LapDistPct`, `Speed`, `Throttle`, `Brake`, `Gear`, `SteeringWheelAngle`, `IsOnTrack`, `OnPitRoad`, `PlayerTrackSurface` at 60 Hz
 - [ ] **Measure the steering sign convention** and hardcode it as a named constant with a test (§5)
   §12: never assume it. Get it backwards and every corner's `direction` inverts silently, with no crash to tell you.
