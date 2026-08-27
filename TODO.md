@@ -132,6 +132,16 @@ than numbering whatever detection happened to return.
   All seven conditions, plus the 2 s off-track hold and the out-lap gate.
 - [x] Preload WAVs at session start; never touch disk at trigger time
   Clips are read, duration-checked and shipped to the renderer once; decoding happens there at preload, not on play. A pack whose declared `durationMs` disagrees with the file is a warning, not a shrug — it mistimes every callout for that note.
+- [ ] Corners too close together share one callout, anchored at the first
+  There is no time to say two things between two corners a second apart, so a
+  complex gets one note covering the sequence rather than one note per corner.
+  **This is a NoteSet decision, not a TrackMap one** — the gap that matters is in
+  *seconds*, so it is car-dependent, and the map stays car-independent with every
+  corner on it (§4.0). Computable exactly from `ReferenceLap.elapsedS` rather than
+  guessed, and it is the text version of §7.4's trigger-window shading.
+  Measured at Daytona in the MX-5: only T3→T4 (1.61 s) is tight enough to force
+  it. Everything else clears the ~1.9 s a full-form callout needs — including the
+  T9–T11 complex, at 2.67 s and 4.07 s. Expect more pairs to collapse in a GT3.
 - [ ] Hand-author note sets for Daytona Road Course and Spa (long, turn 1 wraps — deliberately the hard case)
   **Blocked on M0b.** A note set needs a TrackMap and a LandmarkInventory to anchor against, and both come from a recorded lap. `data/demo/` holds a two-corner Spa stub to develop against; inventing full corner geometry for a braking-point app would be worse than waiting.
 - [ ] Pick a voice provider (§13 Q4) and render real audio
