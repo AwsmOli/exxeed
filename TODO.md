@@ -123,7 +123,16 @@ Three things came out of doing this that were not visible from macOS:
   drawn curvature against the measured steering convention: 98.1% agreement one
   way, 2.8% the other. Below 80% it refuses to emit rather than draw a plausible
   circuit with every left turned into a right (§12).
-- [ ] The builder tool: `corners.json` / `map.json` / `ReferenceLap` on disk
+- [x] The builder tool: `map.json` and `ReferenceLap` on disk
+  `tools/trackmap` — `exxeed-trackmap <lap.ndjson> --track-id N --config <id>`.
+  Writes through `packages/repo` rather than touching disk itself, because §8 is
+  absolute about that. Infers track length from the lap's own `lapDistM` channel,
+  which is both a measurement and a standing check on §4.3's even-spacing
+  assumption. Refuses to run while the steering sign is unmeasured, and refuses to
+  write an empty map.
+  §4.0's asymmetry is the thing to not get wrong here and it is silent when you do:
+  the map is keyed by `TrackRef` because it holds corner indices, the reference lap
+  by `TrackKey` + car because re-cutting a map must not invalidate raw telemetry.
   Detection gives 13 regions on the fixture lap; the track has 12 turns. The
   corrections, confirmed against the telemetry:
   - detected 1 covers **T1 and T2** — split, around pct 0.113. Fragile: those two sit
@@ -140,13 +149,23 @@ Three things came out of doing this that were not visible from macOS:
   which is exactly why §5.2 says hand-fix rather than tune a rule.
 - [ ] `brakeOnsetPct` / `throttleOnPct` (§5.1) → `ReferenceLap.perCorner`
   One definition shared by reference and live driver, or §6.5's error metric compares different quantities.
-- [ ] Throwaway script rendering detected corners so you can eyeball them
-  Prototyped and used — it is how the 13 regions above got checked and corrected —
-  but it lives in a scratchpad as `.mjs` and is not committed, so it is not
-  reproducible from the repo. Landing it means a TypeScript tool (§3 allows no
-  `.js` sources, build scripts included), which is the natural home for the
-  corners.json builder too.
+- [x] Throwaway script rendering detected corners so you can eyeball them
+  `tools/trackmap/src/render.ts`, behind `--svg`. Not actually throwaway: it is the
+  only way to tell a correct map from a plausible one, and §5.2's workflow is look,
+  correct, look again. Draws direction-of-travel arrows specifically because a
+  mirrored map is otherwise indistinguishable by eye — which is not hypothetical,
+  it happened.
   *Done when:* Daytona Road Course's corners come out right, with `corners.override.json` used only for the cases §5.2 already says are unsolvable.
+
+**M1 is done.** `pnpm --filter @exxeed/trackmap start data/reference/daytona-2011-road-mx5-lap.ndjson
+--track-id 192 --config road_course --car-id 67 --overrides
+data/tracks/iracing/192/road_course/corners.override.json --svg map.svg` produces
+a 12-corner map matching iRacing's own turn count, a reference lap with all six
+channels and per-corner metrics, and a picture to check it against.
+
+Numbers from that run, worth keeping as the baseline to notice regressions against:
+lap 135.39 s, 100% grid coverage, length inferred 5687.3 m against the sim's
+5.6873 km, centreline path 5701 m closing to 21.6 m, orientation agreement 98.1%.
 
 **A prediction made here was wrong, and it is worth keeping the correction.** The
 expectation was that Daytona would hit both of §5.2's failure modes — that the

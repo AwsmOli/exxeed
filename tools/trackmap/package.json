@@ -1,0 +1,19 @@
+{
+  "name": "@exxeed/trackmap",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Track map builder. Cuts a TrackMap and a ReferenceLap from one recorded lap, applying the per-track corner overrides.",
+  "bin": {
+    "exxeed-trackmap": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "start": "tsc --build && node ./dist/cli.js"
+  },
+  "dependencies": {
+    "@exxeed/core": "workspace:*",
+    "@exxeed/repo": "workspace:*",
+    "@exxeed/telemetry": "workspace:*"
+  }
+}

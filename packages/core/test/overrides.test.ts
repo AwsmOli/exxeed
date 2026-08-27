@@ -140,6 +140,28 @@ describe("applyOverrides", () => {
     }
   });
 
+  it("never puts a corner's apex outside the corner", () => {
+    // A cut landing near a grid-cell boundary used to produce an apex a fraction
+    // before its own entry. PHASE_PCT aims apex and throttle notes at apexPct,
+    // so that quietly fires them short of the corner.
+    const GRID = 2000;
+    const steerRad = new Array<number>(GRID).fill(0.3);
+    const speedMps = new Array<number>(GRID).fill(40);
+    speedMps[225] = 10; // slowest point sits right on the cut boundary
+
+    const out = applyOverrides(
+      [corner(1, 0.0613, 0.0848, 0.1338)],
+      parse([{ op: "split", index: 1, atPct: [0.113] }]),
+      { gridSize: GRID, speedMps, steerRad },
+    );
+
+    for (const c of out) {
+      const span = (c.exitPct - c.entryPct + 1) % 1;
+      const offset = (c.apexPct - c.entryPct + 1) % 1;
+      expect(offset).toBeLessThanOrEqual(span + 1e-9);
+    }
+  });
+
   it("refuses an operation naming a corner detection did not produce", () => {
     // The common way to break an override file is to retune detection and leave
     // the indices pointing at nothing. Better to fail than to silently skip.

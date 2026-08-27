@@ -15,6 +15,7 @@
     { "path": "./packages/overlays" },
     { "path": "./apps/desktop" },
     { "path": "./tools/replay" },
+    { "path": "./tools/trackmap" },
     { "path": "./services/ingest" }
   ]
 }
