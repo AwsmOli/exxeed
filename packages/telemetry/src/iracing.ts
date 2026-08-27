@@ -73,6 +73,7 @@ interface IRacingSdk {
   stopSDK(): void;
   waitForData(timeoutMs: number): boolean;
   getTelemetry(): IRacingTelemetry | null;
+  readonly sessionStatusOK: boolean;
 }
 
 const first = <T>(v: T[] | T | undefined, fallback: T): T => {
@@ -131,9 +132,20 @@ export class IRacingAdapter implements TelemetrySource {
     if (this.#sdk === null) throw new Error("connect() before iterating");
 
     while (this.#connected) {
-      const telemetry = this.#sdk.getTelemetry();
-      if (telemetry !== null) {
-        yield toFrame(telemetry, Date.now() - this.#startedAtMs);
+      // waitForData is what refreshes sessionStatusOK, and getTelemetry aborts the
+      // whole process (not throws) when the session data is not yet mapped — so the
+      // wait must come first and the status must gate the read.
+      //
+      // The timeout is 0 because waitForData blocks the calling thread, and in
+      // Electron that thread also pumps Chromium's message loop: a blocking wait
+      // here starves IPC to the renderer, so frames reach the recorder but never
+      // reach the window. Poll with sleep instead and let the wait return at once.
+      const hasData = this.#sdk.waitForData(0);
+      if (hasData && this.#sdk.sessionStatusOK) {
+        const telemetry = this.#sdk.getTelemetry();
+        if (telemetry !== null) {
+          yield toFrame(telemetry, Date.now() - this.#startedAtMs);
+        }
       }
       await sleep(this.#intervalMs);
     }
@@ -141,13 +153,13 @@ export class IRacingAdapter implements TelemetrySource {
 }
 
 function resolveSdk(mod: unknown): IRacingSdk {
-  const candidate =
-    (mod as { default?: { getInstance?: () => unknown }; getInstance?: () => unknown });
-  const factory = candidate.getInstance ?? candidate.default?.getInstance;
-  if (typeof factory !== "function") {
-    throw new Error("irsdk-node did not expose getInstance()");
+  type Ctor = new () => IRacingSdk;
+  const candidate = mod as { default?: { IRacingSDK?: Ctor }; IRacingSDK?: Ctor };
+  const Sdk = candidate.IRacingSDK ?? candidate.default?.IRacingSDK;
+  if (typeof Sdk !== "function") {
+    throw new Error("irsdk-node did not expose IRacingSDK");
   }
-  return factory() as IRacingSdk;
+  return new Sdk();
 }
 
 /**

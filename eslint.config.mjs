@@ -47,6 +47,23 @@ export default tseslint.config(
     },
   },
   {
+    // The readout's renderer script. It lives in a file rather than inline in
+    // index.html because the page CSP is `default-src 'self'`, which refuses
+    // inline script — so this is browser code, not Node code.
+    files: ["apps/desktop/static/**/*.js"],
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        location: "readonly",
+        console: "readonly",
+        URLSearchParams: "readonly",
+        AudioContext: "readonly",
+        Uint8Array: "readonly",
+      },
+    },
+  },
+  {
     files: ["packages/core/**/*.ts"],
     rules: {
       "no-restricted-imports": "off",

@@ -3,3 +3,9 @@ packages:
   - "packages/*"
   - "tools/*"
   - "services/*"
+
+# pnpm 10+ reads this here; the mirrored "pnpm" field in package.json is for pnpm 9.
+onlyBuiltDependencies:
+  - electron
+  - "@irsdk-node/native"
+  - esbuild
