@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow } from "electron";
 
-import { mps, pct } from "@exxeed/core";
+import { mps, pct, radians } from "@exxeed/core";
 import {
   AUDIO_PLAY_CHANNEL,
   AUDIO_PRELOAD_CHANNEL,
@@ -92,6 +92,9 @@ const toStateFrame = (
   throttle: f.throttle,
   brake: f.brake,
   gear: f.gear,
+  steerRad: f.steerRad,
+  lat: f.lat,
+  lon: f.lon,
   deltaS: null, // Needs a loaded ReferenceLap — M3 (§7.2).
   connected: true,
   sourceName,
@@ -107,6 +110,9 @@ const emptyFrame: StateFrame = {
   throttle: 0,
   brake: 0,
   gear: 0,
+  steerRad: radians(0),
+  lat: 0,
+  lon: 0,
   deltaS: null,
   connected: false,
   sourceName: "—",

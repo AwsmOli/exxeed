@@ -9,7 +9,7 @@
  * when occluded or backgrounded, which would silently destroy callout timing.
  */
 
-import type { Mps, NoteState, Pct, Seconds, SuppressionReason } from "@exxeed/core";
+import type { Mps, NoteState, Pct, Radians, Seconds, SuppressionReason } from "@exxeed/core";
 
 /** 60 Hz state frame, main → renderer. */
 export const STATE_FRAME_CHANNEL = "exxeed:state-frame";
@@ -35,6 +35,19 @@ export interface StateFrame {
   readonly throttle: number;
   readonly brake: number;
   readonly gear: number;
+  /**
+   * Radians. Which sign means left is NOT assumed — see
+   * `@exxeed/telemetry`'s steering.ts and §5. Present here because M0b has to
+   * read it off a real lap, and M3's corner guides need it after that.
+   */
+  readonly steerRad: Radians;
+  /**
+   * Degrees, straight off the SDK. Here so M0b can confirm at a glance that the
+   * channels are actually populated — §4.1.1's centreline depends on it, and the
+   * dead-reckoning fallback drifts. Drop from the frame once that is settled.
+   */
+  readonly lat: number;
+  readonly lon: number;
   /** Seconds vs the reference lap at this pct index (§7.2). Null until M3. */
   readonly deltaS: Seconds | null;
   readonly connected: boolean;

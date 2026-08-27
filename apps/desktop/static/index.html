@@ -50,6 +50,8 @@
           <tr><td>Throttle</td><td id="throttle">—</td></tr>
           <tr><td>Brake</td><td id="brake">—</td></tr>
           <tr><td>Gear</td><td id="gear">—</td></tr>
+          <tr><td>SteeringWheelAngle</td><td id="steerRad">—</td></tr>
+          <tr><td>Lat / Lon</td><td id="latlon">—</td></tr>
           <tr><td>Lap</td><td id="lap">—</td></tr>
           <tr><td>Suppressed by</td><td id="suppressed">—</td></tr>
           <tr><td>Queued</td><td id="queued">—</td></tr>
@@ -128,6 +130,19 @@
         cell("throttle").textContent = fixed(f.throttle, 2);
         cell("brake").textContent = fixed(f.brake, 2);
         cell("gear").textContent = String(f.gear ?? "—");
+
+        // M0b reads this off a real lap to pin the sign convention (§5). Shown
+        // with an explicit sign so "which way is left" is answerable on sight.
+        const steer = cell("steerRad");
+        steer.textContent =
+          typeof f.steerRad === "number"
+            ? `${f.steerRad >= 0 ? "+" : ""}${f.steerRad.toFixed(4)} rad`
+            : "—";
+
+        const populated = typeof f.lat === "number" && (f.lat !== 0 || f.lon !== 0);
+        cell("latlon").textContent = populated
+          ? `${f.lat.toFixed(5)}, ${f.lon.toFixed(5)}`
+          : "not populated";
         cell("lap").textContent = String(f.lap ?? "—");
         cell("frames").textContent = String(frames);
         cell("queued").textContent = f.queuedNoteIds?.length
