@@ -33,6 +33,7 @@ import {
   NdjsonRecorder,
   ReplayAdapter,
   toTickInput,
+  type SessionIdentity,
   type TelemetryFrame,
   type TelemetrySource,
 } from "@exxeed/telemetry";
@@ -46,7 +47,10 @@ import { loadSession, type LoadedSession } from "./session.js";
 // the package name, which is where the overlay's remembered position lives.
 app.setName("Exxeed");
 
-const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+// fileURLToPath leaves a trailing separator on a directory URL, which every use
+// below then doubles up on ("...\exxeed\/data"). Harmless to fs, but these paths
+// get printed.
+const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url)).replace(/[\\/]+$/, "");
 const FIXTURE = `${REPO_ROOT}/packages/telemetry/test/fixtures/synthetic-3laps.ndjson`;
 
 const env = (name: string): string | undefined => {
@@ -125,6 +129,26 @@ const emptyFrame: StateFrame = {
   queuedNoteIds: [],
 };
 
+/**
+ * Where a session's recording lands — SPEC.md §9.
+ *
+ * Grouped by track then car, so `data/recordings/` stays navigable once there
+ * are hundreds of laps in it and you want "the MX-5 laps at Okayama". Sessions
+ * the sim would not identify go in `unknown/` rather than being dropped.
+ */
+function recordingPath(identity: SessionIdentity | null): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dir =
+    identity === null ? "unknown" : `${identity.trackId}/${identity.carId}`;
+  return `${REPO_ROOT}/data/recordings/${dir}/${stamp}.ndjson`;
+}
+
+const describeIdentity = (identity: SessionIdentity | null): string =>
+  identity === null
+    ? "unidentified session"
+    : `${identity.carName} at ${identity.trackName}` +
+      (identity.trackConfig === "" ? "" : ` (${identity.trackConfig})`);
+
 async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
   const source = createSource();
 
@@ -149,19 +173,24 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
     );
   }
 
-  const recorder = new NdjsonRecorder(
-    `${REPO_ROOT}/data/recordings/${new Date().toISOString().replace(/[:.]/g, "-")}.ndjson`,
-    { startedAt: new Date().toISOString(), source: source.name },
-  );
-
   try {
     await source.connect();
   } catch (err) {
     process.stderr.write(`telemetry source failed to connect: ${String(err)}\n`);
     if (!window.isDestroyed()) window.webContents.send(STATE_FRAME_CHANNEL, emptyFrame);
-    await recorder.close();
     return;
   }
+
+  // Built after connect, not before: the track and car are only known once the
+  // sim has handed over its session data, and they decide where this lands.
+  const recorder = new NdjsonRecorder(recordingPath(source.identity), {
+    startedAt: new Date().toISOString(),
+    source: source.name,
+    ...(source.identity ?? {}),
+  });
+  process.stdout.write(
+    `recording ${describeIdentity(source.identity)} -> ${recorder.path}\n`,
+  );
 
   // `window.isDestroyed()` alone is not enough: the render frame is disposed
   // before the BrowserWindow reports itself destroyed, so a loop checking only

@@ -31,7 +31,12 @@
 import { mps, pct, radians, seconds } from "@exxeed/core";
 
 import { isTrkLoc, TRK_LOC, type TelemetryFrame, type TrkLoc } from "./frame.js";
-import { UnsupportedPlatformError, type TelemetrySource } from "./source.js";
+import {
+  slug,
+  UnsupportedPlatformError,
+  type SessionIdentity,
+  type TelemetrySource,
+} from "./source.js";
 
 export const IRACING_SUPPORTED_PLATFORMS = ["win32"] as const;
 
@@ -73,7 +78,25 @@ interface IRacingSdk {
   stopSDK(): void;
   waitForData(timeoutMs: number): boolean;
   getTelemetry(): IRacingTelemetry | null;
+  getSessionData(): Promise<IRacingSessionData | null>;
   readonly sessionStatusOK: boolean;
+}
+
+/** Only the corner of the session YAML this adapter reads — track and car. */
+interface IRacingSessionData {
+  readonly WeekendInfo?: {
+    readonly TrackName?: string;
+    readonly TrackDisplayName?: string;
+    readonly TrackConfigName?: string;
+  };
+  readonly DriverInfo?: {
+    readonly DriverCarIdx?: number;
+    readonly Drivers?: readonly {
+      readonly CarIdx?: number;
+      readonly CarPath?: string;
+      readonly CarScreenName?: string;
+    }[];
+  };
 }
 
 const first = <T>(v: T[] | T | undefined, fallback: T): T => {
@@ -90,6 +113,7 @@ export class IRacingAdapter implements TelemetrySource {
   #sdk: IRacingSdk | null = null;
   #connected = false;
   #startedAtMs = 0;
+  #identity: SessionIdentity | null = null;
 
   constructor(options: IRacingOptions = {}) {
     this.#intervalMs = 1000 / (options.hz ?? 60);
@@ -97,6 +121,10 @@ export class IRacingAdapter implements TelemetrySource {
 
   get connected(): boolean {
     return this.#connected;
+  }
+
+  get identity(): SessionIdentity | null {
+    return this.#identity;
   }
 
   async connect(): Promise<void> {
@@ -119,6 +147,7 @@ export class IRacingAdapter implements TelemetrySource {
     this.#sdk = sdk;
     this.#connected = true;
     this.#startedAtMs = Date.now();
+    this.#identity = await readIdentity(sdk, this.#intervalMs);
   }
 
   async close(): Promise<void> {
@@ -150,6 +179,47 @@ export class IRacingAdapter implements TelemetrySource {
       await sleep(this.#intervalMs);
     }
   }
+}
+
+/**
+ * Track and car from the session YAML, for the recording header (§9).
+ *
+ * Best-effort by design. The session data only appears once the sim has mapped
+ * it, which is not necessarily the moment connect() is called, so this waits a
+ * short while and then gives up. An unlabelled recording is a nuisance; a lap
+ * that was never recorded because we insisted on a label is a lost lap.
+ */
+async function readIdentity(
+  sdk: IRacingSdk,
+  intervalMs: number,
+  attempts = 20,
+): Promise<SessionIdentity | null> {
+  try {
+    for (let i = 0; i < attempts; i++) {
+      sdk.waitForData(0);
+      if (sdk.sessionStatusOK) {
+        const data = await sdk.getSessionData();
+        const weekend = data?.WeekendInfo;
+        const info = data?.DriverInfo;
+        const me = info?.Drivers?.find((d) => d.CarIdx === info.DriverCarIdx);
+
+        const trackName = weekend?.TrackName;
+        if (trackName !== undefined && trackName !== "") {
+          return {
+            trackId: slug(trackName),
+            trackName: weekend?.TrackDisplayName ?? trackName,
+            trackConfig: weekend?.TrackConfigName ?? "",
+            carId: slug(me?.CarPath ?? "unknown-car"),
+            carName: me?.CarScreenName ?? "unknown car",
+          };
+        }
+      }
+      await sleep(intervalMs);
+    }
+  } catch {
+    // Fall through — see the doc comment. Never let this stop a session.
+  }
+  return null;
 }
 
 function resolveSdk(mod: unknown): IRacingSdk {

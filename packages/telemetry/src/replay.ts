@@ -16,7 +16,7 @@ import { createInterface } from "node:readline";
 import { mps, pct, radians, seconds } from "@exxeed/core";
 
 import { isTrkLoc, TRK_LOC, type TelemetryFrame, type TrkLoc } from "./frame.js";
-import type { TelemetrySource } from "./source.js";
+import type { SessionIdentity, TelemetrySource } from "./source.js";
 
 export interface ReplayOptions {
   /**
@@ -75,12 +75,53 @@ export function parseFrame(line: string): TelemetryFrame | null {
   };
 }
 
+/**
+ * Read track and car back out of the recording's header line, so replaying a lap
+ * says what it is of. Returns null for a recording written before the header
+ * carried it — those still replay fine, they just cannot say.
+ */
+async function readHeaderIdentity(path: string): Promise<SessionIdentity | null> {
+  const lines = createInterface({
+    input: createReadStream(path, { encoding: "utf8" }),
+    crlfDelay: Number.POSITIVE_INFINITY,
+  });
+
+  try {
+    for await (const line of lines) {
+      if (line.trim() === "") continue;
+      const raw: unknown = JSON.parse(line);
+      if (typeof raw !== "object" || raw === null) return null;
+      const r = raw as Record<string, unknown>;
+      // The header is the first line or it is not there at all.
+      if (r["kind"] !== "meta") return null;
+
+      const str = (key: string): string | null =>
+        typeof r[key] === "string" ? (r[key] as string) : null;
+
+      const trackId = str("trackId");
+      if (trackId === null) return null;
+
+      return {
+        trackId,
+        trackName: str("trackName") ?? trackId,
+        trackConfig: str("trackConfig") ?? "",
+        carId: str("carId") ?? "unknown-car",
+        carName: str("carName") ?? "unknown car",
+      };
+    }
+    return null;
+  } finally {
+    lines.close();
+  }
+}
+
 export class ReplayAdapter implements TelemetrySource {
   readonly name: string;
   readonly #path: string;
   readonly #speed: number;
   readonly #loop: boolean;
   #connected = false;
+  #identity: SessionIdentity | null = null;
 
   constructor(path: string, options: ReplayOptions = {}) {
     this.#path = path;
@@ -95,9 +136,13 @@ export class ReplayAdapter implements TelemetrySource {
     return this.#connected;
   }
 
-  connect(): Promise<void> {
+  get identity(): SessionIdentity | null {
+    return this.#identity;
+  }
+
+  async connect(): Promise<void> {
+    this.#identity = await readHeaderIdentity(this.#path);
     this.#connected = true;
-    return Promise.resolve();
   }
 
   close(): Promise<void> {

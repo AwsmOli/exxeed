@@ -34,9 +34,14 @@ Node 20+ required.
 `packageManager`, and **pnpm 10 and later refuse to run dependency build scripts
 by default**. Electron's postinstall is what downloads its ~100 MB binary, so a
 newer pnpm silently skips it and the app then fails with *"Electron failed to
-install correctly"*. `package.json` allow-lists the three packages that need
-build scripts under `pnpm.onlyBuiltDependencies`, which covers newer pnpm too —
-but running the pinned version is still the path with fewest surprises.
+install correctly"*.
+
+The allow-list lives in **two** places on purpose. pnpm 9 reads
+`pnpm.onlyBuiltDependencies` in `package.json`; pnpm 10 ignores that field
+entirely — it warns *"The 'pnpm' field in package.json is no longer read by
+pnpm"* and carries on installing an Electron that cannot run — so the same list
+is mirrored into `pnpm-workspace.yaml`. Keep them in step if you add a package
+that needs a build script.
 
 Check what actually ran:
 
@@ -52,11 +57,20 @@ pnpm typecheck
 pnpm lint
 ```
 
-Then confirm the real addon loaded rather than the mock:
+Then confirm the real addon loaded rather than the mock. `@irsdk-node/native` is
+a transitive dependency, and pnpm does not hoist it, so this has to run from a
+package that actually depends on `irsdk-node` — from the repo root it fails with
+`MODULE_NOT_FOUND`, which is a resolution error and not the mock:
 
 ```powershell
-node -e "console.log(require('@irsdk-node/native'))"
+cd packages\telemetry
+node -e "import('irsdk-node').then(m => console.log('IRacingSDK:', typeof m.IRacingSDK))"
+cd ..\..
 ```
+
+`function` means the real SDK. The mock substitution only happens off Windows,
+where `IRacingAdapter` refuses to run anyway — so on Windows the check that
+actually matters is §4 showing values that move.
 
 ## 3. Connect
 
@@ -114,10 +128,23 @@ Recording is always-on (§9) — every session writes to `data/recordings/`. Dri
 clean lap of **Okayama** (short, and M1's *done when* is its corners coming out
 right without hand-editing).
 
+Recordings are grouped by track then car, and the header line repeats it so a
+file is self-describing on its own:
+
+```
+data/recordings/<track>/<car>/<timestamp>.ndjson
+data/recordings/okayama-full/mx5-mx52016/2026-08-27T20-36-36-215Z.ndjson
+```
+
+The ids come from the sim's own `TrackName` and `CarPath`, not the display
+names, which get re-branded between seasons. A session the sim would not
+identify lands in `unknown/` rather than being dropped. The app prints the path
+it chose at startup.
+
 `data/recordings/` is gitignored, so bring the file back deliberately:
 
 ```powershell
-git add -f data/recordings/<the-lap>.ndjson
+git add -f data/recordings/<track>/<car>/<the-lap>.ndjson
 ```
 
 or copy it across by hand.
@@ -141,6 +168,24 @@ missing. In order of likelihood:
 2. **The download failed** — it is ~100 MB from GitHub releases, so a corporate
    proxy, firewall or antivirus can eat it. Retry, and if you are behind a proxy
    set `ELECTRON_GET_USE_PROXY=1` plus the usual `HTTPS_PROXY`.
+
+   The zip can arrive intact and still not unpack. Check the cache and the
+   unpacked directory separately — a `dist/` holding only
+   `LICENSES.chromium.html` means extraction stopped after the first entry, and
+   re-running the postinstall can exit 0 without fixing it:
+
+   ```powershell
+   ls $env:LOCALAPPDATA\electron\Cache          # the downloaded zip
+   ls node_modules\.pnpm\electron@*\node_modules\electron\dist   # should hold electron.exe
+   ```
+
+   Unpacking it by hand is enough to recover, since `path.txt` is all the
+   `electron` package looks for:
+
+   ```powershell
+   Expand-Archive $env:LOCALAPPDATA\electron\Cache\*\electron-v*-win32-x64.zip -DestinationPath <that dist path>
+   "electron.exe" | Out-File -NoNewline -Encoding ascii <...>\electron\path.txt
+   ```
 
 3. **A half-finished install got cached.** Clear it and start clean:
 
