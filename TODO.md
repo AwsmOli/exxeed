@@ -39,11 +39,25 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 ## Small stuff
 
+- [ ] Check in a multi-lap slice of the Daytona session as an engine fixture
+  `data/reference/daytona-2011-road-mx5-lap.ndjson` is one extracted lap, so §6.4
+  suppresses every one of its 4,364 frames as `out_lap` and the engine says
+  nothing: replaying it gives `0 spoken, 0 dropped`. Fine as a track-map source,
+  useless as a callout timeline — which is why the golden file still runs on the
+  synthetic 3-lap toy and the engine has no real-telemetry regression. Two or
+  three laps from `2026-08-27T20-43-48-649Z.ndjson` would close it; that file is
+  on the Windows machine.
+- [ ] Recording rate is 32 Hz, not the 60 Hz the adapter asks for
+  Median frame gap 31 ms against a requested 16.7 ms — 1.7 m between samples at
+  56 m/s rather than 0.9 m. Harmless today (well inside §6.5's 15 m threshold, and
+  the scheduler's fit tolerance scales with the tick) but the code says 60 and
+  reality says half that.
+
 - [x] Replay CLI needs an absolute path
   Fixed: paths now resolve against `INIT_CWD`, the directory the command was invoked from.
-- [ ] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
-- [ ] Correct §6.2's and §9's start/finish worked examples in docs/SPEC.md
-  Both illustrate the double-fire with a note anchored at pct 0.998. That event sits *before* the line, so by the time a naive `firedThisLap` set is cleared the event is a whole lap behind (6988 m) and even the broken design cannot re-fire. The bug needs the trigger on one side of the line and the **event on the other** — turn 1's *entry* at 0.0121, not the 100 board at 0.99781. Bug is real; the illustration is off by one anchor. See `packages/core/test/engine.test.ts`.
+- [x] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
+- [x] Correct §6.2's and §9's start/finish worked examples in docs/SPEC.md
+  Done, along with §4.1.1 (Lat/Lon are zero; dead reckoning is what ships) and §12 (the two runtime bugs, and the measured steering sign).
 - [ ] Install `ffprobe` before starting M5 stage 6
 
 ## M0b — Live SDK (needs a Windows machine with iRacing)
