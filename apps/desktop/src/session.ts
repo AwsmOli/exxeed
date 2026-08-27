@@ -8,7 +8,13 @@
  */
 
 import type { DriverProfile, NoteSet, TrackMap } from "@exxeed/core";
-import { indexLandmarks, metres, NoteEngine, resolveNotes } from "@exxeed/core";
+import {
+  indexLandmarks,
+  metres,
+  NoteEngine,
+  resolveNotes,
+  type LandmarkIndex,
+} from "@exxeed/core";
 import type { PreloadedAudio } from "@exxeed/repo";
 import { localRepositories, preloadAudio } from "@exxeed/repo";
 
@@ -41,10 +47,15 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     throw new Error(`no track map for ${JSON.stringify(noteSet.trackRef)}`);
   }
 
+  // A landmark inventory is optional. A note set anchored entirely to corners
+  // (§4.7) never touches it, and refusing to load one because the track has no
+  // inventory yet blocks exactly the hand-authored sets M2 asks for. When it is
+  // missing, landmark anchors simply fail to resolve — which is already reported
+  // per note below, and says which notes are affected rather than none of them.
   const inventory = await repos.landmarks.get(noteSet.trackRef);
-  if (inventory === null) throw new Error("no landmark inventory for this track");
+  const landmarks: LandmarkIndex = inventory === null ? new Map() : indexLandmarks(inventory);
 
-  const { resolved, unresolved } = resolveNotes(noteSet.notes, map, indexLandmarks(inventory));
+  const { resolved, unresolved } = resolveNotes(noteSet.notes, map, landmarks);
   for (const note of unresolved) {
     warnings.push(`note "${note.id}" has an unresolvable anchor, skipping`);
   }
