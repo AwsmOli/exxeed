@@ -12,6 +12,8 @@ export * from "./pct.js";
 export * from "./track.js";
 export * from "./schema.js";
 export * from "./wav.js";
+export * from "./resample.js";
+export * from "./corners.js";
 export * from "./anchor.js";
 export * from "./profile.js";
 export * from "./trigger.js";
