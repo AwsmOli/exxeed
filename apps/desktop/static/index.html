@@ -35,9 +35,61 @@
       .quiet { color: #f0883e; }
       .note { margin-top: 22px; max-width: 620px; color: #8a93a0; font-size: 12px; }
       code { color: #c9d1d9; }
+
+      /*
+        Overlay mode — SPEC.md §7. Compact, translucent, and readable over a
+        moving game image, which means heavy contrast rather than subtlety: a
+        near-opaque panel and a text shadow, because whatever is behind it is
+        bright, changing, and not under our control.
+      */
+      body.overlay {
+        background: transparent;
+        padding: 0;
+        overflow: hidden;
+        user-select: none;
+        cursor: default;
+      }
+      body.overlay .panel {
+        background: rgba(10, 12, 15, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 8px;
+        padding: 10px 13px;
+        margin: 8px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      body.overlay h1 { font-size: 10px; opacity: 0.55; margin-bottom: 6px; }
+      body.overlay .src,
+      body.overlay .note,
+      body.overlay h2 { display: none; }
+      body.overlay .cols { display: block; }
+      body.overlay table { min-width: 0; width: 100%; }
+      body.overlay td:first-child { width: auto; padding-right: 14px; }
+      body.overlay #log { margin-top: 7px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 5px; }
+      body.overlay #log:empty { display: none; }
+
+      /* Layout-edit mode: the only time the window is not click-through, so it
+         has to look obviously different or you will not know it is unlocked. */
+      body.overlay.editing .panel {
+        background: rgba(10, 12, 15, 0.97);
+        border-color: #58a6ff;
+        -webkit-app-region: drag;
+        cursor: move;
+      }
+      .edit-hint { display: none; }
+      body.overlay.editing .edit-hint {
+        display: block;
+        margin-top: 7px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(88, 166, 255, 0.35);
+        color: #58a6ff;
+        font-size: 11px;
+      }
     </style>
   </head>
   <body>
+    <div class="panel">
     <h1>Exxeed</h1>
     <div class="src">source: <span id="source">waiting…</span></div>
 
@@ -66,6 +118,9 @@
       </div>
     </div>
 
+    <div class="edit-hint">unlocked — drag to move, press the shortcut again to lock</div>
+    </div>
+
     <p class="note">
       Speed is stored in m/s everywhere and converted to km/h only here, in render
       code — SPEC.md §3. <code>LapDistPct</code> is 0..1, not 0..100: the SDK's
@@ -75,6 +130,15 @@
     </p>
 
     <script type="module">
+      // Overlay mode is signalled by the query string main loads the page with,
+      // so one document serves both the desktop window and the overlay.
+      const isOverlay = new URLSearchParams(location.search).get("overlay") === "1";
+      if (isOverlay) document.body.classList.add("overlay");
+
+      window.exxeed?.onEditMode((editing) => {
+        document.body.classList.toggle("editing", editing === true);
+      });
+
       const cell = (id) => document.getElementById(id);
       const fixed = (v, n) => (typeof v === "number" ? v.toFixed(n) : "—");
 

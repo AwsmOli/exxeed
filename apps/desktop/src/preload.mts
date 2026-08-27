@@ -20,7 +20,11 @@ const subscribe = (channel: string, callback: (payload: unknown) => void): (() =
   return () => ipcRenderer.off(channel, listener);
 };
 
+const EDIT_MODE_CHANNEL = "exxeed:edit-mode";
+
 contextBridge.exposeInMainWorld("exxeed", {
+  /** Overlay layout-edit mode toggling on or off (§7). */
+  onEditMode: (cb: (editing: unknown) => void) => subscribe(EDIT_MODE_CHANNEL, cb),
   onStateFrame: (cb: (frame: unknown) => void) => subscribe(STATE_FRAME_CHANNEL, cb),
   onAudioPreload: (cb: (clips: unknown) => void) => subscribe(AUDIO_PRELOAD_CHANNEL, cb),
   onAudioPlay: (cb: (command: unknown) => void) => subscribe(AUDIO_PLAY_CHANNEL, cb),

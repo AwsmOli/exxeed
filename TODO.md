@@ -116,6 +116,11 @@ Two findings from running it rather than unit-testing it:
 
 ## M3 — Overlays
 
+- [x] Overlay window flags (§7) — transparent, frameless, always-on-top,
+      click-through, with a layout-edit toggle and remembered position
+  Brought forward from M3 so the M0b steering-sign reading can be done while
+  driving. `EXXEED_OVERLAY=1`. The borderless-windowed warning prints at launch;
+  it belongs in the first-run flow at M6.
 - [ ] Input trace vs reference (Canvas, §7.1)
 - [ ] Delta bar off `elapsedS` (§7.2)
 - [ ] Dev callout overlay behind a debug flag (§7.3)

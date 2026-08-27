@@ -39,7 +39,12 @@ import {
 
 import { audioKey } from "@exxeed/repo";
 
+import { createOverlayWindow, FULLSCREEN_WARNING } from "./overlay.js";
 import { loadSession, type LoadedSession } from "./session.js";
+
+// Before any getPath call: without it userData lands under "@exxeed", taken from
+// the package name, which is where the overlay's remembered position lives.
+app.setName("Exxeed");
 
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const FIXTURE = `${REPO_ROOT}/packages/telemetry/test/fixtures/synthetic-3laps.ndjson`;
@@ -213,15 +218,26 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
   }
 }
 
+// ESM preload scripts must carry the .mjs extension, which is why the source is
+// preload.mts — tsc emits .mjs from .mts and .js from .ts.
+const PRELOAD = fileURLToPath(new URL("./preload.mjs", import.meta.url));
+const PAGE = fileURLToPath(new URL("../static/index.html", import.meta.url));
+
 function createWindow(): BrowserWindow {
+  // EXXEED_OVERLAY gives the §7 overlay: transparent, frameless, click-through,
+  // above the sim. Off by default because a click-through always-on-top window
+  // is a nuisance to develop against.
+  if (env("EXXEED_OVERLAY") !== undefined) {
+    process.stdout.write(FULLSCREEN_WARNING);
+    return createOverlayWindow(PRELOAD, PAGE);
+  }
+
   const window = new BrowserWindow({
     width: 760,
-    height: 620,
+    height: 660,
     title: "Exxeed",
     webPreferences: {
-      // ESM preload scripts must carry the .mjs extension, which is why the
-      // source is preload.mts — tsc emits .mjs from .mts and .js from .ts.
-      preload: fileURLToPath(new URL("./preload.mjs", import.meta.url)),
+      preload: PRELOAD,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -231,7 +247,7 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  void window.loadFile(fileURLToPath(new URL("../static/index.html", import.meta.url)));
+  void window.loadFile(PAGE);
   return window;
 }
 

@@ -82,8 +82,21 @@ placeholder audio pack — so both of those work with nothing else set up. The
 audio is tone bursts at the right durations, not speech: the engine only cares
 about `durationMs`, which is what sets lead distance.
 
+### Overlay mode
+
+`EXXEED_OVERLAY=1` opens the readout as a transparent, click-through,
+always-on-top overlay instead of a normal window, so it can be read while
+driving. `Ctrl+Shift+E` (`Cmd+Shift+E` on macOS) unlocks it for dragging and
+locks it again; the position is remembered.
+
+> **Run the sim in borderless windowed.** Transparent overlays are not supported
+> over exclusive fullscreen. Windows 10/11 Fullscreen Optimizations often
+> converts DX11 exclusive fullscreen to a composited path, so it may appear to
+> work anyway — but borderless windowed is the supported configuration.
+
 Environment variables: `EXXEED_REPLAY` (recording path), `EXXEED_SPEED`,
-`EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_LEAD_ADJUST`.
+`EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_LEAD_ADJUST`,
+`EXXEED_OVERLAY`.
 
 **iRacing is Windows-only, and so is the telemetry SDK.** `@irsdk-node/native`
 ships prebuilds for `win32-x64` and `win32-arm64` only; off Windows its installer
