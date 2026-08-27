@@ -1,18 +1,27 @@
 /**
- * The note engine — SPEC.md §6.2.
+ * The note engine — SPEC.md §6.
  *
- * ## Why there is no lap counter in here
+ * Composes the three pieces: suppression (§6.4) gates everything, the per-note
+ * state machine (§6.2) decides when a note is due, and the scheduler (§6.3)
+ * decides what actually gets said.
+ *
+ * ## Why there is no lap counter in the state machine
  *
  * The obvious design is a `firedThisLap` set cleared at the start/finish line.
  * It is wrong, and it fails at exactly the corners people care most about.
  *
- * Worked example, Spa. `t1_brake` is anchored at pct 0.99781 — the 100 board for
- * La Source, which sits BEHIND the start/finish line. At 69 m/s with a lead of
- * 173 m it fires at pct ≈ 0.9731. The car then crosses start/finish, the fired
- * set is cleared, and `dAhead` is still well inside `leadM` — so it fires again,
- * in the same approach, a second before turn 1.
+ * The failure needs the trigger on one side of the line and the event on the
+ * other. Turn 1 at Spa: a brake cue anchored to the corner entry at pct 0.0121
+ * (84.7 m into the lap) with a 120 m lead fires at pct 0.99496, before the line.
+ * Clear the fired-set at the line and `dAhead` is 84.7 m against a 120 m lead —
+ * so it speaks again, a beat before the corner.
  *
- * So this engine has no concept of a lap at all:
+ * (Note that §6.2's and §9's own worked examples put the note at pct 0.998. That
+ * event sits *before* the line, so once the set is cleared the event is a whole
+ * lap behind and even the broken design cannot re-fire. The bug is real; the
+ * illustration is off by one anchor. See engine.test.ts.)
+ *
+ * So this state machine has no concept of a lap at all:
  *
  *   ARMED  --[ dAhead <= leadM ]-->      SPENT   (fire, or drop — both land here)
  *   SPENT  --[ dAhead > lengthM/2 ]-->   ARMED   (event is now half a lap away)
@@ -20,12 +29,9 @@
  * Re-arming on "more than half a lap away" is unconditionally correct, needs no
  * lap counter, and survives resets, tows and pit exits for free.
  *
- * Every note starts SPENT, so nothing fires on the out-lap before the car has
- * been round once.
- *
  * ## Purity
  *
- * `tick` takes a minimal input rather than a `TelemetryFrame`, because core must
+ * `tick` takes a plain input rather than a `TelemetryFrame`, because core must
  * not depend on the telemetry package (§3, enforced by lint). That is the point
  * of the boundary, not an inconvenience: the engine can be driven by a recording,
  * a test, or the sim without knowing the difference.
@@ -35,39 +41,24 @@ import { aheadM } from "./pct.js";
 import type { ResolvedNote } from "./anchor.js";
 import type { DriverProfile } from "./profile.js";
 import { DEFAULT_PROFILE } from "./profile.js";
+import type { EngineEvent, PumpInput } from "./scheduler.js";
+import { compareCandidates, Scheduler } from "./scheduler.js";
+import type { SuppressionInput, SuppressionReason } from "./suppression.js";
+import { SuppressionGate } from "./suppression.js";
 import { leadDistanceM, leadSecondsFor } from "./trigger.js";
-import type { Metres, Mps, Pct } from "./units.js";
+import type { Metres, Pct } from "./units.js";
 
 export type NoteState = "ARMED" | "SPENT";
 
-export interface TickInput {
+export interface TickInput extends SuppressionInput, PumpInput {
   readonly lapDistPct: Pct;
-  readonly speedMps: Mps;
 }
 
-/**
- * A note whose trigger condition has been met.
- *
- * "Fire" here means the trigger fired, not that a sound was necessarily played.
- * The scheduler (§6.3) consumes these and decides between the full form, the
- * short form, and dropping — a braking cue that would arrive after the braking
- * point is worse than silence. Either way the note is already SPENT: a dropped
- * note that stayed ARMED would re-enter the trigger test every tick for the rest
- * of its window and flood the log.
- */
-export interface FireEvent {
-  readonly kind: "fire";
-  readonly noteId: string;
-  readonly eventPct: Pct;
-  /** Lead distance used for the decision, from the FULL variant (§6.1). */
-  readonly leadM: Metres;
-  /** Distance remaining to the event when it fired. */
-  readonly dAheadM: Metres;
-  readonly speedMps: Mps;
-  readonly atPct: Pct;
+export interface TickResult {
+  readonly events: readonly EngineEvent[];
+  /** Non-null when the engine stayed quiet on purpose. For the dev overlay (§7.3). */
+  readonly suppressedBy: SuppressionReason | null;
 }
-
-export type EngineEvent = FireEvent;
 
 export class NoteEngine {
   readonly #notes: readonly ResolvedNote[];
@@ -75,6 +66,8 @@ export class NoteEngine {
   readonly #halfLapM: number;
   readonly #profile: DriverProfile;
   readonly #state = new Map<string, NoteState>();
+  readonly #gate = new SuppressionGate();
+  readonly #scheduler: Scheduler;
 
   constructor(
     notes: readonly ResolvedNote[],
@@ -85,10 +78,11 @@ export class NoteEngine {
     this.#lengthM = lengthM;
     this.#halfLapM = lengthM / 2;
     this.#profile = profile;
+    this.#scheduler = new Scheduler(lengthM, profile);
 
-    // Start everything SPENT so the out-lap is silent (§6.2). Notes arm
-    // themselves on the first tick where their event is more than half a lap
-    // ahead, which for a car leaving the pits is almost immediately.
+    // Start everything SPENT so the out-lap is silent (§6.2). Belt and braces
+    // with the out-lap suppression rule in §6.4 — they cover the same ground from
+    // different directions, and neither alone covers a mid-session note-set swap.
     for (const { note } of notes) this.#state.set(note.id, "SPENT");
   }
 
@@ -101,25 +95,58 @@ export class NoteEngine {
     return new Map(this.#state);
   }
 
-  /**
-   * Force every note back to SPENT. Not needed for laps — the half-lap rule
-   * handles those — but useful when loading a different note set mid-session.
-   */
+  queued(): readonly string[] {
+    return this.#scheduler.queued();
+  }
+
+  /** Force every note back to SPENT. For loading a different note set mid-session. */
   reset(): void {
     for (const { note } of this.#notes) this.#state.set(note.id, "SPENT");
   }
 
-  tick(input: TickInput): EngineEvent[] {
+  tick(input: TickInput): TickResult {
+    // Before anything else, and on suppressed ticks too — see Scheduler.advance.
+    this.#scheduler.advance(input.tMs);
+
+    const suppressedBy = this.#gate.evaluate(input);
+
+    if (suppressedBy !== null) {
+      // Discard anything queued rather than releasing a burst of stale callouts
+      // when the driver rejoins. Note this does NOT touch the per-note state
+      // machine: those notes are already SPENT, and the half-lap rule re-arms
+      // them normally once the car is going round again.
+      return { events: this.#scheduler.flush(input), suppressedBy };
+    }
+
     const events: EngineEvent[] = [];
 
-    for (const { note, eventPct } of this.#notes) {
+    // Notes that became due this tick. Collected first, then offered to the
+    // scheduler in a deterministic order — priority, then soonest event — so a
+    // golden-file timeline (§9) is reproducible rather than dependent on the
+    // order the note set happens to be written in.
+    const due = this.#collectDue(input);
+    due.sort((a, b) => compareCandidates(a, b, input.lapDistPct, this.#lengthM));
+
+    for (const candidate of due) {
+      events.push(...this.#scheduler.admit(candidate, input));
+    }
+
+    events.push(...this.#scheduler.pump(input));
+
+    return { events, suppressedBy: null };
+  }
+
+  #collectDue(input: TickInput): ResolvedNote[] {
+    const due: ResolvedNote[] = [];
+
+    for (const resolved of this.#notes) {
+      const { note, eventPct } = resolved;
       const dAheadM = aheadM(input.lapDistPct, eventPct, this.#lengthM);
 
       if (this.#state.get(note.id) === "SPENT") {
-        // Re-arm once the event is more than half a lap away. A note cannot both
-        // re-arm and fire on the same tick: firing needs dAhead <= leadM, and a
-        // lead of more than half a lap would mean a callout lasting most of a
-        // lap. So returning early here loses nothing.
+        // A note cannot both re-arm and fire on the same tick: firing needs
+        // dAhead <= leadM, and a lead of more than half a lap would mean a
+        // callout lasting most of a lap. So skipping ahead here loses nothing.
         if (dAheadM > this.#halfLapM) this.#state.set(note.id, "ARMED");
         continue;
       }
@@ -130,19 +157,14 @@ export class NoteEngine {
       );
 
       if (dAheadM <= leadM) {
+        // SPENT on becoming due, whatever the scheduler then decides. A dropped
+        // note that stayed ARMED would re-enter the trigger test every tick for
+        // the rest of its window and flood the log (§6.2).
         this.#state.set(note.id, "SPENT");
-        events.push({
-          kind: "fire",
-          noteId: note.id,
-          eventPct,
-          leadM,
-          dAheadM,
-          speedMps: input.speedMps,
-          atPct: input.lapDistPct,
-        });
+        due.push(resolved);
       }
     }
 
-    return events;
+    return due;
   }
 }

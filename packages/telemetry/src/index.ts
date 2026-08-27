@@ -6,6 +6,7 @@
  */
 
 export * from "./frame.js";
+export * from "./engine-input.js";
 export * from "./source.js";
 export * from "./steering.js";
 export * from "./recorder.js";

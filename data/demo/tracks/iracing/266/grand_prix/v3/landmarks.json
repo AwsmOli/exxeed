@@ -1,0 +1,28 @@
+{
+  "trackRef": {
+    "sim": "iracing",
+    "trackId": 266,
+    "configId": "grand_prix",
+    "mapVersion": 3
+  },
+  "landmarks": [
+    {
+      "id": "t1_board_100",
+      "cornerIndex": 1,
+      "type": "distance_board",
+      "label": "hundred board",
+      "pct": 0.99781,
+      "confidence": 0.9,
+      "verified": true
+    },
+    {
+      "id": "t1_kerb_in",
+      "cornerIndex": 1,
+      "type": "kerb",
+      "label": "inside kerb",
+      "pct": 0.0175,
+      "confidence": 0.7,
+      "verified": false
+    }
+  ]
+}

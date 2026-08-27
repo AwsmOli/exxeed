@@ -1,0 +1,70 @@
+{
+  "id": "spa-gt3-fixture",
+  "trackRef": {
+    "sim": "iracing",
+    "trackId": 266,
+    "configId": "grand_prix",
+    "mapVersion": 3
+  },
+  "carClass": "gt3",
+  "source": {
+    "type": "manual",
+    "title": "Fixture",
+    "channel": "—"
+  },
+  "status": "draft",
+  "createdAt": "2026-08-27T00:00:00Z",
+  "notes": [
+    {
+      "id": "t1_brake",
+      "cornerIndex": 1,
+      "phase": "brake",
+      "text": "Brake at the hundred board",
+      "textShort": "Hundred board",
+      "anchor": {
+        "type": "landmark",
+        "id": "t1_board_100",
+        "offsetM": 0
+      },
+      "priority": 1,
+      "leadAdjustS": -0.2,
+      "confidence": 0.86,
+      "sourceTs": "01:23",
+      "fadeable": true,
+      "audio": {
+        "file": "gt3/en_amy/t1_brake.wav",
+        "durationMs": 1240
+      },
+      "audioShort": {
+        "file": "gt3/en_amy/t1_brake_short.wav",
+        "durationMs": 720
+      },
+      "dirty": false
+    },
+    {
+      "id": "t1_throttle",
+      "cornerIndex": 1,
+      "phase": "throttle",
+      "text": "Kerb — throttle",
+      "textShort": "Throttle",
+      "anchor": {
+        "type": "corner",
+        "cornerIndex": 1,
+        "offsetM": 0
+      },
+      "priority": 2,
+      "leadAdjustS": 0,
+      "confidence": 0.74,
+      "fadeable": true,
+      "audio": {
+        "file": "gt3/en_amy/t1_throttle.wav",
+        "durationMs": 900
+      },
+      "audioShort": {
+        "file": "gt3/en_amy/t1_throttle_short.wav",
+        "durationMs": 540
+      },
+      "dirty": false
+    }
+  ]
+}

@@ -14,4 +14,6 @@ export * from "./schema.js";
 export * from "./anchor.js";
 export * from "./profile.js";
 export * from "./trigger.js";
+export * from "./suppression.js";
+export * from "./scheduler.js";
 export * from "./engine.js";

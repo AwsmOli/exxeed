@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@exxeed/core": "workspace:*",
+    "@exxeed/repo": "workspace:*",
     "@exxeed/telemetry": "workspace:*"
   }
 }

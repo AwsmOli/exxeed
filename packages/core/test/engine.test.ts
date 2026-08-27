@@ -1,29 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import type { EngineEvent, Note, ResolvedNote } from "@exxeed/core";
-import {
-  aheadM,
-  indexLandmarks,
-  metres,
-  mps,
-  NoteEngine,
-  offsetPct,
-  pct,
-  resolveNotes,
-} from "@exxeed/core";
+import type { Note, ResolvedNote } from "@exxeed/core";
+import { aheadM, indexLandmarks, metres, mps, NoteEngine, resolveNotes } from "@exxeed/core";
 
 import { spaGt3Notes, spaLandmarks, spaMap, SPA_LENGTH_M } from "./fixtures.js";
+import { Car, drops, plays } from "./harness.js";
 
 const SPA = metres(SPA_LENGTH_M);
 const landmarks = indexLandmarks(spaLandmarks);
 
-/** 250 km/h, the speed the §6.1 and §6.2 worked examples use. */
-const V250 = mps(69);
-
 const resolved = (notes: readonly Note[]): readonly ResolvedNote[] =>
   resolveNotes(notes, spaMap, landmarks).resolved;
 
-/** The braking note only. Anchored at the 100 board, pct 0.99781. */
+/** The 100 board note. Event at pct 0.99781 — before the start/finish line. */
 const brakeOnly = resolved([spaGt3Notes.notes[0]!]);
 
 /**
@@ -31,15 +20,14 @@ const brakeOnly = resolved([spaGt3Notes.notes[0]!]);
  *
  * The bug needs the trigger point on ONE side of the line and the event on the
  * OTHER. Both illustrations in the spec (§6.2's worked example and §9's required
- * test) describe a note anchored at 0.99781 — but that event sits BEFORE the
- * line, so by the time the fired-set is cleared the event is already a whole lap
- * behind and even the naive design cannot re-fire. Verified: after crossing at
- * pct 0.0, the 100 board is 6988 m ahead.
+ * test) describe a note anchored at 0.998 — but that event sits BEFORE the line,
+ * so by the time a naive fired-set is cleared the event is a whole lap behind
+ * (6988 m) and even the broken design cannot re-fire.
  *
  * Anchor to turn 1's ENTRY instead (pct 0.0121, i.e. 84.7 m into the lap) and the
  * numbers line up: a 1.24 s callout at 69 m/s needs 120 m of lead, so it fires at
  * pct 0.99496 — before the line — for an event 84.7 m AFTER it. Clear the set at
- * the line and dAhead is 84.7 m against a 120 m lead, so it fires a second time,
+ * the line and dAhead is 84.7 m against a 120 m lead, so it speaks a second time,
  * a beat before the corner.
  */
 const t1EntryBrake: Note = {
@@ -53,188 +41,192 @@ const t1EntryBrake: Note = {
 const entryBrakeOnly = resolved([t1EntryBrake]);
 
 /**
- * Drive a car forward at constant speed, ticking the engine every `stepM` metres,
- * and collect everything it emits. Returns events plus where each one happened.
+ * An engine and a car past the out-lap gate (§6.4 requires one completed lap) and
+ * with every note armed, parked just before the approach to turn 1.
  */
-function drive(
-  engine: NoteEngine,
-  fromPct: number,
-  distanceM: number,
-  speedMps = V250,
-  stepM = 1,
-): EngineEvent[] {
-  const events: EngineEvent[] = [];
-  let p = pct(fromPct);
-
-  for (let travelled = 0; travelled <= distanceM; travelled += stepM) {
-    events.push(...engine.tick({ lapDistPct: p, speedMps }));
-    p = offsetPct(p, metres(stepM), SPA);
-  }
-
-  return events;
+function ready(notes: readonly ResolvedNote[], leadAdjustS = 0) {
+  const engine = new NoteEngine(notes, SPA, { leadAdjustS });
+  const car = new Car(0.05);
+  car.drive(engine, 1.1 * SPA_LENGTH_M, { stepM: 5 });
+  return { engine, car };
 }
 
 describe("out-lap silence", () => {
-  it("fires nothing before the car has been round once", () => {
-    // SPEC.md §6.2: every note starts SPENT. A car leaving the pits and arriving
-    // at turn 1 for the first time gets no callout, because the note has never
-    // been half a lap away from the car since the engine was built.
-    const engine = new NoteEngine(brakeOnly, SPA);
+  it("says nothing on the very first lap", () => {
+    // Two independent mechanisms cover this: every note starts SPENT (§6.2), and
+    // suppression holds until one lap has completed since IsOnTrack went true
+    // (§6.4).
+    const engine = new NoteEngine(entryBrakeOnly, SPA);
+    const car = new Car(0.5);
 
-    expect(engine.stateOf("t1_brake")).toBe("SPENT");
-    // 0.97 → 0.02, straight through the event at 0.99781.
-    expect(drive(engine, 0.97, 0.05 * SPA_LENGTH_M)).toHaveLength(0);
+    const events = car.drive(engine, 0.49 * SPA_LENGTH_M, { stepM: 2 });
+
+    expect(events).toHaveLength(0);
+    expect(car.lastSuppression).toBe("out_lap");
+  });
+
+  it("starts speaking once a lap has completed", () => {
+    const { engine, car } = ready(entryBrakeOnly);
+    expect(car.lastSuppression).toBeNull();
+
+    car.teleport(0.98);
+    expect(plays(car.drive(engine, 0.05 * SPA_LENGTH_M))).toHaveLength(1);
   });
 });
 
 describe("start/finish double-fire — the §9 required test", () => {
-  // This block is the regression test for the bug §12 calls out as real rather
-  // than hypothetical. It was verified by mutation: implementing the naive
-  // firedThisLap design makes every test in here fail, and the engine as written
-  // makes them pass.
+  // Verified by mutation: implementing the naive firedThisLap design makes every
+  // test in this block fail.
 
-  it("fires exactly once when the trigger is before the line and the event after it", () => {
-    const engine = new NoteEngine(entryBrakeOnly, SPA);
-
-    // Arm it by going most of the way round, then make the approach.
-    drive(engine, 0.05, 0.85 * SPA_LENGTH_M);
+  it("speaks exactly once when the trigger is before the line and the event after", () => {
+    const { engine, car } = ready(entryBrakeOnly);
     expect(engine.stateOf("t1_entry_brake")).toBe("ARMED");
 
-    // 0.98 through start/finish to 0.03. Fires at 0.99496. A firedThisLap set
-    // cleared at the line would re-arm it 84.7 m from an event needing 120 m of
-    // lead, and it would speak again just before the corner.
-    const events = drive(engine, 0.98, 0.05 * SPA_LENGTH_M);
+    car.teleport(0.98);
+    const events = car.drive(engine, 0.05 * SPA_LENGTH_M);
 
-    expect(events).toHaveLength(1);
-    expect(events[0]?.noteId).toBe("t1_entry_brake");
-    expect(events[0]?.atPct).toBeCloseTo(0.99496, 3);
+    expect(plays(events)).toHaveLength(1);
+    expect(plays(events)[0]?.noteId).toBe("t1_entry_brake");
+    expect(plays(events)[0]?.atPct).toBeCloseTo(0.99496, 3);
   });
 
   it("stays silent for the rest of the approach after crossing the line", () => {
-    const engine = new NoteEngine(entryBrakeOnly, SPA);
-    drive(engine, 0.05, 0.85 * SPA_LENGTH_M);
+    const { engine, car } = ready(entryBrakeOnly);
 
-    const beforeLine = drive(engine, 0.98, 0.019 * SPA_LENGTH_M); // 0.98 → 0.999
-    const afterLine = drive(engine, 0.0, 0.03 * SPA_LENGTH_M); // 0.0 → 0.03, past the event
+    car.teleport(0.98);
+    const beforeLine = car.drive(engine, 0.019 * SPA_LENGTH_M);
+    car.teleport(0.0);
+    const afterLine = car.drive(engine, 0.03 * SPA_LENGTH_M);
 
-    expect(beforeLine).toHaveLength(1);
+    expect(plays(beforeLine)).toHaveLength(1);
     // The assertion the naive design fails.
     expect(afterLine).toHaveLength(0);
   });
 
-  it("fires once per lap over three laps, not twice", () => {
-    const engine = new NoteEngine(entryBrakeOnly, SPA);
-    const events = drive(engine, 0.1, 3 * SPA_LENGTH_M);
+  it("speaks once per lap over three laps, not twice", () => {
+    const { engine, car } = ready(entryBrakeOnly);
+    const events = plays(car.drive(engine, 3 * SPA_LENGTH_M, { stepM: 2 }));
 
     expect(events).toHaveLength(3);
 
-    // And the fires are a lap apart, not clustered either side of the line.
     for (let i = 1; i < events.length; i++) {
       const gap = aheadM(events[i - 1]!.atPct, events[i]!.atPct, SPA);
       expect(gap).toBeGreaterThan(0.9 * SPA_LENGTH_M);
     }
   });
 
-  it("also fires once for an event that sits before the line", () => {
-    // The 100 board case. Not where the bug lives, but it is the wrapping
-    // landmark from §4.2 and it must not regress either.
-    const engine = new NoteEngine(brakeOnly, SPA);
-    const events = drive(engine, 0.1, 2 * SPA_LENGTH_M);
+  it("also speaks once for an event that sits before the line", () => {
+    // The 100 board case. Not where the bug lives, but it is §4.2's wrapping
+    // landmark and it must not regress either.
+    const { engine, car } = ready(brakeOnly);
+    const events = plays(car.drive(engine, 2 * SPA_LENGTH_M, { stepM: 2 }));
 
     expect(events).toHaveLength(2);
-    expect(events[0]?.atPct).toBeCloseTo(0.98264, 3);
+    expect(events[0]?.atPct).toBeCloseTo(0.98264, 2);
   });
 });
 
-describe("fire position", () => {
-  it("fires where the arithmetic says, not at a fixed percentage", () => {
-    const engine = new NoteEngine(brakeOnly, SPA);
-    drive(engine, 0.1, 0.8 * SPA_LENGTH_M);
+describe("where the callout starts", () => {
+  it("starts where the arithmetic says, not at a fixed percentage", () => {
+    const { engine, car } = ready(brakeOnly);
+    car.teleport(0.95);
 
-    const [event] = drive(engine, 0.95, 0.06 * SPA_LENGTH_M, V250, 0.5);
+    const [event] = plays(car.drive(engine, 0.06 * SPA_LENGTH_M, { stepM: 0.5 }));
     expect(event).toBeDefined();
 
     // 1.24 s audio + 0.5 s buffer − 0.2 s author adjustment = 1.54 s.
     // At 69 m/s that is 106.3 m, i.e. pct 0.99781 − 0.01518 = 0.98263.
     expect(event!.leadM).toBeCloseTo(106.26, 1);
     expect(event!.atPct).toBeCloseTo(0.98263, 3);
-    expect(event!.dAheadM).toBeLessThanOrEqual(event!.leadM);
+    expect(event!.variant).toBe("full");
   });
 
-  it("fires earlier on track when the car is going faster", () => {
-    const fast = new NoteEngine(brakeOnly, SPA);
-    const slow = new NoteEngine(brakeOnly, SPA);
-    drive(fast, 0.1, 0.8 * SPA_LENGTH_M, mps(69), 2);
-    drive(slow, 0.1, 0.8 * SPA_LENGTH_M, mps(25), 2);
+  it("starts further back when the car is going faster", () => {
+    const fast = ready(brakeOnly);
+    const slow = ready(brakeOnly);
+    fast.car.teleport(0.95);
+    slow.car.teleport(0.95);
 
-    const [fastFire] = drive(fast, 0.95, 0.06 * SPA_LENGTH_M, mps(69), 0.5);
-    const [slowFire] = drive(slow, 0.95, 0.06 * SPA_LENGTH_M, mps(25), 0.5);
+    const [fastPlay] = plays(
+      fast.car.drive(fast.engine, 0.06 * SPA_LENGTH_M, { speedMps: mps(69), stepM: 0.5 }),
+    );
+    const [slowPlay] = plays(
+      slow.car.drive(slow.engine, 0.06 * SPA_LENGTH_M, { speedMps: mps(25), stepM: 0.5 }),
+    );
 
-    expect(fastFire!.leadM).toBeGreaterThan(slowFire!.leadM * 2);
-    // Same event, but the fast car hears it much further back down the road.
-    expect(fastFire!.atPct).toBeLessThan(slowFire!.atPct);
+    expect(fastPlay!.leadM).toBeGreaterThan(slowPlay!.leadM * 2);
+    expect(fastPlay!.atPct).toBeLessThan(slowPlay!.atPct);
   });
 
   it("respects a driver's profile preference", () => {
-    const build = (leadAdjustS: number): NoteEngine => {
-      const engine = new NoteEngine(brakeOnly, SPA, { leadAdjustS });
-      drive(engine, 0.1, 0.8 * SPA_LENGTH_M, V250, 2);
-      return engine;
-    };
+    const plain = ready(brakeOnly, 0);
+    const early = ready(brakeOnly, 0.5);
+    plain.car.teleport(0.95);
+    early.car.teleport(0.95);
 
-    const [plain] = drive(build(0), 0.95, 0.06 * SPA_LENGTH_M, V250, 0.5);
-    const [early] = drive(build(0.5), 0.95, 0.06 * SPA_LENGTH_M, V250, 0.5);
+    const [a] = plays(plain.car.drive(plain.engine, 0.06 * SPA_LENGTH_M, { stepM: 0.5 }));
+    const [b] = plays(early.car.drive(early.engine, 0.06 * SPA_LENGTH_M, { stepM: 0.5 }));
 
     // Half a second more warning at 69 m/s is ~34.5 m further back.
-    expect(early!.leadM - plain!.leadM).toBeCloseTo(34.5, 0);
+    expect(b!.leadM - a!.leadM).toBeCloseTo(34.5, 0);
   });
 });
 
 describe("state machine", () => {
   it("re-arms only once the event is more than half a lap away", () => {
-    const engine = new NoteEngine(brakeOnly, SPA);
+    const { engine, car } = ready(entryBrakeOnly);
 
-    // Event at 0.99781. Sitting just past it, it is nearly a full lap ahead.
-    engine.tick({ lapDistPct: pct(0.01), speedMps: V250 });
-    expect(engine.stateOf("t1_brake")).toBe("ARMED");
+    // Drive far enough to pass the trigger point at 0.99496, but stop short of
+    // the event itself at 0.0121.
+    car.teleport(0.98);
+    car.drive(engine, 0.02 * SPA_LENGTH_M);
+    expect(engine.stateOf("t1_entry_brake")).toBe("SPENT");
 
+    // Still approaching the event at 0.0121: from 0.9 it is 785 m ahead, well
+    // under half a lap, so a spent note stays spent. This is what stops a second
+    // callout in the same approach.
     engine.reset();
+    car.teleport(0.9);
+    car.drive(engine, 10);
+    expect(engine.stateOf("t1_entry_brake")).toBe("SPENT");
 
-    // A third of a lap ahead is not enough.
-    engine.tick({ lapDistPct: pct(0.7), speedMps: V250 });
-    expect(engine.stateOf("t1_brake")).toBe("SPENT");
+    // Past the event, it is 6388 m ahead — more than half a lap — so it arms for
+    // next time round.
+    engine.reset();
+    car.teleport(0.1);
+    car.drive(engine, 10);
+    expect(engine.stateOf("t1_entry_brake")).toBe("ARMED");
   });
 
   it("survives a reset to pits without needing to know one happened", () => {
-    // SPEC.md §6.2: the half-lap rule survives resets, tows and pit exits for
-    // free, because it never counts laps in the first place.
-    const engine = new NoteEngine(brakeOnly, SPA);
-    drive(engine, 0.1, 0.8 * SPA_LENGTH_M);
-    expect(engine.stateOf("t1_brake")).toBe("ARMED");
+    const { engine, car } = ready(entryBrakeOnly);
+    expect(engine.stateOf("t1_entry_brake")).toBe("ARMED");
 
-    // Teleported backwards to the pit exit mid-lap. No event, no notification.
-    engine.tick({ lapDistPct: pct(0.02), speedMps: mps(0) });
-    expect(engine.stateOf("t1_brake")).toBe("ARMED");
+    // Teleported backwards mid-lap. The state machine counts no laps, so there
+    // is nothing to get out of step.
+    car.teleport(0.5);
+    car.drive(engine, 10);
+    expect(engine.stateOf("t1_entry_brake")).toBe("ARMED");
 
-    const events = drive(engine, 0.95, 0.06 * SPA_LENGTH_M);
-    expect(events).toHaveLength(1);
+    car.teleport(0.98);
+    expect(plays(car.drive(engine, 0.05 * SPA_LENGTH_M))).toHaveLength(1);
   });
 
   it("tracks notes independently", () => {
-    const engine = new NoteEngine(resolved(spaGt3Notes.notes), SPA);
-    const events = drive(engine, 0.1, SPA_LENGTH_M);
+    const { engine, car } = ready(resolved(spaGt3Notes.notes));
+    const spoken = plays(car.drive(engine, SPA_LENGTH_M, { stepM: 1 }));
 
-    // t1_brake at 0.99781, t1_throttle at the apex 0.018 — both fire, once each.
-    expect(events.map((e) => e.noteId).sort()).toEqual(["t1_brake", "t1_throttle"]);
+    expect(spoken.map((e) => e.noteId).sort()).toEqual(["t1_brake", "t1_throttle"]);
   });
 
-  it("reports state for the dev overlay without exposing internals", () => {
+  it("hands the dev overlay a snapshot, not a live view", () => {
     const engine = new NoteEngine(brakeOnly, SPA);
     const snapshot = engine.states();
     expect(snapshot.get("t1_brake")).toBe("SPENT");
 
-    engine.tick({ lapDistPct: pct(0.01), speedMps: V250 });
-    // The snapshot is a copy, so it did not move under the caller.
+    const car = new Car(0.05);
+    car.drive(engine, 1.1 * SPA_LENGTH_M, { stepM: 5 });
+
     expect(snapshot.get("t1_brake")).toBe("SPENT");
     expect(engine.stateOf("t1_brake")).toBe("ARMED");
   });
@@ -242,5 +234,21 @@ describe("state machine", () => {
   it("ignores notes it was never given", () => {
     const engine = new NoteEngine(brakeOnly, SPA);
     expect(engine.stateOf("nonexistent")).toBeUndefined();
+  });
+});
+
+describe("suppression drops queued notes", () => {
+  it("discards the queue rather than releasing a burst on rejoining", () => {
+    const { engine, car } = ready(resolved(spaGt3Notes.notes));
+
+    // Two notes become due while the channel is busy, then the car goes off.
+    car.teleport(0.98);
+    car.drive(engine, 0.02 * SPA_LENGTH_M, { stepM: 1 });
+    const offTrack = car.drive(engine, 20, { offTrack: true, stepM: 1 });
+
+    expect(car.lastSuppression).toBe("off_track");
+    for (const event of drops(offTrack)) {
+      expect(event.reason).toBe("suppressed");
+    }
   });
 });

@@ -39,8 +39,8 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 ## Small stuff
 
-- [ ] Replay CLI needs an absolute path
-  `pnpm --filter` runs the script from `tools/replay/`, so relative paths resolve against the wrong directory. Fix by resolving against `INIT_CWD`.
+- [x] Replay CLI needs an absolute path
+  Fixed: paths now resolve against `INIT_CWD`, the directory the command was invoked from.
 - [ ] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
 - [ ] Correct §6.2's and §9's start/finish worked examples in docs/SPEC.md
   Both illustrate the double-fire with a note anchored at pct 0.998. That event sits *before* the line, so by the time a naive `firedThisLap` set is cleared the event is a whole lap behind (6988 m) and even the broken design cannot re-fire. The bug needs the trigger on one side of the line and the **event on the other** — turn 1's *entry* at 0.0121, not the 100 board at 0.99781. Bug is real; the illustration is off by one anchor. See `packages/core/test/engine.test.ts`.
@@ -73,13 +73,30 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   §12: never clear fired-state at start/finish. It double-fires turn 1 at most tracks. Regression test verified by mutation: the naive `firedThisLap` design fails all three S/F tests.
 - [x] `leadSecondsFor` (§6.1) as the single source of truth for lead time
   Both adjustment layers separate and additive, with a floor so a negative adjustment can never leave the voice still talking after its own event.
-- [ ] Scheduler: fit test, short-form fallback, priority admission, tie-break by event position (§6.3)
-- [ ] Suppression (§6.4)
+- [x] Scheduler: fit test, short-form fallback, priority admission, tie-break by event position (§6.3)
+  Dropping applies at every priority including 1 — a braking cue that arrives late is worse than silence.
+- [x] Suppression (§6.4)
+  All seven conditions, plus the 2 s off-track hold and the out-lap gate.
 - [ ] Preload WAVs at session start; never touch disk at trigger time
 - [ ] Hand-author note sets for Okayama (short) and Spa (long, turn 1 wraps — deliberately the hard case)
   Raw JSON is fine. Two tracks isn't enough to justify building the editor first, and hand-authoring is a useful way to feel where the schema is awkward.
-- [ ] Required tests from §9: the S/F double-fire case, `brakeOnsetPct` returns the onset, two priority-1 notes contending resolve deterministically
-  *Done when:* callouts land where a coach would say them, at both tracks, in two cars, with the S/F test green.
+- [x] §9 required tests: the S/F double-fire case, and two priority-1 notes contending resolve deterministically
+  Still owed from §9: `brakeOnsetPct` returns the onset (needs M1), and golden-file timelines against a real recording (needs M0b).
+- [ ] Wire the engine into the Electron app
+  `apps/desktop` still only forwards frames. Needs audio playback, which needs a voice provider picked (§13 Q4).
+- [ ] Golden-file the replay timeline
+  Format and CLI are in place (`--notes`); needs a real recorded lap to be worth freezing.
+
+*Done when:* callouts land where a coach would say them, at both tracks, in two
+cars, with the S/F test green.
+
+The engine (trigger, state machine, scheduler, suppression) is in and runs off a
+recording via `pnpm --filter @exxeed/replay start <rec.ndjson> --notes spa-gt3-fixture
+--data data/demo`. One finding from actually running it: a note that sat in the
+queue while the car drove past its event used to play anyway, because `aheadM` is
+always positive (§4.6) and reported the event as 6990 m ahead instead of 14 m
+behind. Now dropped as `event_passed`. Unit tests did not catch this; replaying a
+timeline did.
 
 ## M3 — Overlays
 

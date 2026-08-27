@@ -74,5 +74,5 @@ export interface TelemetryFrame {
   readonly enterExitReset: number;
 }
 
-/** Crawling threshold from SPEC.md §6.4 — 30 km/h expressed in SI. */
-export const CRAWL_SPEED_MPS = 8.3;
+// The crawling threshold from §6.4 lives in @exxeed/core alongside the rest of
+// the suppression rules — it is an engine threshold, not a property of the frame.

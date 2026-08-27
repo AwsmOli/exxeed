@@ -11,6 +11,10 @@ out/
 data/recordings/*
 !data/recordings/.gitkeep
 
+# data/demo/ is committed: the Spa turn-1 fixture as real artefacts, so the
+# replay CLI and the desktop app have something to run against out of the box.
+# Everything below is generated or per-machine.
+
 # Generated artefacts — regenerated from recordings, not source of truth.
 data/tracks/*
 !data/tracks/.gitkeep

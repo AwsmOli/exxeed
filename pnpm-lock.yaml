@@ -88,6 +88,9 @@ importers:
       '@exxeed/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@exxeed/repo':
+        specifier: workspace:*
+        version: link:../../packages/repo
       '@exxeed/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
