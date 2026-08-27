@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Sim racing pacenotes for iRacing — landmark-anchored voice callouts that fade as you learn the track",
+  "description": "Sim racing pacenotes for iRacing \u2014 landmark-anchored voice callouts that fade as you learn the track",
   "license": "MIT",
   "packageManager": "pnpm@9.12.3",
   "engines": {
@@ -26,5 +26,12 @@
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.11.0",
     "vitest": "^2.1.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "@irsdk-node/native",
+      "esbuild"
+    ]
   }
 }

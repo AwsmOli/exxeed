@@ -30,6 +30,20 @@ pnpm install
 
 Node 20+ required.
 
+`corepack enable` matters more than it looks. The repo pins `pnpm@9.12.3` via
+`packageManager`, and **pnpm 10 and later refuse to run dependency build scripts
+by default**. Electron's postinstall is what downloads its ~100 MB binary, so a
+newer pnpm silently skips it and the app then fails with *"Electron failed to
+install correctly"*. `package.json` allow-lists the three packages that need
+build scripts under `pnpm.onlyBuiltDependencies`, which covers newer pnpm too —
+but running the pinned version is still the path with fewest surprises.
+
+Check what actually ran:
+
+```powershell
+pnpm --version    # expect 9.12.3
+```
+
 ## 2. Sanity check before touching the sim
 
 ```powershell
@@ -107,6 +121,49 @@ git add -f data/recordings/<the-lap>.ndjson
 ```
 
 or copy it across by hand.
+
+## Troubleshooting
+
+### "Electron failed to install correctly"
+
+Electron's binary was not downloaded — `node_modules/electron/path.txt` is
+missing. In order of likelihood:
+
+1. **A newer pnpm skipped the build scripts.** Check `pnpm --version`. If it is
+   not 9.12.3, `corepack enable` did not take effect. Either fix that, or approve
+   the builds explicitly:
+
+   ```powershell
+   pnpm approve-builds       # pnpm 10+
+   pnpm rebuild electron
+   ```
+
+2. **The download failed** — it is ~100 MB from GitHub releases, so a corporate
+   proxy, firewall or antivirus can eat it. Retry, and if you are behind a proxy
+   set `ELECTRON_GET_USE_PROXY=1` plus the usual `HTTPS_PROXY`.
+
+3. **A half-finished install got cached.** Clear it and start clean:
+
+   ```powershell
+   Remove-Item -Recurse -Force node_modules
+   pnpm store prune
+   pnpm install
+   ```
+
+Confirm it is actually fixed before moving on. Run this from `apps/desktop`, not
+the repo root — Electron is that package's devDependency, and from the root the
+same command fails for an unrelated reason:
+
+```powershell
+cd apps\desktop
+node -e "console.log(require('electron'))"    # prints a path to the binary
+cd ..\..
+```
+
+Note that **only `apps/desktop` needs Electron**. If it stays broken, the note
+engine, the schemas and the replay harness do not depend on it — `pnpm test` and
+the replay CLI still work, and you can read telemetry that way while sorting it
+out.
 
 ## What this does not cover
 
