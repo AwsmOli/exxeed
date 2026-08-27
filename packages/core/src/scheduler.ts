@@ -124,6 +124,15 @@ export class Scheduler {
    * all, and mis-size the fit tolerance below.
    */
   advance(tMs: number): void {
+    // Time going backwards means a new session on the same engine — a looped
+    // replay, or a recording restarted. Carrying `busyUntilMs` across that gap
+    // would silently mute the channel for however long the old clip had left.
+    if (this.#lastTMs !== null && tMs < this.#lastTMs) {
+      this.#busyUntilMs = 0;
+      this.#queue = [];
+      this.#lastTMs = null;
+    }
+
     this.#dtS = this.#lastTMs === null ? 0 : (tMs - this.#lastTMs) / 1000;
     this.#lastTMs = tMs;
   }

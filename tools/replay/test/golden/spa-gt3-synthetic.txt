@@ -1,0 +1,3 @@
+lap  2  pct 0.9933  spd 108kph  SHORT t1_brake         lead   31m  dAhead   31m
+lap  3  pct 0.0200  spd 216kph  DROP  t1_throttle      reason: event_passed
+lap  3  pct 0.9933  spd 108kph  SHORT t1_brake         lead   31m  dAhead   31m

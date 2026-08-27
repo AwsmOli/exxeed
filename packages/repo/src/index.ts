@@ -5,3 +5,5 @@
 
 export * from "./interfaces.js";
 export * from "./local.js";
+export * from "./wav-write.js";
+export * from "./preload.js";

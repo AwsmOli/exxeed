@@ -1,0 +1,28 @@
+{
+  "noteSetId": "spa-gt3-fixture",
+  "voiceId": "en_test",
+  "format": "wav/pcm_s16le/22050",
+  "files": {
+    "t1_brake": {
+      "path": "spa-gt3-fixture/en_test/t1_brake.wav",
+      "durationMs": 1240,
+      "bytes": 54728
+    },
+    "t1_brake_short": {
+      "path": "spa-gt3-fixture/en_test/t1_brake_short.wav",
+      "durationMs": 720,
+      "bytes": 31796
+    },
+    "t1_throttle": {
+      "path": "spa-gt3-fixture/en_test/t1_throttle.wav",
+      "durationMs": 900,
+      "bytes": 39734
+    },
+    "t1_throttle_short": {
+      "path": "spa-gt3-fixture/en_test/t1_throttle_short.wav",
+      "durationMs": 540,
+      "bytes": 23858
+    }
+  },
+  "totalBytes": 150116
+}

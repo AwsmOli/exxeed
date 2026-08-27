@@ -266,3 +266,33 @@ describe("a note whose event has already gone past", () => {
     expect(event?.noteId).toBe("still_ahead");
   });
 });
+
+describe("time going backwards", () => {
+  it("clears the channel rather than staying muted into the new session", () => {
+    // A looped replay restarts tMs at zero. Carrying busyUntilMs across that gap
+    // would mute the channel for however long the old clip had left to run —
+    // which is exactly what the desktop app hit replaying its fixture on loop.
+    const s = scheduler(0.3);
+    s.admit(at(0.4, noteAt("first", 1)), input(0.3, 16));
+    s.pump(input(0.3, 16));
+    expect(s.busyAt(500)).toBe(true);
+
+    s.advance(0);
+    expect(s.busyAt(0)).toBe(false);
+    expect(s.queued()).toEqual([]);
+  });
+
+  it("speaks normally on the tick after the rewind", () => {
+    const s = scheduler(0.3);
+    s.admit(at(0.4, noteAt("first", 1)), input(0.3, 16));
+    s.pump(input(0.3, 16));
+
+    s.advance(0);
+    s.advance(16);
+    s.admit(at(0.3 + 400 / SPA_LENGTH_M, noteAt("after_rewind", 1)), input(0.3, 16));
+
+    const [event] = s.pump(input(0.3, 16));
+    expect(event?.kind).toBe("play");
+    expect(event?.noteId).toBe("after_rewind");
+  });
+});

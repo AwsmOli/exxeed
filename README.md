@@ -67,12 +67,23 @@ pnpm typecheck
 pnpm lint
 ```
 
-Replay a recording through the harness, or boot the app against one:
+Replay a recording through the note engine, or boot the app against one:
 
 ```sh
-pnpm --filter @exxeed/replay start /abs/path/to/recording.ndjson --speed 10
-EXXEED_REPLAY=/abs/path/to/recording.ndjson pnpm dev
+# Timeline of what would be said, and what would be dropped
+pnpm --filter @exxeed/replay start <recording.ndjson> --notes spa-gt3-fixture --data data/demo
+
+# The app, with audio, replaying the built-in fixture at 8x
+EXXEED_NOTES=spa-gt3-fixture EXXEED_SPEED=8 pnpm dev
 ```
+
+`data/demo/` holds a two-corner Spa stub — track map, landmarks, note set and a
+placeholder audio pack — so both of those work with nothing else set up. The
+audio is tone bursts at the right durations, not speech: the engine only cares
+about `durationMs`, which is what sets lead distance.
+
+Environment variables: `EXXEED_REPLAY` (recording path), `EXXEED_SPEED`,
+`EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_LEAD_ADJUST`.
 
 **iRacing is Windows-only, and so is the telemetry SDK.** `@irsdk-node/native`
 ships prebuilds for `win32-x64` and `win32-arm64` only; off Windows its installer

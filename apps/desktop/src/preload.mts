@@ -1,7 +1,7 @@
 /**
  * Preload — the whole IPC surface the renderer gets.
  *
- * Deliberately one-way and one channel. The renderer draws; it does not drive the
+ * Deliberately one-way. The renderer draws and plays sound; it does not drive the
  * telemetry loop, does not own timing, and cannot reach into main (SPEC.md §7).
  *
  * `.mts` rather than `.ts` because Electron requires ESM preload scripts to carry
@@ -11,11 +11,17 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 const STATE_FRAME_CHANNEL = "exxeed:state-frame";
+const AUDIO_PRELOAD_CHANNEL = "exxeed:audio-preload";
+const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
+
+const subscribe = (channel: string, callback: (payload: unknown) => void): (() => void) => {
+  const listener = (_event: unknown, payload: unknown): void => callback(payload);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.off(channel, listener);
+};
 
 contextBridge.exposeInMainWorld("exxeed", {
-  onStateFrame(callback: (frame: unknown) => void): () => void {
-    const listener = (_event: unknown, frame: unknown): void => callback(frame);
-    ipcRenderer.on(STATE_FRAME_CHANNEL, listener);
-    return () => ipcRenderer.off(STATE_FRAME_CHANNEL, listener);
-  },
+  onStateFrame: (cb: (frame: unknown) => void) => subscribe(STATE_FRAME_CHANNEL, cb),
+  onAudioPreload: (cb: (clips: unknown) => void) => subscribe(AUDIO_PRELOAD_CHANNEL, cb),
+  onAudioPlay: (cb: (command: unknown) => void) => subscribe(AUDIO_PLAY_CHANNEL, cb),
 });

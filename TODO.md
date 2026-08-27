@@ -77,26 +77,42 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   Dropping applies at every priority including 1 — a braking cue that arrives late is worse than silence.
 - [x] Suppression (§6.4)
   All seven conditions, plus the 2 s off-track hold and the out-lap gate.
-- [ ] Preload WAVs at session start; never touch disk at trigger time
+- [x] Preload WAVs at session start; never touch disk at trigger time
+  Clips are read, duration-checked and shipped to the renderer once; decoding happens there at preload, not on play. A pack whose declared `durationMs` disagrees with the file is a warning, not a shrug — it mistimes every callout for that note.
 - [ ] Hand-author note sets for Okayama (short) and Spa (long, turn 1 wraps — deliberately the hard case)
-  Raw JSON is fine. Two tracks isn't enough to justify building the editor first, and hand-authoring is a useful way to feel where the schema is awkward.
+  **Blocked on M0b.** A note set needs a TrackMap and a LandmarkInventory to anchor against, and both come from a recorded lap. `data/demo/` holds a two-corner Spa stub to develop against; inventing full corner geometry for a braking-point app would be worse than waiting.
+- [ ] Pick a voice provider (§13 Q4) and render real audio
+  The audio path is built and runs on placeholder tones at the declared durations. Timing logic is verifiable now; whether a callout *feels* early or late is not, until the words are real.
 - [x] §9 required tests: the S/F double-fire case, and two priority-1 notes contending resolve deterministically
   Still owed from §9: `brakeOnsetPct` returns the onset (needs M1), and golden-file timelines against a real recording (needs M0b).
-- [ ] Wire the engine into the Electron app
-  `apps/desktop` still only forwards frames. Needs audio playback, which needs a voice provider picked (§13 Q4).
-- [ ] Golden-file the replay timeline
-  Format and CLI are in place (`--notes`); needs a real recorded lap to be worth freezing.
+- [x] Wire the engine into the Electron app
+  Main owns the loop, the engine and the decision; the renderer is only the output device, since Node has no audio out. That window sets `backgroundThrottling: false` so the output path cannot be throttled either.
+- [x] Golden-file the replay timeline
+  `tools/replay/test/golden/` against the synthetic fixture. Freezes the engine, not the driving — rebaseline it against a real Okayama lap at M0b (`UPDATE_GOLDEN=1`). Verified it bites: changing `REACTION_BUFFER_S` fails it.
 
 *Done when:* callouts land where a coach would say them, at both tracks, in two
 cars, with the S/F test green.
 
-The engine (trigger, state machine, scheduler, suppression) is in and runs off a
-recording via `pnpm --filter @exxeed/replay start <rec.ndjson> --notes spa-gt3-fixture
---data data/demo`. One finding from actually running it: a note that sat in the
-queue while the car drove past its event used to play anyway, because `aheadM` is
-always positive (§4.6) and reported the event as 6990 m ahead instead of 14 m
-behind. Now dropped as `event_passed`. Unit tests did not catch this; replaying a
-timeline did.
+**The machinery is finished; the content is not.** Everything mechanical works end
+to end — trigger, state machine, scheduler, suppression, preloading, audio out,
+golden-filed timeline:
+
+    EXXEED_NOTES=spa-gt3-fixture EXXEED_SPEED=8 pnpm dev
+    pnpm --filter @exxeed/replay start <rec.ndjson> --notes spa-gt3-fixture --data data/demo
+
+What is missing is real content, and both halves are blocked on things outside this
+machine: note sets need a recorded lap (M0b), and judging whether a callout *feels*
+right needs a real voice (§13 Q4). So M2 cannot be closed here, and the two open
+items above say why rather than being quietly ticked.
+
+Two findings from running it rather than unit-testing it:
+
+- A note that sat in the queue while the car drove past its event used to play
+  anyway: `aheadM` is always positive (§4.6), so it reported the event as 6990 m
+  ahead instead of 14 m behind. Now dropped as `event_passed`.
+- Looping a replay rewinds `tMs`, and the scheduler kept a stale `busyUntilMs`
+  across the gap — muting the channel into the next pass. It now treats time going
+  backwards as a new session.
 
 ## M3 — Overlays
 
