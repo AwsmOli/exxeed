@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "note": "Daytona Road Course, cut against data/reference/daytona-2011-road-mx5-lap.ndjson (MX-5, 135.39s). Detection finds 13 regions; the circuit has 12 turns. Corrections confirmed against the telemetry and by eye. Operations address DETECTED indices, so recut them if detection changes.",
+  "operations": [
+    {
+      "op": "split",
+      "index": 1,
+      "atPct": [0.113],
+      "why": "Two corners, T1 and T2. Detection merged them because their 31 m gap falls just under the 30 m merge rule — a boundary case that flips between laps, so it is pinned here rather than left to chance."
+    },
+    {
+      "op": "merge",
+      "indices": [5, 6],
+      "why": "Detected 5 is not a corner: a 0.153 rad left flick under braking (throttle 0, brake 0.5-0.7) as the car positions for the 1.03 rad right that follows. It is T6's entry. Note this merges ACROSS a sign change, which is the opposite of what the split below does."
+    },
+    {
+      "op": "merge",
+      "indices": [8, 9],
+      "why": "One corner, T8. Detected 8 is the entry arc onto the banking that detected 9 sustains."
+    },
+    {
+      "op": "split",
+      "index": 10,
+      "atPct": [0.674],
+      "why": "T9 and T10. Detection averaged the steering across this region and reported 'right', hiding a 0.471 rad sustained left at 0.6675 that precedes the 0.677 rad right at 0.6885. Splitting at the sign change recovers both. Detected 11 is T11, so this is a left-right-left."
+    },
+    {
+      "op": "merge",
+      "indices": [12, 13],
+      "why": "One corner, T12. Detected 12 is the entry to the banking that detected 13 sustains — same shape as the T8 case."
+    }
+  ]
+}

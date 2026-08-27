@@ -22,7 +22,15 @@ data/recordings/*
 # Everything below is generated or per-machine.
 
 # Generated artefacts — regenerated from recordings, not source of truth.
-data/tracks/*
+#
+# corners.override.json is the exception and IS committed. It is hand-written
+# source, not output: §5.2's "ten minutes per track" of human judgement about
+# which detected regions are really one corner. Regenerating a map is cheap;
+# regenerating that is a person watching a lap again. Everything else under
+# data/tracks/ falls out of a recording plus the override.
+data/tracks/**
+!data/tracks/**/
+!data/tracks/**/corners.override.json
 !data/tracks/.gitkeep
 data/reflaps/*
 !data/reflaps/.gitkeep
