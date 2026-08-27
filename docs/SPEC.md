@@ -1114,10 +1114,22 @@ and get a recording, and you know which sign is left.
 **M1 — Replay harness + track map builder.** Replay a recording on a virtual
 clock. Corner detection produces `corners.json`. `brakeOnsetPct` / `throttleOnPct`
 populate `perCorner`. A throwaway script renders detected corners so you can
-eyeball them. *Done when:* Okayama's corners come out right without hand-editing.
+eyeball them. *Done when:* **Daytona Road Course's** corners come out right, with
+`corners.override.json` used only for the cases §5.2 already says are unsolvable.
 
-**M2 — Note engine + audio.** Hand-author note sets for Okayama (short) and Spa
-(long, and its turn 1 wraps — deliberately the hard case). State machine,
+> **The first track is whichever one is being driven.** It was Okayama on the
+> grounds that it is short and uniform; it is Daytona Road because that is the
+> week's track and a real lap beats a convenient one. Be aware this trades a
+> uniform circuit for the exact pair of failure modes §5.2 names: the banked oval
+> sections are sustained turns taken at high speed with very little steering
+> input, while the infield hairpin puts a large angle into the same lap and
+> raises the P98 threshold that the banking then falls under. Expect the banking
+> to need an override entry. That is §5.2 working as designed, not detection
+> being broken — but it does mean "without hand-editing" is the wrong bar for
+> this track, so the criterion above says what it actually is.
+
+**M2 — Note engine + audio.** Hand-author note sets for Daytona Road Course and
+Spa (long, and its turn 1 wraps — deliberately the hard case). State machine,
 scheduler, suppression. Preload WAVs at session start. Validate in replay first,
 then in the car. *Done when:* callouts land where a coach would say them, at both
 tracks, in two cars, with the S/F test green.
@@ -1126,8 +1138,8 @@ tracks, in two cars, with the S/F test green.
 *Done when:* you can see your brake trace lagging the reference in real time.
 
 **M4 — Fading + profile.** Per-corner-per-phase learning state, hysteresis,
-persistence. *Done when:* twenty laps of Okayama leaves only the corners you keep
-getting wrong.
+persistence. *Done when:* twenty laps of Daytona Road Course leaves only the
+corners you keep getting wrong.
 
 **M5 — Ingest pipeline** *(parallel from the start, separate package)*. Stages
 0–6, local review UI. *Done when:* a YouTube URL for a Spa GT3 guide produces a

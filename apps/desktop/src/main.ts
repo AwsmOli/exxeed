@@ -133,7 +133,7 @@ const emptyFrame: StateFrame = {
  * Where a session's recording lands — SPEC.md §9.
  *
  * Grouped by track then car, so `data/recordings/` stays navigable once there
- * are hundreds of laps in it and you want "the MX-5 laps at Okayama". Sessions
+ * are hundreds of laps in it and you want "the MX-5 laps at Daytona". Sessions
  * the sim would not identify go in `unknown/` rather than being dropped.
  */
 function recordingPath(identity: SessionIdentity | null): string {

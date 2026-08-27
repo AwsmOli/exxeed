@@ -60,7 +60,7 @@ Step-by-step: **[docs/WINDOWS.md](docs/WINDOWS.md)**.
 - [x] Label recordings with track and car, and group them by both
   `data/recordings/<track>/<car>/<timestamp>.ndjson`, ids from the sim's own `TrackName`/`CarPath`. The header repeats it, so a file moved out of the tree still says what it is. `ReplayAdapter.identity` reads it back.
 - [ ] Drive a lap, get a recording, check it into the repo as the M1 fixture
-  Still owed, and it is the deliverable. Needs **Okayama**, not Daytona — M1's *done when* is Okayama's corners coming out right.
+  Still owed, and it is the deliverable. **Daytona Road Course** — the first track is whichever one is being driven, and that is this week's. The Daytona laps already recorded predate the motion channels, so they can feed corner detection but not the centreline; the fixture lap has to be a fresh one.
   *Done when:* you can drive a lap and get a recording, and you know which sign is left.
 
 Three things came out of doing this that were not visible from macOS:
@@ -99,7 +99,16 @@ Three things came out of doing this that were not visible from macOS:
   Must reject an all-zero-velocity lap loudly: every recording made before these
   channels existed parses fine and integrates to a single point.
 - [ ] Throwaway script rendering detected corners so you can eyeball them
-  *Done when:* Okayama's corners come out right without hand-editing.
+  *Done when:* Daytona Road Course's corners come out right, with `corners.override.json` used only for the cases §5.2 already says are unsolvable.
+
+Daytona is a harder first track than Okayama was going to be, and in a specific,
+predictable way: it contains **both** of §5.2's failure modes in one lap. The
+banked oval sections are sustained turns held at high speed on very little
+steering input, and the infield hairpin puts a big angle into the same lap, which
+raises the P98 threshold the banking then falls under. Expect the banking to need
+an override entry. Worth knowing before tuning thresholds against it and
+concluding detection is broken — §5.2's answer is ten minutes of hand-editing per
+track, not a week of tuning.
 
 ## M2 — Note engine + audio
 
@@ -113,7 +122,7 @@ Three things came out of doing this that were not visible from macOS:
   All seven conditions, plus the 2 s off-track hold and the out-lap gate.
 - [x] Preload WAVs at session start; never touch disk at trigger time
   Clips are read, duration-checked and shipped to the renderer once; decoding happens there at preload, not on play. A pack whose declared `durationMs` disagrees with the file is a warning, not a shrug — it mistimes every callout for that note.
-- [ ] Hand-author note sets for Okayama (short) and Spa (long, turn 1 wraps — deliberately the hard case)
+- [ ] Hand-author note sets for Daytona Road Course and Spa (long, turn 1 wraps — deliberately the hard case)
   **Blocked on M0b.** A note set needs a TrackMap and a LandmarkInventory to anchor against, and both come from a recorded lap. `data/demo/` holds a two-corner Spa stub to develop against; inventing full corner geometry for a braking-point app would be worse than waiting.
 - [ ] Pick a voice provider (§13 Q4) and render real audio
   The audio path is built and runs on placeholder tones at the declared durations. Timing logic is verifiable now; whether a callout *feels* early or late is not, until the words are real.
@@ -122,7 +131,7 @@ Three things came out of doing this that were not visible from macOS:
 - [x] Wire the engine into the Electron app
   Main owns the loop, the engine and the decision; the renderer is only the output device, since Node has no audio out. That window sets `backgroundThrottling: false` so the output path cannot be throttled either.
 - [x] Golden-file the replay timeline
-  `tools/replay/test/golden/` against the synthetic fixture. Freezes the engine, not the driving — rebaseline it against a real Okayama lap at M0b (`UPDATE_GOLDEN=1`). Verified it bites: changing `REACTION_BUFFER_S` fails it.
+  `tools/replay/test/golden/` against the synthetic fixture. Freezes the engine, not the driving — rebaseline it against a real Daytona Road lap at M0b (`UPDATE_GOLDEN=1`). Verified it bites: changing `REACTION_BUFFER_S` fails it.
 
 *Done when:* callouts land where a coach would say them, at both tracks, in two
 cars, with the S/F test green.
@@ -166,7 +175,7 @@ Two findings from running it rather than unit-testing it:
 
 - [ ] Per-`(trackRef, carId, cornerIndex, phase)` learning state with the 15 m / 22.5 m hysteresis (§6.5)
 - [ ] Count only valid laps; persist to `/data/profile/`
-  *Done when:* twenty laps of Okayama leaves only the corners you keep getting wrong.
+  *Done when:* twenty laps of Daytona Road Course leaves only the corners you keep getting wrong.
 
 ## M5 — Ingest pipeline (parallel from the start, separate package)
 

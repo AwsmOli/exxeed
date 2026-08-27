@@ -125,15 +125,15 @@ afterwards rather than taken on trust from a number read at speed.
 ## 6. Record a lap
 
 Recording is always-on (§9) — every session writes to `data/recordings/`. Drive a
-clean lap of **Okayama** (short, and M1's *done when* is its corners coming out
-right without hand-editing).
+clean lap of **Daytona Road Course** — M1's *done when* is its corners coming
+out right, and the first track is whichever one is actually being driven.
 
 Recordings are grouped by track then car, and the header line repeats it so a
 file is self-describing on its own:
 
 ```
 data/recordings/<track>/<car>/<timestamp>.ndjson
-data/recordings/okayama-full/mx5-mx52016/2026-08-27T20-36-36-215Z.ndjson
+data/recordings/daytona-2011-road/mx5-mx52016/2026-08-27T20-36-36-215Z.ndjson
 ```
 
 The ids come from the sim's own `TrackName` and `CarPath`, not the display
@@ -213,7 +213,7 @@ out.
 ## What this does not cover
 
 Callout content. The demo note set is a two-corner Spa stub and will mean nothing
-at Okayama; `$env:EXXEED_NOTES="spa-gt3-fixture"` only demonstrates that the audio
+at Daytona; `$env:EXXEED_NOTES="spa-gt3-fixture"` only demonstrates that the audio
 path fires. Real note sets need the track map that this recording produces, and
 judging whether a callout *feels* early or late needs real speech, which is
 blocked on picking a voice provider (§13, open question 4).

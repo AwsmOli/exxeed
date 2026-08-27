@@ -3,7 +3,7 @@
  *
  * Not a real lap and not pretending to be one: three laps of a constant-radius
  * loop with a single braking zone, enough to exercise ordering, the virtual
- * clock, and the start/finish wrap. The real M1 fixture is a recorded Okayama lap
+ * clock, and the start/finish wrap. The real M1 fixture is a recorded Daytona Road lap
  * and has to wait for a Windows machine (TODO.md, M0b).
  *
  * Run with:  pnpm --filter @exxeed/telemetry exec tsx test/fixtures/generate.ts

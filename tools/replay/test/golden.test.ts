@@ -17,7 +17,7 @@ const GOLDEN = fileURLToPath(new URL("./golden/spa-gt3-synthetic.txt", import.me
  *
  * The recording here is the synthetic 3-lap loop, not a real lap — so this freezes
  * the ENGINE's behaviour, not whether the callouts are any good. It will be
- * rebaselined against a real Okayama lap once M0b produces one, and at that point
+ * rebaselined against a real Daytona Road lap once M0b produces one, and at that point
  * it starts saying something about the driving too.
  *
  * Regenerate deliberately with UPDATE_GOLDEN=1, never by reflex: a changed line
