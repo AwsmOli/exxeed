@@ -55,6 +55,8 @@ window.exxeed?.onAudioPlay((command) => {
 
 window.exxeed?.onStateFrame((f) => {
   frames++;
+  // Stashed, not drawn. The rAF loop above owns the canvas (§7.0).
+  latest = f;
   cell("source").textContent = f.sourceName ?? "—";
   cell("lapDistPct").textContent = fixed(f.lapDistPct, 5);
   cell("speedMps").textContent = fixed(f.speedMps, 2);
@@ -85,3 +87,103 @@ window.exxeed?.onStateFrame((f) => {
   suppressed.textContent = f.suppressedBy ?? "—";
   suppressed.className = f.suppressedBy ? "quiet" : "";
 });
+
+
+// ---------------------------------------------------------------------------
+// Track map
+//
+// §7.0: a canvas must not re-render on telemetry. Nothing here goes through a
+// framework — the map arrives once, the latest frame is stashed in a plain
+// variable, and a requestAnimationFrame loop draws. The car moves at the
+// display's rate, not the telemetry's, which is what you want: 60 Hz of state
+// does not need 60 Hz of repainting to look smooth.
+// ---------------------------------------------------------------------------
+
+let mapView = null;
+let latest = null;
+let trackPath = null;
+
+const canvas = cell("map");
+const ctx = canvas?.getContext("2d") ?? null;
+
+/** Rebuild the static outline. Only on resize or a new map — never per frame. */
+const buildPath = (w, h, pad) => {
+  const path = new Path2D();
+  const sx = (i) => pad + mapView.x[i] * (w - pad * 2);
+  const sy = (i) => pad + mapView.y[i] * (h - pad * 2);
+  path.moveTo(sx(0), sy(0));
+  for (let i = 1; i < mapView.x.length; i++) path.lineTo(sx(i), sy(i));
+  path.closePath();
+  return path;
+};
+
+const fitCanvas = () => {
+  if (canvas === null) return;
+  const ratio = window.devicePixelRatio || 1;
+  const box = canvas.getBoundingClientRect();
+  canvas.width = Math.round(box.width * ratio);
+  canvas.height = Math.round(box.height * ratio);
+  trackPath = mapView === null ? null : buildPath(canvas.width, canvas.height, 14 * ratio);
+};
+
+window.exxeed?.onMap((view) => {
+  mapView = view;
+  cell("map-name").textContent = `${view.trackName}${view.configName ? ` — ${view.configName}` : ""}`;
+  canvas?.classList.add("ready");
+  fitCanvas();
+});
+
+window.addEventListener("resize", fitCanvas);
+
+const draw = () => {
+  requestAnimationFrame(draw);
+  if (ctx === null || canvas === null) return;
+
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  if (mapView === null || trackPath === null) return;
+
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 3 * ratio;
+  ctx.lineJoin = "round";
+  ctx.stroke(trackPath);
+
+  const at = (i) => [
+    14 * ratio + mapView.x[i] * (w - 28 * ratio),
+    14 * ratio + mapView.y[i] * (h - 28 * ratio),
+  ];
+
+  // Where each note speaks. Seeing them sit on the corners is the quickest
+  // check that a note set and a map agree about the same track.
+  ctx.fillStyle = "rgba(88,166,255,0.85)";
+  for (const note of mapView.notes) {
+    const [x, y] = at(note.index);
+    ctx.beginPath();
+    ctx.arc(x, y, 2.6 * ratio, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const [sfx, sfy] = at(mapView.startIndex);
+  ctx.fillStyle = "rgba(240,136,62,0.9)";
+  ctx.fillRect(sfx - 2.5 * ratio, sfy - 2.5 * ratio, 5 * ratio, 5 * ratio);
+
+  if (latest === null || typeof latest.lapDistPct !== "number") return;
+
+  // The car. Index straight off lapDistPct — the centreline shares the pct grid
+  // with everything else (§4.1.1), so there is no lookup to do.
+  const n = mapView.x.length;
+  const i = Math.min(n - 1, Math.floor(((latest.lapDistPct % 1) + 1) % 1 * n));
+  const [cx, cy] = at(i);
+
+  ctx.fillStyle = latest.suppressedBy ? "#f0883e" : "#7ee787";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4.5 * ratio, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.55)";
+  ctx.lineWidth = 1.5 * ratio;
+  ctx.stroke();
+};
+
+requestAnimationFrame(draw);

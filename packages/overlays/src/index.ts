@@ -20,6 +20,9 @@ export const AUDIO_PRELOAD_CHANNEL = "exxeed:audio-preload";
 /** "Speak this now", main → renderer. Carries no audio, only a key. */
 export const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
 
+/** The track outline, main → renderer, once at session start. */
+export const MAP_CHANNEL = "exxeed:map";
+
 /**
  * The compact state frame pushed to renderers.
  *
@@ -67,6 +70,28 @@ export interface AudioPlayCommand {
   readonly key: string;
   readonly noteId: string;
   readonly durationMs: number;
+}
+
+/**
+ * The track drawn as a closed polyline, plus where the notes are.
+ *
+ * Display only. The engine needs no TrackMap (§4.4) and this does not change
+ * that — main loads one if there happens to be a cut for this track, and the
+ * window simply has nothing to draw if there isn't.
+ *
+ * Coordinates are normalised to 0..1 with the aspect ratio preserved, so the
+ * renderer scales to whatever box it has without knowing about metres.
+ */
+export interface TrackMapView {
+  readonly trackName: string;
+  readonly configName: string;
+  /** Centreline, x/y in 0..1, already aspect-corrected. Closed loop. */
+  readonly x: readonly number[];
+  readonly y: readonly number[];
+  /** Where each note speaks, as an index into x/y. */
+  readonly notes: readonly { readonly id: string; readonly index: number }[];
+  /** Start/finish, as an index into x/y. */
+  readonly startIndex: number;
 }
 
 /** For the dev callout overlay (§7.3). Not a shipping surface. */

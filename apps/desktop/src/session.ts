@@ -9,6 +9,9 @@
 
 import type { DriverProfile, NoteSet } from "@exxeed/core";
 import { metres, NoteEngine } from "@exxeed/core";
+import type { TrackMapView } from "@exxeed/overlays";
+
+import { toMapView } from "./map-view.js";
 import type { PreloadedAudio } from "@exxeed/repo";
 import { localRepositories, preloadAudio } from "@exxeed/repo";
 
@@ -23,6 +26,12 @@ export interface LoadedSession {
   readonly engine: NoteEngine;
   readonly noteSet: NoteSet;
   readonly audio: PreloadedAudio | null;
+  /**
+   * For the window to draw. Null when no map has been cut for this track — the
+   * engine does not need one (§4.4), so a missing map costs a picture and
+   * nothing else.
+   */
+  readonly mapView: TrackMapView | null;
   readonly warnings: readonly string[];
 }
 
@@ -35,9 +44,18 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     throw new Error(`no note set "${config.noteSetId}" under ${config.dataDir}`);
   }
 
-  // No TrackMap, no LandmarkInventory. A note is a point and a message (§4.4),
-  // so the runtime needs the note set and its audio and nothing else. The map is
-  // an authoring input.
+  // The ENGINE needs no TrackMap: a note is a point and a message (§4.4). This
+  // is purely so the window can draw the circuit and put the car on it, which is
+  // the fastest way to see that the map and the telemetry agree.
+  let mapView: TrackMapView | null = null;
+  const mapVersion = await repos.trackMaps.latestVersion(noteSet.trackKey);
+  if (mapVersion !== null) {
+    const map = await repos.trackMaps.get({ ...noteSet.trackKey, mapVersion });
+    if (map !== null) mapView = toMapView(map, noteSet.notes);
+  }
+  if (mapView === null) {
+    warnings.push("no track map for this note set — the window will not draw one");
+  }
 
   // A missing audio pack is survivable — the engine still runs and the dev
   // overlay still shows what it would have said. A WRONG one is not, so
@@ -67,6 +85,7 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), config.profile),
     noteSet,
     audio,
+    mapView,
     warnings,
   };
 }

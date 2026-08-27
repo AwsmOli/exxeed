@@ -22,6 +22,7 @@ import { mps, pct, radians } from "@exxeed/core";
 import {
   AUDIO_PLAY_CHANNEL,
   AUDIO_PRELOAD_CHANNEL,
+  MAP_CHANNEL,
   STATE_FRAME_CHANNEL,
   type AudioClip,
   type AudioPlayCommand,
@@ -161,6 +162,10 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
 
   for (const warning of session?.warnings ?? []) {
     process.stderr.write(`warning: ${warning}\n`);
+  }
+
+  if (session?.mapView != null && !window.webContents.isDestroyed()) {
+    window.webContents.send(MAP_CHANNEL, session.mapView);
   }
 
   // Ship every clip to the renderer once, up front, so the trigger path is a

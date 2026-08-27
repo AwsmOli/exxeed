@@ -36,6 +36,14 @@
       .note { margin-top: 22px; max-width: 620px; color: #8a93a0; font-size: 12px; }
       code { color: #c9d1d9; }
 
+      /* The map. Hidden until one arrives — the engine needs no TrackMap
+         (§4.4), so a note set without one is normal, not broken. */
+      #map { display: none; width: 280px; height: 280px; }
+      #map.ready { display: block; }
+      #map-name { max-width: 280px; }
+      body.overlay #map { width: 190px; height: 190px; }
+      body.overlay #map-name { display: block; max-width: 190px; }
+
       /*
         Overlay mode — SPEC.md §7. Compact, translucent, and readable over a
         moving game image, which means heavy contrast rather than subtlety: a
@@ -111,6 +119,11 @@
           <tr><td>Frames received</td><td id="frames">0</td></tr>
         </tbody>
       </table>
+
+      <div>
+        <h2 id="map-name">Track</h2>
+        <canvas id="map" width="300" height="300"></canvas>
+      </div>
 
       <div>
         <h2>Callouts</h2>

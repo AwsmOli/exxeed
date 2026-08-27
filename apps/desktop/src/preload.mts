@@ -13,6 +13,7 @@ import { contextBridge, ipcRenderer } from "electron";
 const STATE_FRAME_CHANNEL = "exxeed:state-frame";
 const AUDIO_PRELOAD_CHANNEL = "exxeed:audio-preload";
 const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
+const MAP_CHANNEL = "exxeed:map";
 
 const subscribe = (channel: string, callback: (payload: unknown) => void): (() => void) => {
   const listener = (_event: unknown, payload: unknown): void => callback(payload);
@@ -28,4 +29,5 @@ contextBridge.exposeInMainWorld("exxeed", {
   onStateFrame: (cb: (frame: unknown) => void) => subscribe(STATE_FRAME_CHANNEL, cb),
   onAudioPreload: (cb: (clips: unknown) => void) => subscribe(AUDIO_PRELOAD_CHANNEL, cb),
   onAudioPlay: (cb: (command: unknown) => void) => subscribe(AUDIO_PLAY_CHANNEL, cb),
+  onMap: (cb: (view: unknown) => void) => subscribe(MAP_CHANNEL, cb),
 });
