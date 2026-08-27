@@ -27,6 +27,7 @@ export function toMapView(map: TrackMap, notes: readonly Note[]): TrackMapView {
   return {
     trackName: map.trackName,
     configName: map.configName,
+    lengthM: map.lengthM,
     x: x.map((v) => (v - minX + offsetX) / span),
     // Flip Y: the centreline is a maths frame with Y increasing north, and a
     // canvas has Y increasing downwards.

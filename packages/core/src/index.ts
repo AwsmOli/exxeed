@@ -23,3 +23,4 @@ export * from "./trigger.js";
 export * from "./suppression.js";
 export * from "./scheduler.js";
 export * from "./engine.js";
+export * from "./delta.js";

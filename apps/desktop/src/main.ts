@@ -18,14 +18,17 @@ import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow } from "electron";
 
-import { mps, pct, radians } from "@exxeed/core";
+import { deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
 import {
   AUDIO_PLAY_CHANNEL,
   AUDIO_PRELOAD_CHANNEL,
+  ENGINE_EVENT_CHANNEL,
   MAP_CHANNEL,
+  REFERENCE_CHANNEL,
   STATE_FRAME_CHANNEL,
   type AudioClip,
   type AudioPlayCommand,
+  type EngineEventView,
   type StateFrame,
 } from "@exxeed/overlays";
 import {
@@ -93,6 +96,7 @@ async function createSession(replaying: boolean): Promise<LoadedSession | null> 
     assumeLapComplete: skipOutLap,
     dataDir: env("EXXEED_DATA") ?? `${REPO_ROOT}/data/demo`,
     noteSetId,
+    ...(env("EXXEED_CAR") === undefined ? {} : { carId: Number(env("EXXEED_CAR")) }),
     voiceId: env("EXXEED_VOICE") ?? "en_test",
     profile: { leadAdjustS: Number(env("EXXEED_LEAD_ADJUST") ?? "0") },
   });
@@ -103,6 +107,7 @@ const toStateFrame = (
   sourceName: string,
   session: LoadedSession | null,
   suppressedBy: StateFrame["suppressedBy"],
+  lapElapsedS: StateFrame["lapElapsedS"],
 ): StateFrame => ({
   tMs: f.tMs,
   lap: f.lap,
@@ -114,11 +119,26 @@ const toStateFrame = (
   steerRad: f.steerRad,
   lat: f.lat,
   lon: f.lon,
-  deltaS: null, // Needs a loaded ReferenceLap — M3 (§7.2).
+  lapElapsedS,
+  deltaS:
+    session?.reference == null
+      ? null
+      : deltaSeconds({
+          lapElapsedS,
+          lapDistPct: f.lapDistPct,
+          referenceElapsedS: session.reference.elapsedS,
+          gridSize: session.reference.gridSize,
+        }),
   connected: true,
   sourceName,
   suppressedBy,
   queuedNoteIds: session?.engine.queued() ?? [],
+  armedNoteIds:
+    session === null
+      ? []
+      : [...session.engine.states()]
+          .filter(([, state]) => state === "ARMED")
+          .map(([id]) => id),
 });
 
 const emptyFrame: StateFrame = {
@@ -132,11 +152,13 @@ const emptyFrame: StateFrame = {
   steerRad: radians(0),
   lat: 0,
   lon: 0,
+  lapElapsedS: null,
   deltaS: null,
   connected: false,
   sourceName: "—",
   suppressedBy: null,
   queuedNoteIds: [],
+  armedNoteIds: [],
 };
 
 /**
@@ -178,6 +200,15 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
     window.webContents.send(MAP_CHANNEL, session.mapView);
   }
 
+  if (session?.reference != null && !window.webContents.isDestroyed()) {
+    window.webContents.send(REFERENCE_CHANNEL, session.reference);
+    process.stdout.write(
+      `reference lap: car ${session.reference.carId}, ` +
+        `${session.reference.lapTimeS.toFixed(3)}s, ` +
+        `${session.reference.corners.length} corners\n`,
+    );
+  }
+
   // Ship every clip to the renderer once, up front, so the trigger path is a
   // lookup rather than a read (§4.5).
   if (session?.audio != null && !window.webContents.isDestroyed()) {
@@ -210,6 +241,8 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
   // `window.isDestroyed()` alone is not enough: the render frame is disposed
   // before the BrowserWindow reports itself destroyed, so a loop checking only
   // that races teardown and floods the log with "Render frame was disposed".
+  const lapTimer = new LapTimer();
+
   let stopped = false;
   window.once("closed", () => {
     stopped = true;
@@ -224,6 +257,7 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
       // the moment this becomes opt-in, the interesting lap is the unrecorded one.
       recorder.write(frame);
 
+      const lapElapsedS = lapTimer.update(frame.sessionTimeS, frame.lapDistPct);
       let suppressedBy: StateFrame["suppressedBy"] = null;
 
       if (session !== null) {
@@ -231,6 +265,18 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
         suppressedBy = result.suppressedBy;
 
         for (const event of result.events) {
+          if (!window.webContents.isDestroyed()) {
+            const view: EngineEventView = {
+              kind: event.kind,
+              noteId: event.noteId,
+              detail: event.kind === "play" ? event.variant : event.reason,
+              leadM: event.kind === "play" ? event.leadM : null,
+              dAheadM: event.dAheadM,
+              atPct: event.atPct,
+            };
+            window.webContents.send(ENGINE_EVENT_CHANNEL, view);
+          }
+
           if (event.kind === "drop") {
             process.stdout.write(`DROP ${event.noteId} (${event.reason})\n`);
             continue;
@@ -253,7 +299,7 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
       if (window.webContents.isDestroyed()) break;
       window.webContents.send(
         STATE_FRAME_CHANNEL,
-        toStateFrame(frame, source.name, session, suppressedBy),
+        toStateFrame(frame, source.name, session, suppressedBy, lapElapsedS),
       );
     }
   } finally {
@@ -291,8 +337,25 @@ function createWindow(): BrowserWindow {
     },
   });
 
+  forwardRendererConsole(window);
   void window.loadFile(PAGE);
   return window;
+}
+
+/**
+ * Renderer console output to the terminal.
+ *
+ * Without this a drawing error is completely silent: the canvas simply stays
+ * blank, the process keeps running, and the log looks healthy. Anything running
+ * headless — which is how this gets checked most of the time — has no devtools
+ * to look in.
+ */
+function forwardRendererConsole(window: BrowserWindow): void {
+  window.webContents.on("console-message", (_event, level, message, line, source) => {
+    if (level < 2) return; // warnings and errors only
+    const where = source === "" ? "" : ` (${source.split("/").pop() ?? source}:${String(line)})`;
+    process.stderr.write(`renderer: ${message}${where}\n`);
+  });
 }
 
 void app.whenReady().then(() => {

@@ -41,7 +41,7 @@ const log = (text, className) => {
 window.exxeed?.onAudioPlay((command) => {
   const buffer = decoded.get(command.key);
   if (buffer === undefined) {
-    log(`${command.key} (no clip)`, "drop");
+    log(`${command.key} — no clip rendered`, "drop");
     return;
   }
   if (context.state === "suspended") void context.resume();
@@ -50,13 +50,28 @@ window.exxeed?.onAudioPlay((command) => {
   node.buffer = buffer;
   node.connect(context.destination);
   node.start();
-  log(command.key, "play");
+});
+
+// §7.3: what the engine decided, including what it withheld. A drop with its
+// reason is the more useful half — "why was nothing said" is the question you
+// actually have in the car.
+window.exxeed?.onEngineEvent((e) => {
+  const where = `${(e.dAheadM ?? 0).toFixed(0)}m`;
+  if (e.kind === "play") {
+    log(`${e.noteId} ${e.detail} · lead ${(e.leadM ?? 0).toFixed(0)}m`, "play");
+  } else {
+    log(`${e.noteId} dropped · ${e.detail} · ${where} out`, "drop");
+  }
 });
 
 window.exxeed?.onStateFrame((f) => {
   frames++;
-  // Stashed, not drawn. The rAF loop above owns the canvas (§7.0).
+  // Stashed, not drawn. The rAF loop owns the canvas (§7.0).
   latest = f;
+  if (typeof f.lapDistPct === "number") {
+    history.push({ pct: f.lapDistPct, throttle: f.throttle ?? 0, brake: f.brake ?? 0 });
+    if (history.length > HISTORY) history.shift();
+  }
   cell("source").textContent = f.sourceName ?? "—";
   cell("lapDistPct").textContent = fixed(f.lapDistPct, 5);
   cell("speedMps").textContent = fixed(f.speedMps, 2);
@@ -187,3 +202,198 @@ const draw = () => {
 };
 
 requestAnimationFrame(draw);
+
+// ---------------------------------------------------------------------------
+// Input trace vs reference (§7.1) and the delta bar (§7.2)
+//
+// Same discipline as the map: the reference arrives once, the latest frame sits
+// in a plain variable, and one requestAnimationFrame loop draws. Nothing here is
+// reactive, which is what §7.0 is asking for — it just does not need a framework
+// to say so.
+//
+// The live trace is kept as a ring of recent samples. The reference needs no
+// history: it is already on the pct grid (§4.3), so drawing it beside the live
+// trace is an index lookup with no time alignment.
+// ---------------------------------------------------------------------------
+
+let reference = null;
+const history = [];
+const HISTORY = 2400; // ~75 s at 32 Hz, comfortably more than one window
+
+/** §7.1: a rolling window of ±8% of the lap around the current position. */
+const WINDOW_PCT = 0.08;
+
+const traceCanvas = cell("trace");
+const traceCtx = traceCanvas?.getContext("2d") ?? null;
+
+window.exxeed?.onReference((view) => {
+  reference = view;
+  traceCanvas?.classList.add("ready");
+  cell("ref-name").textContent =
+    `reference — car ${view.carId}, ${view.lapTimeS.toFixed(3)}s`;
+  fitTrace();
+});
+
+const fitTrace = () => {
+  if (traceCanvas === null) return;
+  const ratio = window.devicePixelRatio || 1;
+  const box = traceCanvas.getBoundingClientRect();
+  traceCanvas.width = Math.round(box.width * ratio);
+  traceCanvas.height = Math.round(box.height * ratio);
+};
+window.addEventListener("resize", fitTrace);
+
+/** Signed distance in pct, −0.5..0.5, so the window works across start/finish. */
+const pctDelta = (a, b) => (((a - b + 1.5) % 1) - 0.5);
+
+const drawTrace = () => {
+  if (traceCtx === null || traceCanvas === null || reference === null) return;
+
+  const ratio = window.devicePixelRatio || 1;
+  const w = traceCanvas.width;
+  const h = traceCanvas.height;
+  traceCtx.clearRect(0, 0, w, h);
+
+  if (latest === null || typeof latest.lapDistPct !== "number") return;
+  const here = latest.lapDistPct;
+
+  // x maps a lap position onto the window; the car sits at 75% across, so most
+  // of the panel is the road behind and a glance of what is coming.
+  const x = (p) => {
+    const d = pctDelta(p, here);
+    return (0.75 + d / (WINDOW_PCT * 2)) * w;
+  };
+  const yFor = (v, top, height) => top + (1 - v) * height;
+
+  const padTop = 6 * ratio;
+  const laneH = (h - padTop * 3) / 2;
+  const throttleTop = padTop;
+  const brakeTop = padTop * 2 + laneH;
+
+  // Corner guides, faint, behind everything.
+  traceCtx.strokeStyle = "rgba(255,255,255,0.10)";
+  traceCtx.lineWidth = 1 * ratio;
+  for (const c of reference.corners) {
+    for (const p of [c.entryPct, c.apexPct, c.exitPct]) {
+      if (Math.abs(pctDelta(p, here)) > WINDOW_PCT) continue;
+      traceCtx.beginPath();
+      traceCtx.moveTo(x(p), padTop);
+      traceCtx.lineTo(x(p), h - padTop);
+      traceCtx.stroke();
+    }
+  }
+
+  // Where the reference started braking. §7.1 calls seeing your own trace start
+  // after this marker the most legible feedback in the app, so it is drawn last
+  // of the background and brightest of it.
+  traceCtx.strokeStyle = "rgba(240,136,62,0.75)";
+  traceCtx.lineWidth = 1.5 * ratio;
+  for (const p of reference.brakeOnsetPcts) {
+    if (Math.abs(pctDelta(p, here)) > WINDOW_PCT) continue;
+    traceCtx.beginPath();
+    traceCtx.moveTo(x(p), brakeTop);
+    traceCtx.lineTo(x(p), brakeTop + laneH);
+    traceCtx.stroke();
+  }
+
+  const n = reference.gridSize;
+  const drawReference = (channel, top, colour) => {
+    traceCtx.strokeStyle = colour;
+    traceCtx.lineWidth = 1.5 * ratio;
+    traceCtx.beginPath();
+    let started = false;
+    for (let step = -60; step <= 60; step++) {
+      const p = ((here + (step / 60) * WINDOW_PCT) % 1 + 1) % 1;
+      const v = channel[Math.min(n - 1, Math.floor(p * n))];
+      if (typeof v !== "number") continue;
+      const px = x(p);
+      const py = yFor(v, top, laneH);
+      if (started) traceCtx.lineTo(px, py);
+      else { traceCtx.moveTo(px, py); started = true; }
+    }
+    traceCtx.stroke();
+  };
+
+  // Ghosted behind: the reference.
+  drawReference(reference.throttle, throttleTop, "rgba(126,231,135,0.32)");
+  drawReference(reference.brake, brakeTop, "rgba(248,113,113,0.32)");
+
+  const drawLive = (pick, top, colour) => {
+    traceCtx.strokeStyle = colour;
+    traceCtx.lineWidth = 2 * ratio;
+    traceCtx.beginPath();
+    let started = false;
+    for (const s of history) {
+      if (Math.abs(pctDelta(s.pct, here)) > WINDOW_PCT) continue;
+      const px = x(s.pct);
+      const py = yFor(pick(s), top, laneH);
+      if (started) traceCtx.lineTo(px, py);
+      else { traceCtx.moveTo(px, py); started = true; }
+    }
+    traceCtx.stroke();
+  };
+
+  drawLive((s) => s.throttle, throttleTop, "#7ee787");
+  drawLive((s) => s.brake, brakeTop, "#f87171");
+
+  // The car's position in the window.
+  traceCtx.strokeStyle = "rgba(255,255,255,0.35)";
+  traceCtx.lineWidth = 1 * ratio;
+  traceCtx.beginPath();
+  traceCtx.moveTo(x(here), padTop);
+  traceCtx.lineTo(x(here), h - padTop);
+  traceCtx.stroke();
+};
+
+const drawNext = () => {
+  const out = cell("next-note");
+  if (out === null) return;
+  if (mapView === null || latest === null || typeof latest.lapDistPct !== "number") {
+    out.textContent = "—";
+    return;
+  }
+
+  const n = mapView.x.length;
+  const armed = new Set(latest.armedNoteIds ?? []);
+  let best = null;
+
+  for (const note of mapView.notes) {
+    // Always positive, the long way round if need be (§4.6) — which is exactly
+    // what "next" means here.
+    const ahead = ((note.index - Math.floor(latest.lapDistPct * n)) % n + n) % n;
+    if (best === null || ahead < best.ahead) best = { ...note, ahead };
+  }
+
+  if (best === null) { out.textContent = "—"; return; }
+  const metres = (best.ahead / n) * mapView.lengthM;
+  out.textContent = `${best.id} · ${metres.toFixed(0)}m · ${armed.has(best.id) ? "armed" : "spent"}`;
+};
+
+const drawDelta = () => {
+  const bar = cell("delta-fill");
+  const text = cell("delta-text");
+  if (bar === null || text === null) return;
+
+  const d = latest?.deltaS;
+  if (typeof d !== "number") {
+    bar.style.width = "0%";
+    text.textContent = latest?.lapElapsedS == null ? "waiting for a lap" : "—";
+    text.className = "";
+    return;
+  }
+
+  // ±2 s fills the bar. Beyond that the number matters more than the length.
+  const clamped = Math.max(-2, Math.min(2, d));
+  bar.style.width = `${(Math.abs(clamped) / 2) * 50}%`;
+  bar.style.left = d < 0 ? `${50 - (Math.abs(clamped) / 2) * 50}%` : "50%";
+  bar.className = d < 0 ? "up" : "down";
+  text.textContent = `${d >= 0 ? "+" : ""}${d.toFixed(2)}s`;
+  text.className = d < 0 ? "up" : "down";
+};
+
+requestAnimationFrame(function paint() {
+  requestAnimationFrame(paint);
+  drawTrace();
+  drawDelta();
+  drawNext();
+});

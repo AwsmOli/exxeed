@@ -121,6 +121,14 @@ export class LocalFileReferenceLapRepository implements ReferenceLapRepository {
     return raw === null ? null : ReferenceLapSchema.parse(raw);
   }
 
+  async listCars(key: TrackKey): Promise<number[]> {
+    const dir = join(this.root, "reflaps", key.sim, String(key.trackId), key.configId);
+    return (await listDir(dir))
+      .filter((name) => /^\d+\.json$/.test(name))
+      .map((name) => Number(name.replace(/\.json$/, "")))
+      .sort((a, b) => a - b);
+  }
+
   async put(lap: ReferenceLap): Promise<void> {
     await writeJson(this.#path(lap.trackKey, lap.carId), ReferenceLapSchema.parse(lap));
   }

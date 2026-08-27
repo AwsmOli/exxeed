@@ -14,6 +14,8 @@ const STATE_FRAME_CHANNEL = "exxeed:state-frame";
 const AUDIO_PRELOAD_CHANNEL = "exxeed:audio-preload";
 const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
 const MAP_CHANNEL = "exxeed:map";
+const REFERENCE_CHANNEL = "exxeed:reference";
+const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
 
 const subscribe = (channel: string, callback: (payload: unknown) => void): (() => void) => {
   const listener = (_event: unknown, payload: unknown): void => callback(payload);
@@ -30,4 +32,6 @@ contextBridge.exposeInMainWorld("exxeed", {
   onAudioPreload: (cb: (clips: unknown) => void) => subscribe(AUDIO_PRELOAD_CHANNEL, cb),
   onAudioPlay: (cb: (command: unknown) => void) => subscribe(AUDIO_PLAY_CHANNEL, cb),
   onMap: (cb: (view: unknown) => void) => subscribe(MAP_CHANNEL, cb),
+  onReference: (cb: (view: unknown) => void) => subscribe(REFERENCE_CHANNEL, cb),
+  onEngineEvent: (cb: (event: unknown) => void) => subscribe(ENGINE_EVENT_CHANNEL, cb),
 });

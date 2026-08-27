@@ -20,8 +20,21 @@ export const AUDIO_PRELOAD_CHANNEL = "exxeed:audio-preload";
 /** "Speak this now", main → renderer. Carries no audio, only a key. */
 export const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
 
+/**
+ * Everything the engine decided, main → renderer, for the dev overlay (§7.3).
+ *
+ * Distinct from AUDIO_PLAY_CHANNEL because that one is a command and this is a
+ * record. Drops in particular never reached the window before, so the log could
+ * show what was said but not what was withheld or why — which is the more useful
+ * half when you are sitting in the car wondering about a silence.
+ */
+export const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
+
 /** The track outline, main → renderer, once at session start. */
 export const MAP_CHANNEL = "exxeed:map";
+
+/** The reference lap's channels, main → renderer, once at session start. */
+export const REFERENCE_CHANNEL = "exxeed:reference";
 
 /**
  * The compact state frame pushed to renderers.
@@ -55,9 +68,25 @@ export interface StateFrame {
   readonly deltaS: Seconds | null;
   readonly connected: boolean;
   readonly sourceName: string;
+  /** Driver's elapsed time on this lap. Null until a start/finish crossing has
+   *  been seen, since there is nothing to measure from before that. */
+  readonly lapElapsedS: Seconds | null;
   /** Non-null when the engine is deliberately quiet. For the dev overlay (§7.3). */
   readonly suppressedBy: SuppressionReason | null;
   readonly queuedNoteIds: readonly string[];
+  /** Notes currently ARMED (§6.2). For the dev overlay. */
+  readonly armedNoteIds: readonly string[];
+}
+
+/** One engine decision, flattened for display. */
+export interface EngineEventView {
+  readonly kind: "play" | "drop";
+  readonly noteId: string;
+  /** "full" | "short" for a play, the drop reason otherwise. */
+  readonly detail: string;
+  readonly leadM: number | null;
+  readonly dAheadM: number;
+  readonly atPct: number;
 }
 
 /** One preloaded clip. Sent once; the renderer decodes and keeps it. */
@@ -85,6 +114,8 @@ export interface AudioPlayCommand {
 export interface TrackMapView {
   readonly trackName: string;
   readonly configName: string;
+  /** So the window can report distances in metres rather than percentages. */
+  readonly lengthM: number;
   /** Centreline, x/y in 0..1, already aspect-corrected. Closed loop. */
   readonly x: readonly number[];
   readonly y: readonly number[];
@@ -92,6 +123,44 @@ export interface TrackMapView {
   readonly notes: readonly { readonly id: string; readonly index: number }[];
   /** Start/finish, as an index into x/y. */
   readonly startIndex: number;
+}
+
+/**
+ * What the input trace (§7.1) and the delta bar (§7.2) draw against.
+ *
+ * Sent once. These arrays are ~2000 samples and never change during a session,
+ * which is exactly why §7.0 says to `markRaw` them in a Vue renderer: making
+ * them reactive is a measurable waste on load and buys nothing.
+ *
+ * Everything shares the pct grid (§4.3), so drawing the reference beside the
+ * live trace is an index lookup with no time alignment to get wrong.
+ */
+export interface ReferenceView {
+  readonly gridSize: number;
+  readonly lapTimeS: number;
+  readonly carId: number;
+  /** 0..1. */
+  readonly throttle: readonly number[];
+  /** 0..1. */
+  readonly brake: readonly number[];
+  /** m/s. Converted to km/h in render code and nowhere else (§3). */
+  readonly speedMps: readonly number[];
+  /** Elapsed lap time at each pct — what makes the delta bar a lookup (§7.2). */
+  readonly elapsedS: readonly number[];
+  /** Faint vertical guides on the trace. */
+  readonly corners: readonly {
+    readonly index: number;
+    readonly entryPct: number;
+    readonly apexPct: number;
+    readonly exitPct: number;
+  }[];
+  /**
+   * Where the reference lap started braking, per corner.
+   *
+   * §7.1: "Seeing your brake trace start after the reference marker is the single
+   * most legible piece of feedback in the app."
+   */
+  readonly brakeOnsetPcts: readonly number[];
 }
 
 /** For the dev callout overlay (§7.3). Not a shipping surface. */

@@ -39,6 +39,13 @@ export interface LandmarkRepository {
 export interface ReferenceLapRepository {
   /** Keyed by TrackKey + carId. No mapVersion — see the note above. */
   get(key: TrackKey, carId: number): Promise<ReferenceLap | null>;
+  /**
+   * Which cars have a reference lap for this track.
+   *
+   * A NoteSet names a track and a car *class*, not a car id (§4.4), so something
+   * has to bridge the two before the overlays can draw a reference trace.
+   */
+  listCars(key: TrackKey): Promise<number[]>;
   put(lap: ReferenceLap): Promise<void>;
 }
 

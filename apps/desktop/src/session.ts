@@ -9,9 +9,10 @@
 
 import type { DriverProfile, NoteSet } from "@exxeed/core";
 import { metres, NoteEngine } from "@exxeed/core";
-import type { TrackMapView } from "@exxeed/overlays";
+import type { ReferenceView, TrackMapView } from "@exxeed/overlays";
 
 import { toMapView } from "./map-view.js";
+import { toReferenceView } from "./reference-view.js";
 import type { PreloadedAudio } from "@exxeed/repo";
 import { localRepositories, preloadAudio } from "@exxeed/repo";
 
@@ -26,6 +27,8 @@ export interface SessionConfig {
    * rule.
    */
   readonly assumeLapComplete?: boolean;
+  /** Which car's reference lap to draw against. Defaults to the only one there. */
+  readonly carId?: number;
 }
 
 export interface LoadedSession {
@@ -38,6 +41,9 @@ export interface LoadedSession {
    * nothing else.
    */
   readonly mapView: TrackMapView | null;
+  /** For the input trace and the delta bar (§7.1, §7.2). Null when no lap has
+   *  been recorded for this track and car — both overlays simply have no ghost. */
+  readonly reference: ReferenceView | null;
   readonly warnings: readonly string[];
 }
 
@@ -55,12 +61,34 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
   // the fastest way to see that the map and the telemetry agree.
   let mapView: TrackMapView | null = null;
   const mapVersion = await repos.trackMaps.latestVersion(noteSet.trackKey);
-  if (mapVersion !== null) {
-    const map = await repos.trackMaps.get({ ...noteSet.trackKey, mapVersion });
-    if (map !== null) mapView = toMapView(map, noteSet.notes);
-  }
+  const map =
+    mapVersion === null
+      ? null
+      : await repos.trackMaps.get({ ...noteSet.trackKey, mapVersion });
+  if (map !== null) mapView = toMapView(map, noteSet.notes);
   if (mapView === null) {
     warnings.push("no track map for this note set — the window will not draw one");
+  }
+
+  // The reference lap the traces and the delta bar draw against (§7.1, §7.2). A
+  // note set names a car CLASS, not a car id (§4.4), so without an explicit
+  // choice take the only recorded lap — and say so when there is more than one
+  // rather than picking silently.
+  let reference: ReferenceView | null = null;
+  const cars = await repos.referenceLaps.listCars(noteSet.trackKey);
+  const carId = config.carId ?? cars[0];
+
+  if (carId === undefined) {
+    warnings.push("no reference lap for this track — no ghost trace or delta bar");
+  } else {
+    if (config.carId === undefined && cars.length > 1) {
+      warnings.push(
+        `${cars.length} reference laps for this track (${cars.join(", ")}); using ${carId}`,
+      );
+    }
+    const lap = await repos.referenceLaps.get(noteSet.trackKey, carId);
+    if (lap === null) warnings.push(`no reference lap for car ${carId}`);
+    else reference = toReferenceView(lap, map);
   }
 
   // A missing audio pack is survivable — the engine still runs and the dev
@@ -94,6 +122,7 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     noteSet,
     audio,
     mapView,
+    reference,
     warnings,
   };
 }
