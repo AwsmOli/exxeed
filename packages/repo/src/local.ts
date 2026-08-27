@@ -185,6 +185,19 @@ export class LocalFileAudioRepository implements AudioRepository {
     }
   }
 
+  async putClip(
+    noteSetId: string,
+    voiceId: string,
+    key: string,
+    bytes: Uint8Array,
+  ): Promise<string> {
+    const relative = `${noteSetId}/${voiceId}/${key}.wav`;
+    const absolute = join(this.root, "audio", relative);
+    await mkdir(dirname(absolute), { recursive: true });
+    await writeFile(absolute, bytes);
+    return relative;
+  }
+
   async putPack(pack: AudioPack): Promise<void> {
     await writeJson(this.#packPath(pack.noteSetId, pack.voiceId), AudioPackSchema.parse(pack));
   }

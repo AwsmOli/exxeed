@@ -41,3 +41,14 @@ data/profile/*
 
 .env
 .env.local
+
+# Piper lives in a project-local venv so it stays out of any system Python.
+# See README, "Rendering audio".
+.venv/
+
+# Voice models are ~60 MB each and are downloaded, not authored.
+voices/
+
+# Third-party video transcripts. Ingest input (§10), not our content — §10's
+# provenance rule is to record the source, not to redistribute the material.
+*transcript*.txt

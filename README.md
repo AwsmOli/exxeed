@@ -48,6 +48,36 @@ a recording, and free to run — the AI cost is paid once per video, never per l
 Node 20 · TypeScript (strict, everywhere) · Electron · Vue 3 · pnpm workspaces ·
 Vitest. Local-first in v1, with a repository layer already shaped for Supabase.
 
+## Rendering audio
+
+Callouts are rendered offline, once per note set, by [Piper](https://github.com/rhasspy/piper)
+— local, free, and native 16-bit WAV, so nothing calls a TTS API at runtime and
+there is no `ffprobe` dependency: duration is read straight out of the header.
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install piper-tts
+
+mkdir -p voices && cd voices
+BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium
+curl -sSLO $BASE.onnx && curl -sSLO $BASE.onnx.json && cd ..
+
+pnpm --filter @exxeed/ingest start render daytona-mx5-draft \
+  --data data --model voices/en_US-lessac-medium.onnx
+```
+
+The venv and `voices/` are gitignored — piper is kept out of any system Python,
+and a voice model is ~60 MB of downloaded weights rather than source.
+
+> **Piper is not deterministic by default.** It samples noise during inference,
+> so the same sentence rendered twice differs by ~240 ms. That matters more here
+> than it sounds: `durationMs` is an input to the trigger, so a re-render would
+> silently retime every callout. The renderer pins both noise scales to zero on
+> every invocation, which makes output byte-identical across runs — it is not
+> something to leave to a config file.
+
+Rendering writes the measured duration into both the pack and the note, and
+clears each note's `dirty` flag.
+
 ## Testing on Windows
 
 The live SDK, the steering sign convention, and recording a real lap all need a

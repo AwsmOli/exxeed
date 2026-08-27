@@ -31,7 +31,17 @@ const CORE_FORBIDDEN_IMPORTS = [
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/.tsbuild/**", "**/node_modules/**", "**/*.d.ts"],
+    // ESLint does not read .gitignore, so anything ignored there that contains
+    // JavaScript has to be repeated here — the Python venv vendors some.
+    ignores: [
+      "**/dist/**",
+      "**/.tsbuild/**",
+      "**/node_modules/**",
+      "**/*.d.ts",
+      ".venv/**",
+      "voices/**",
+      "data/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

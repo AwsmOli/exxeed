@@ -56,6 +56,12 @@ export interface AudioRepository {
    * start; nothing touches disk at trigger time (SPEC.md §4.5).
    */
   readFile(pack: AudioPack, noteId: string): Promise<Uint8Array | null>;
+  /**
+   * Write one rendered clip and return the pack-relative path to record for it.
+   * Here rather than in the renderer because §8 is absolute: nothing outside
+   * packages/repo touches the filesystem for these artefacts.
+   */
+  putClip(noteSetId: string, voiceId: string, key: string, bytes: Uint8Array): Promise<string>;
   putPack(pack: AudioPack): Promise<void>;
 }
 

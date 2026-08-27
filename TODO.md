@@ -39,11 +39,17 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 
 ## Small stuff
 
-- [ ] No way to regenerate a note set's placeholder audio
-  `data/audio/` is gitignored, so the Daytona pack exists only on this machine —
-  a fresh clone gets "no audio pack, running silent". It was rendered by a
-  throwaway script. Wants to be a small command, and it is most of stage 6's
-  shape anyway (render both variants, measure, write the pack).
+- [x] No way to regenerate a note set's placeholder audio
+  `exxeed-ingest render <noteSetId>` does it, and it is stage 6 rather than a
+  stand-in for it. Still needs the venv and a voice model, both gitignored — see
+  README, "Rendering audio".
+- [ ] Rewrite the Daytona text to name what the driver can see
+  Current notes say "Brake, turn 1, left" — that is a metronome, not the product.
+  §1's whole argument is naming something visible. `transcript.example.txt` (an
+  MX-5 Daytona track guide, untracked, third-party) names the real ones: "the
+  black seam", "the second lamp post on the left", "once the second-to-last lamp
+  post disappears out of view", "the one marker" for the chicane. That is what
+  the callouts should say, and it is the first honest test of the premise.
 
 - [ ] Check in a multi-lap slice of the Daytona session as an engine fixture
   `data/reference/daytona-2011-road-mx5-lap.ndjson` is one extracted lap, so §6.4
@@ -236,8 +242,9 @@ than numbering whatever detection happened to return.
 - [x] Hand-author note sets for Daytona Road Course and Spa (long, turn 1 wraps — deliberately the hard case)
   Daytona is 6 notes, one per braking point, merged from 12 — one callout every ~22 s over the lap. Text is still placeholder and every note is `dirty`, so it stays `draft` until there is a real voice.
   **Blocked on M0b.** A note set needs a TrackMap and a LandmarkInventory to anchor against, and both come from a recorded lap. `data/demo/` holds a two-corner Spa stub to develop against; inventing full corner geometry for a braking-point app would be worse than waiting.
-- [ ] Pick a voice provider (§13 Q4) and render real audio
-  The audio path is built and runs on placeholder tones at the declared durations. Timing logic is verifiable now; whether a callout *feels* early or late is not, until the words are real.
+- [x] Pick a voice provider (§13 Q4) and render real audio
+  **Piper.** Local, free, offline, native WAV, runs anywhere — so the audio pack can be a build artefact rather than something that exists on one machine. Costs nothing to swap later: the whole v1 corpus is ~126k characters, which fits inside most providers' free tiers, so quality is the only thing that would ever justify moving.
+  Not deterministic by default — ~240 ms of drift between renders. `--noise-scale 0 --noise-w-scale 0` fixes it and the renderer passes them always.
 - [x] §9 required tests: the S/F double-fire case, and two priority-1 notes contending resolve deterministically
   Still owed from §9: `brakeOnsetPct` returns the onset (needs M1), and golden-file timelines against a real recording (needs M0b).
 - [x] Wire the engine into the Electron app

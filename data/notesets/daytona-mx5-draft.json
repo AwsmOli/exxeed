@@ -24,14 +24,14 @@
       "leadAdjustS": 0,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t1.wav",
-        "durationMs": 2140
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t1.wav",
+        "durationMs": 2554
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t1_short.wav",
-        "durationMs": 640
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t1_short.wav",
+        "durationMs": 546
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "t2",
@@ -42,14 +42,14 @@
       "leadAdjustS": 0,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t2.wav",
-        "durationMs": 2140
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t2.wav",
+        "durationMs": 2496
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t2_short.wav",
-        "durationMs": 640
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t2_short.wav",
+        "durationMs": 546
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "t4",
@@ -60,14 +60,14 @@
       "leadAdjustS": 0,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t4.wav",
-        "durationMs": 2140
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t4.wav",
+        "durationMs": 2496
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t4_short.wav",
-        "durationMs": 640
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t4_short.wav",
+        "durationMs": 499
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "t6",
@@ -78,14 +78,14 @@
       "leadAdjustS": 0,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t6.wav",
-        "durationMs": 2140
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t6.wav",
+        "durationMs": 2705
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t6_short.wav",
-        "durationMs": 640
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t6_short.wav",
+        "durationMs": 499
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "t7",
@@ -96,14 +96,14 @@
       "leadAdjustS": 0,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t7.wav",
-        "durationMs": 2140
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t7.wav",
+        "durationMs": 2589
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t7_short.wav",
-        "durationMs": 640
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t7_short.wav",
+        "durationMs": 546
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "t9",
@@ -114,14 +114,14 @@
       "leadAdjustS": 0,
       "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_test/t9.wav",
-        "durationMs": 3340
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t9.wav",
+        "durationMs": 3355
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_test/t9_short.wav",
-        "durationMs": 640
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t9_short.wav",
+        "durationMs": 546
       },
-      "dirty": true
+      "dirty": false
     }
   ]
 }
