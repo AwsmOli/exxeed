@@ -30,6 +30,9 @@ import {
   type AudioPlayCommand,
   type EngineEventView,
   type StateFrame,
+  isPanelId,
+  PANELS,
+  type PanelId,
 } from "@exxeed/overlays";
 import {
   IRacingAdapter,
@@ -44,7 +47,7 @@ import {
 
 import { audioKey } from "@exxeed/repo";
 
-import { createOverlayWindow, FULLSCREEN_WARNING } from "./overlay.js";
+import { FULLSCREEN_WARNING, OverlayLayout } from "./overlay.js";
 import { loadSession, type LoadedSession } from "./session.js";
 
 // Before any getPath call: without it userData lands under "@exxeed", taken from
@@ -181,7 +184,21 @@ const describeIdentity = (identity: SessionIdentity | null): string =>
     : `${identity.carName} at ${identity.trackName}` +
       (identity.trackConfig === "" ? "" : ` (${identity.trackConfig})`);
 
-async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
+/**
+ * Where main sends things, whether that is one desktop window or five overlays.
+ *
+ * `audio` is deliberately not `broadcast`: exactly one window decodes and plays
+ * the clips. Sending them everywhere would have every overlay hold its own copy
+ * of the same 660 KiB and every callout come out four times over.
+ */
+interface Surfaces {
+  readonly broadcast: (channel: string, payload: unknown) => void;
+  readonly audio: (channel: string, payload: unknown) => void;
+  readonly alive: () => boolean;
+  readonly onClosed: (callback: () => void) => void;
+}
+
+async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   const source = createSource();
   const replaying = source instanceof ReplayAdapter;
 
@@ -196,12 +213,12 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
     process.stderr.write(`warning: ${warning}\n`);
   }
 
-  if (session?.mapView != null && !window.webContents.isDestroyed()) {
-    window.webContents.send(MAP_CHANNEL, session.mapView);
+  if (session?.mapView != null) {
+    surfaces.broadcast(MAP_CHANNEL, session.mapView);
   }
 
-  if (session?.reference != null && !window.webContents.isDestroyed()) {
-    window.webContents.send(REFERENCE_CHANNEL, session.reference);
+  if (session?.reference != null) {
+    surfaces.broadcast(REFERENCE_CHANNEL, session.reference);
     process.stdout.write(
       `reference lap: car ${session.reference.carId}, ` +
         `${session.reference.lapTimeS.toFixed(3)}s, ` +
@@ -211,9 +228,9 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
 
   // Ship every clip to the renderer once, up front, so the trigger path is a
   // lookup rather than a read (§4.5).
-  if (session?.audio != null && !window.webContents.isDestroyed()) {
+  if (session?.audio != null) {
     const clips: AudioClip[] = [...session.audio.clips].map(([key, wav]) => ({ key, wav }));
-    window.webContents.send(AUDIO_PRELOAD_CHANNEL, clips);
+    surfaces.audio(AUDIO_PRELOAD_CHANNEL, clips);
     process.stdout.write(
       `preloaded ${clips.length} clips, ${(session.audio.totalBytes / 1024).toFixed(0)} KiB\n`,
     );
@@ -223,7 +240,7 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
     await source.connect();
   } catch (err) {
     process.stderr.write(`telemetry source failed to connect: ${String(err)}\n`);
-    if (!window.isDestroyed()) window.webContents.send(STATE_FRAME_CHANNEL, emptyFrame);
+    surfaces.broadcast(STATE_FRAME_CHANNEL, emptyFrame);
     return;
   }
 
@@ -238,20 +255,20 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
     `recording ${describeIdentity(source.identity)} -> ${recorder.path}\n`,
   );
 
-  // `window.isDestroyed()` alone is not enough: the render frame is disposed
-  // before the BrowserWindow reports itself destroyed, so a loop checking only
-  // that races teardown and floods the log with "Render frame was disposed".
   const lapTimer = new LapTimer();
 
+  // `isDestroyed()` alone is not enough: a render frame is disposed before its
+  // BrowserWindow reports itself destroyed, so a loop checking only that races
+  // teardown and floods the log with "Render frame was disposed".
   let stopped = false;
-  window.once("closed", () => {
+  surfaces.onClosed(() => {
     stopped = true;
     void source.close();
   });
 
   try {
     for await (const frame of source) {
-      if (stopped || window.isDestroyed()) break;
+      if (stopped || !surfaces.alive()) break;
 
       // Always-on recording (§9). Every lap anyone drives must be replayable —
       // the moment this becomes opt-in, the interesting lap is the unrecorded one.
@@ -265,17 +282,15 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
         suppressedBy = result.suppressedBy;
 
         for (const event of result.events) {
-          if (!window.webContents.isDestroyed()) {
-            const view: EngineEventView = {
-              kind: event.kind,
-              noteId: event.noteId,
-              detail: event.kind === "play" ? event.variant : event.reason,
-              leadM: event.kind === "play" ? event.leadM : null,
-              dAheadM: event.dAheadM,
-              atPct: event.atPct,
-            };
-            window.webContents.send(ENGINE_EVENT_CHANNEL, view);
-          }
+          const view: EngineEventView = {
+            kind: event.kind,
+            noteId: event.noteId,
+            detail: event.kind === "play" ? event.variant : event.reason,
+            leadM: event.kind === "play" ? event.leadM : null,
+            dAheadM: event.dAheadM,
+            atPct: event.atPct,
+          };
+          surfaces.broadcast(ENGINE_EVENT_CHANNEL, view);
 
           if (event.kind === "drop") {
             process.stdout.write(`DROP ${event.noteId} (${event.reason})\n`);
@@ -285,19 +300,19 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
           const key = audioKey(event.noteId, event.variant);
           process.stdout.write(`PLAY ${key} (${event.durationMs}ms)\n`);
 
-          if (session.audio?.clips.has(key) === true && !window.webContents.isDestroyed()) {
+          if (session.audio?.clips.has(key) === true) {
             const command: AudioPlayCommand = {
               key,
               noteId: event.noteId,
               durationMs: event.durationMs,
             };
-            window.webContents.send(AUDIO_PLAY_CHANNEL, command);
+            surfaces.audio(AUDIO_PLAY_CHANNEL, command);
           }
         }
       }
 
-      if (window.webContents.isDestroyed()) break;
-      window.webContents.send(
+      if (!surfaces.alive()) break;
+      surfaces.broadcast(
         STATE_FRAME_CHANNEL,
         toStateFrame(frame, source.name, session, suppressedBy, lapElapsedS),
       );
@@ -313,15 +328,25 @@ async function runTelemetryLoop(window: BrowserWindow): Promise<void> {
 const PRELOAD = fileURLToPath(new URL("./preload.mjs", import.meta.url));
 const PAGE = fileURLToPath(new URL("../static/index.html", import.meta.url));
 
-function createWindow(): BrowserWindow {
-  // EXXEED_OVERLAY gives the §7 overlay: transparent, frameless, click-through,
-  // above the sim. Off by default because a click-through always-on-top window
-  // is a nuisance to develop against.
-  if (env("EXXEED_OVERLAY") !== undefined) {
-    process.stdout.write(FULLSCREEN_WARNING);
-    return createOverlayWindow(PRELOAD, PAGE);
-  }
+/**
+ * Which panels to open. `EXXEED_PANELS=map,delta` for a subset; all of them
+ * otherwise. Unknown names are called out rather than ignored — a typo that
+ * silently opens nothing is a bad afternoon.
+ */
+function chosenPanels(): PanelId[] {
+  const raw = env("EXXEED_PANELS");
+  if (raw === undefined) return [...PANELS];
 
+  const wanted = raw.split(",").map((s) => s.trim()).filter((s) => s !== "");
+  const unknown = wanted.filter((s) => !isPanelId(s));
+  for (const name of unknown) {
+    process.stderr.write(`unknown panel "${name}" — known: ${PANELS.join(", ")}\n`);
+  }
+  const panels = wanted.filter(isPanelId);
+  return panels.length === 0 ? [...PANELS] : panels;
+}
+
+function createDesktopWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 760,
     height: 660,
@@ -358,16 +383,85 @@ function forwardRendererConsole(window: BrowserWindow): void {
   });
 }
 
+/** One window: broadcast and audio both mean "that window". */
+function singleWindowSurfaces(window: BrowserWindow): Surfaces {
+  const send = (channel: string, payload: unknown): void => {
+    if (!window.webContents.isDestroyed()) window.webContents.send(channel, payload);
+  };
+  return {
+    broadcast: send,
+    audio: send,
+    alive: () => !window.isDestroyed() && !window.webContents.isDestroyed(),
+    onClosed: (callback) => window.once("closed", callback),
+  };
+}
+
+/** Several windows: everything goes everywhere except the audio. */
+function overlaySurfaces(layout: OverlayLayout): Surfaces {
+  return {
+    broadcast: (channel, payload) => layout.broadcast(channel, payload),
+    // The first panel opened hosts the audio. Which one it is does not matter —
+    // nothing about it is visible — but it has to be exactly one.
+    audio: (channel, payload) => {
+      const host = layout.windows[0];
+      if (host !== undefined && !host.webContents.isDestroyed()) {
+        host.webContents.send(channel, payload);
+      }
+    },
+    alive: () => layout.windows.some((w) => !w.isDestroyed()),
+    onClosed: (callback) => {
+      // Only when the LAST one goes: closing the delta bar should not stop the
+      // engine for everything else.
+      for (const window of layout.windows) {
+        window.once("closed", () => {
+          if (layout.windows.length === 0) callback();
+        });
+      }
+    },
+  };
+}
+
+function startOverlays(): void {
+  process.stdout.write(FULLSCREEN_WARNING);
+
+  const layout = new OverlayLayout();
+  const panels = chosenPanels();
+
+  panels.forEach((panel, index) => {
+    const window = layout.create(panel, index, PRELOAD, PAGE);
+    forwardRendererConsole(window);
+  });
+
+  process.stdout.write(`  ${panels.length} overlays: ${panels.join(", ")}\n`);
+
+  // Wait for the renderers before sending anything, or the map, the reference
+  // and the clips all land in pages that are not listening yet.
+  const last = layout.windows[layout.windows.length - 1];
+  if (last === undefined) return;
+  last.webContents.once("did-finish-load", () => {
+    void runTelemetryLoop(overlaySurfaces(layout));
+  });
+}
+
+function startDesktop(): void {
+  const window = createDesktopWindow();
+  window.webContents.once("did-finish-load", () => {
+    void runTelemetryLoop(singleWindowSurfaces(window));
+  });
+}
+
 void app.whenReady().then(() => {
-  const window = createWindow();
-  // Wait for the renderer before preloading audio into it, or the clips land in
-  // a page that is not listening yet.
-  window.webContents.once("did-finish-load", () => void runTelemetryLoop(window));
+  // EXXEED_OVERLAY gives the §7 overlays: transparent, frameless, click-through,
+  // above the sim, one window per panel. Off by default because a fleet of
+  // click-through always-on-top windows is a nuisance to develop against.
+  const overlayMode = env("EXXEED_OVERLAY") !== undefined;
+  if (overlayMode) startOverlays();
+  else startDesktop();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      const next = createWindow();
-      next.webContents.once("did-finish-load", () => void runTelemetryLoop(next));
+      if (overlayMode) startOverlays();
+      else startDesktop();
     }
   });
 });

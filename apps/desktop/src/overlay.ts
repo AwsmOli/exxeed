@@ -1,13 +1,25 @@
 /**
- * Overlay window — SPEC.md §7.
+ * Overlay windows — SPEC.md §7.
  *
- * The window flags come straight from the spec: transparent, frameless,
- * always-on-top, skipTaskbar, non-resizable, plus `setAlwaysOnTop(true,
- * "screen-saver")` to sit above the sim, and `setIgnoreMouseEvents(true, {
- * forward: true })` so clicks pass through to the game underneath.
+ * One transparent, frameless, click-through window per panel. The flags come
+ * straight from the spec: `transparent`, `frame: false`, `alwaysOnTop`,
+ * `skipTaskbar`, `resizable: false`, plus `setAlwaysOnTop(true, "screen-saver")`
+ * to clear the sim and `setIgnoreMouseEvents(true, { forward: true })` so clicks
+ * reach the game.
  *
- * That last one is toggled off in layout-edit mode, because a click-through
- * window cannot be dragged and would otherwise be stuck wherever it first opened.
+ * ## Why several windows rather than one
+ *
+ * A rig has a shape. The delta wants to be near the eyeline, the trace somewhere
+ * glanceable, the map wherever there is room — and one combined panel can only be
+ * in one of those places. So each panel is its own window with its own remembered
+ * position, and they all render the same document with the panel chosen by query
+ * string.
+ *
+ * ## Layout-edit mode is global
+ *
+ * Click-through windows cannot be dragged, so one shortcut unlocks all of them at
+ * once. Per-window unlocking would mean finding and unlocking each one before
+ * moving it, which is the opposite of arranging a layout.
  *
  * ## The thing that will generate every support question
  *
@@ -16,9 +28,6 @@
  * "impossible": Windows 10/11 Fullscreen Optimizations often converts DX11
  * exclusive fullscreen to a composited path, so some people will report it
  * working anyway and there is no point arguing with them.
- *
- * §7 says this belongs in the first-run flow, not the FAQ. There is no first-run
- * flow until M6, so for now it goes to stdout at launch where it cannot be missed.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -26,132 +35,172 @@ import { join } from "node:path";
 
 import { app, BrowserWindow, globalShortcut, screen } from "electron";
 
+import { PANEL_SPECS, type PanelId } from "@exxeed/overlays";
+
 export const EDIT_MODE_SHORTCUT = "CommandOrControl+Shift+E";
 
 export const FULLSCREEN_WARNING =
   "Overlay mode: run the sim in BORDERLESS WINDOWED, not exclusive fullscreen —\n" +
   "  transparent overlays are not supported over exclusive fullscreen.\n" +
-  `  Press ${EDIT_MODE_SHORTCUT} to unlock the overlay and drag it, again to lock it.\n`;
+  `  Press ${EDIT_MODE_SHORTCUT} to unlock every overlay and drag it, again to lock.\n`;
 
 interface Bounds {
   readonly x: number;
   readonly y: number;
-  readonly width: number;
-  readonly height: number;
 }
 
-const DEFAULT_SIZE = { width: 340, height: 330 };
+type SavedLayout = Partial<Record<PanelId, Bounds>>;
 
-const boundsPath = (): string => join(app.getPath("userData"), "overlay-bounds.json");
+const layoutPath = (): string => join(app.getPath("userData"), "overlay-layout.json");
+
+function loadLayout(): SavedLayout {
+  try {
+    const raw: unknown = JSON.parse(readFileSync(layoutPath(), "utf8"));
+    if (typeof raw !== "object" || raw === null) return {};
+    return raw as SavedLayout;
+  } catch {
+    // No layout yet, or one written by an older version. Defaults are fine.
+    return {};
+  }
+}
+
+function saveLayout(layout: SavedLayout): void {
+  try {
+    writeFileSync(layoutPath(), `${JSON.stringify(layout, null, 2)}\n`, "utf8");
+  } catch {
+    // Losing a remembered layout is not worth taking the app down for.
+  }
+}
+
+/** Is this position on a display that still exists? */
+function onSomeDisplay(x: number, y: number): boolean {
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    return x >= a.x - 50 && y >= a.y - 50 && x < a.x + a.width && y < a.y + a.height;
+  });
+}
 
 /**
- * Remembering position matters more than it sounds: the overlay is click-through
- * by default, so a forgotten position means unlocking and re-dragging it every
- * single launch.
+ * Default positions: stacked down the left edge, in panel order. Deliberately not
+ * overlapping, so a first run gives something arrangeable rather than a pile.
  */
-function loadBounds(): Bounds {
-  const primary = screen.getPrimaryDisplay().workArea;
-  const fallback: Bounds = { x: primary.x + 24, y: primary.y + 24, ...DEFAULT_SIZE };
+function defaultPosition(index: number): Bounds {
+  const area = screen.getPrimaryDisplay().workArea;
+  return { x: area.x + 24, y: area.y + 24 + index * 8 };
+}
 
-  try {
-    const saved = JSON.parse(readFileSync(boundsPath(), "utf8")) as Partial<Bounds>;
-    if (typeof saved.x !== "number" || typeof saved.y !== "number") return fallback;
+export class OverlayLayout {
+  #layout: SavedLayout = loadLayout();
+  #windows = new Map<PanelId, BrowserWindow>();
+  #editing = false;
+  #shortcutRegistered = false;
 
-    // A display that was there last time may not be now. Snap back rather than
-    // opening the overlay somewhere the user cannot see it.
-    const onScreen = screen.getAllDisplays().some((d) => {
-      const a = d.workArea;
-      return (
-        saved.x! >= a.x - 50 &&
-        saved.y! >= a.y - 50 &&
-        saved.x! < a.x + a.width &&
-        saved.y! < a.y + a.height
-      );
+  get windows(): readonly BrowserWindow[] {
+    return [...this.#windows.values()];
+  }
+
+  /** Send to every open overlay. */
+  broadcast(channel: string, payload: unknown): void {
+    for (const window of this.#windows.values()) {
+      if (!window.webContents.isDestroyed()) window.webContents.send(channel, payload);
+    }
+  }
+
+  create(panel: PanelId, index: number, preload: string, page: string): BrowserWindow {
+    const spec = PANEL_SPECS[panel];
+    const saved = this.#layout[panel];
+    const position =
+      saved !== undefined && onSomeDisplay(saved.x, saved.y) ? saved : defaultPosition(index);
+
+    const window = new BrowserWindow({
+      x: position.x,
+      y: position.y,
+      width: spec.width,
+      height: spec.height,
+      title: `Exxeed — ${spec.title}`,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      hasShadow: false,
+      // Otherwise the transparent window paints an opaque backdrop on some
+      // compositors, which defeats the point.
+      backgroundColor: "#00000000",
+      webPreferences: {
+        preload,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        // One of these windows is the audio device and all of them are things the
+        // driver has to be able to read. Throttling when the sim takes focus —
+        // which is always — would defeat both (§7).
+        backgroundThrottling: false,
+      },
     });
-    if (!onScreen) return fallback;
 
-    return {
-      x: saved.x,
-      y: saved.y,
-      width: saved.width ?? DEFAULT_SIZE.width,
-      height: saved.height ?? DEFAULT_SIZE.height,
-    };
-  } catch {
-    return fallback;
-  }
-}
+    // "screen-saver" is the level that actually sits above a fullscreen game;
+    // plain alwaysOnTop is not enough.
+    window.setAlwaysOnTop(true, "screen-saver");
+    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    window.setIgnoreMouseEvents(true, { forward: true });
 
-function saveBounds(window: BrowserWindow): void {
-  try {
-    const { x, y, width, height } = window.getBounds();
-    writeFileSync(boundsPath(), JSON.stringify({ x, y, width, height }, null, 2), "utf8");
-  } catch {
-    // Losing a remembered position is not worth taking the app down for.
-  }
-}
+    void window.loadFile(page, { search: `overlay=1&panel=${panel}` });
 
-export function createOverlayWindow(preload: string, page: string): BrowserWindow {
-  const bounds = loadBounds();
+    window.on("moved", () => {
+      if (this.#editing) this.#remember(panel, window);
+    });
+    window.once("closed", () => {
+      this.#windows.delete(panel);
+      if (this.#windows.size === 0) this.#releaseShortcut();
+    });
 
-  const window = new BrowserWindow({
-    ...bounds,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    hasShadow: false,
-    // Otherwise the transparent window paints an opaque backdrop on some
-    // compositors, which defeats the point.
-    backgroundColor: "#00000000",
-    webPreferences: {
-      preload,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      // This renderer is the audio output device and the only thing the driver
-      // can see. Throttling it when the sim takes focus — which is always —
-      // would defeat both jobs (§7).
-      backgroundThrottling: false,
-    },
-  });
-
-  // "screen-saver" is the level that actually sits above a fullscreen game;
-  // plain alwaysOnTop is not enough.
-  window.setAlwaysOnTop(true, "screen-saver");
-  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  window.setIgnoreMouseEvents(true, { forward: true });
-
-  void window.loadFile(page, { search: "overlay=1" });
-
-  let editing = false;
-  const setEditing = (next: boolean): void => {
-    editing = next;
-    window.setIgnoreMouseEvents(!editing, { forward: true });
-    window.webContents.send("exxeed:edit-mode", editing);
-    if (!editing) saveBounds(window);
-  };
-
-  const registered = globalShortcut.register(EDIT_MODE_SHORTCUT, () => setEditing(!editing));
-  if (!registered) {
-    process.stderr.write(
-      `could not register ${EDIT_MODE_SHORTCUT} — the overlay cannot be unlocked to move it\n`,
+    // Where it actually landed. Worth printing: over a fullscreen sim an overlay
+    // can be invisible, and "off-screen or behind the game?" is otherwise
+    // unanswerable.
+    const restored = saved !== undefined && position === saved;
+    process.stdout.write(
+      `  ${panel.padEnd(9)} ${String(position.x).padStart(5)},${String(position.y).padEnd(5)} ` +
+        `${spec.width}x${spec.height}${restored ? "  (remembered)" : ""}\n`,
     );
+
+    this.#windows.set(panel, window);
+    this.#registerShortcut();
+    return window;
   }
 
-  // Where it actually landed. Worth printing: over a fullscreen sim the overlay
-  // may be invisible, and "is it off-screen or is it behind the game?" is
-  // otherwise unanswerable.
-  const b = window.getBounds();
-  process.stdout.write(
-    `  overlay at ${b.x},${b.y} ${b.width}x${b.height} — ` +
-      `alwaysOnTop=${String(window.isAlwaysOnTop())}, click-through until unlocked\n`,
-  );
+  #remember(panel: PanelId, window: BrowserWindow): void {
+    const { x, y } = window.getBounds();
+    this.#layout = { ...this.#layout, [panel]: { x, y } };
+    saveLayout(this.#layout);
+  }
 
-  window.on("moved", () => {
-    if (editing) saveBounds(window);
-  });
-  window.once("closed", () => globalShortcut.unregister(EDIT_MODE_SHORTCUT));
+  #registerShortcut(): void {
+    if (this.#shortcutRegistered) return;
+    this.#shortcutRegistered = globalShortcut.register(EDIT_MODE_SHORTCUT, () => {
+      this.setEditing(!this.#editing);
+    });
+    if (!this.#shortcutRegistered) {
+      process.stderr.write(
+        `could not register ${EDIT_MODE_SHORTCUT} — overlays cannot be unlocked to move\n`,
+      );
+    }
+  }
 
-  return window;
+  #releaseShortcut(): void {
+    if (!this.#shortcutRegistered) return;
+    globalShortcut.unregister(EDIT_MODE_SHORTCUT);
+    this.#shortcutRegistered = false;
+  }
+
+  setEditing(editing: boolean): void {
+    this.#editing = editing;
+
+    for (const [panel, window] of this.#windows) {
+      if (window.isDestroyed()) continue;
+      window.setIgnoreMouseEvents(!editing, { forward: true });
+      window.webContents.send("exxeed:edit-mode", editing);
+      if (!editing) this.#remember(panel, window);
+    }
+  }
 }

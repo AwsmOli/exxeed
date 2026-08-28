@@ -120,10 +120,23 @@ about `durationMs`, which is what sets lead distance.
 
 ### Overlay mode
 
-`EXXEED_OVERLAY=1` opens the readout as a transparent, click-through,
-always-on-top overlay instead of a normal window, so it can be read while
-driving. `Ctrl+Shift+E` (`Cmd+Shift+E` on macOS) unlocks it for dragging and
-locks it again; the position is remembered.
+`EXXEED_OVERLAY=1` opens each panel as its own transparent, click-through,
+always-on-top window, so they can be placed where a rig actually needs them —
+the delta near the eyeline, the trace somewhere glanceable, the map wherever
+there is room.
+
+```sh
+EXXEED_OVERLAY=1 pnpm dev                       # all five
+EXXEED_OVERLAY=1 EXXEED_PANELS=delta,trace pnpm dev
+```
+
+Panels: `telemetry`, `map`, `trace`, `delta`, `callouts`.
+
+`Ctrl+Shift+E` (`Cmd+Shift+E` on macOS) unlocks **every** overlay at once for
+dragging, and locks them again. Positions are remembered per panel and restored
+next launch; an overlay whose display has gone away comes back on the primary
+one rather than opening somewhere invisible. Launch prints where each landed,
+which is the only way to answer "off-screen or behind the game?".
 
 > **Run the sim in borderless windowed.** Transparent overlays are not supported
 > over exclusive fullscreen. Windows 10/11 Fullscreen Optimizations often

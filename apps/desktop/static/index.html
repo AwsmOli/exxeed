@@ -59,9 +59,16 @@
       #delta-text.up { color: #7ee787; }
       #delta-text.down { color: #f87171; }
 
-      body.overlay #trace { width: 190px; height: 84px; }
+      /* An overlay window holds exactly one panel, so the panel fills it. */
+      body.overlay .panel { margin: 0; height: 100vh; box-sizing: border-box; }
+      body.overlay .cols { display: block; height: 100%; }
+      body.overlay section { height: 100%; }
+      body.overlay #map { width: 100%; height: calc(100% - 22px); }
+      body.overlay #trace { width: 100%; height: calc(100% - 40px); }
       body.overlay .trace-key { display: none; }
-      body.overlay #delta { max-width: 190px; }
+      body.overlay #delta { max-width: none; }
+      body.overlay #log { max-height: calc(100% - 24px); overflow: hidden; }
+      body.overlay table { width: 100%; }
 
       /* The map. Hidden until one arrives — the engine needs no TrackMap
          (§4.4), so a note set without one is normal, not broken. */
@@ -129,6 +136,7 @@
     <div class="src">source: <span id="source">waiting…</span></div>
 
     <div class="cols">
+      <section data-panel="telemetry">
       <table>
         <tbody>
           <tr><td>LapDistPct</td><td id="lapDistPct">—</td></tr>
@@ -147,25 +155,31 @@
           <tr><td>Frames received</td><td id="frames">0</td></tr>
         </tbody>
       </table>
+      </section>
 
-      <div>
+      <section data-panel="map">
         <h2 id="map-name">Track</h2>
         <canvas id="map" width="300" height="300"></canvas>
+      </section>
 
+      <section data-panel="trace">
         <h2 id="ref-name">Reference</h2>
         <canvas id="trace" width="300" height="130"></canvas>
         <div class="trace-key">throttle above, brake below · ghost = reference · orange = its braking point</div>
+      </section>
 
+      <section data-panel="delta">
+        <h2>Delta</h2>
         <div id="delta">
           <div id="delta-track"><div id="delta-fill"></div></div>
           <div id="delta-text">waiting for a lap</div>
         </div>
-      </div>
+      </section>
 
-      <div>
+      <section data-panel="callouts">
         <h2>Callouts</h2>
         <ul id="log"></ul>
-      </div>
+      </section>
     </div>
 
     <div class="edit-hint">unlocked — drag to move, press the shortcut again to lock</div>

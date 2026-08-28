@@ -11,6 +11,41 @@
 
 import type { Mps, NoteState, Pct, Radians, Seconds, SuppressionReason } from "@exxeed/core";
 
+/**
+ * The overlays, as separate windows.
+ *
+ * One window per panel rather than one window holding all of them, because a sim
+ * rig has a shape: the delta belongs near the eyeline, the trace somewhere it can
+ * be glanced at, the map wherever there is room. A single combined panel can only
+ * ever be in one of those places.
+ *
+ * Each is its own BrowserWindow with its own remembered position (§7). They all
+ * render the same document — the panel is chosen by query string — so there is
+ * one renderer to maintain rather than five.
+ */
+export const PANELS = ["telemetry", "map", "trace", "delta", "callouts"] as const;
+
+export type PanelId = (typeof PANELS)[number];
+
+export const isPanelId = (v: string): v is PanelId =>
+  (PANELS as readonly string[]).includes(v);
+
+export interface PanelSpec {
+  readonly id: PanelId;
+  readonly title: string;
+  /** Starting size. Position is remembered; size is not resized by the user yet. */
+  readonly width: number;
+  readonly height: number;
+}
+
+export const PANEL_SPECS: Readonly<Record<PanelId, PanelSpec>> = {
+  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 330 },
+  map: { id: "map", title: "Track", width: 250, height: 275 },
+  trace: { id: "trace", title: "Inputs", width: 340, height: 175 },
+  delta: { id: "delta", title: "Delta", width: 230, height: 78 },
+  callouts: { id: "callouts", title: "Callouts", width: 320, height: 200 },
+};
+
 /** 60 Hz state frame, main → renderer. */
 export const STATE_FRAME_CHANNEL = "exxeed:state-frame";
 

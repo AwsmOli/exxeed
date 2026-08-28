@@ -1,13 +1,43 @@
 // Overlay mode is signalled by the query string main loads the page with,
 // so one document serves both the desktop window and the overlay.
-const isOverlay = new URLSearchParams(location.search).get("overlay") === "1";
+const params = new URLSearchParams(location.search);
+const isOverlay = params.get("overlay") === "1";
 if (isOverlay) document.body.classList.add("overlay");
+
+// An overlay window shows one panel. Removing the others rather than hiding them
+// means every draw routine's "is my element there?" guard does the rest — no
+// panel-aware branching anywhere below.
+const panel = params.get("panel");
+if (panel !== null) {
+  document.body.classList.add(`panel-${panel}`);
+  for (const section of document.querySelectorAll("[data-panel]")) {
+    if (section.getAttribute("data-panel") !== panel) section.remove();
+  }
+}
 
 window.exxeed?.onEditMode((editing) => {
   document.body.classList.toggle("editing", editing === true);
 });
 
 const cell = (id) => document.getElementById(id);
+
+/**
+ * Set an element's text, if it is here at all.
+ *
+ * Every overlay window shows one panel and removes the rest, so most of these
+ * ids are absent in any given window. Guarding at the setter keeps the update
+ * handlers panel-agnostic — they describe the whole state and whatever is on
+ * screen picks up its own part.
+ */
+const setText = (id, text) => {
+  const el = cell(id);
+  if (el !== null) el.textContent = text;
+};
+
+const setClass = (id, className) => {
+  const el = cell(id);
+  if (el !== null) el.className = className;
+};
 const fixed = (v, n) => (typeof v === "number" ? v.toFixed(n) : "—");
 
 let frames = 0;
@@ -26,11 +56,12 @@ window.exxeed?.onAudioPreload(async (clips) => {
       console.error(`could not decode ${clip.key}`, err);
     }
   }
-  cell("clips").textContent = String(decoded.size);
+  setText("clips", String(decoded.size));
 });
 
 const log = (text, className) => {
   const list = cell("log");
+  if (list === null) return;
   const item = document.createElement("li");
   item.textContent = text;
   item.className = className;
@@ -72,35 +103,35 @@ window.exxeed?.onStateFrame((f) => {
     history.push({ pct: f.lapDistPct, throttle: f.throttle ?? 0, brake: f.brake ?? 0 });
     if (history.length > HISTORY) history.shift();
   }
-  cell("source").textContent = f.sourceName ?? "—";
-  cell("lapDistPct").textContent = fixed(f.lapDistPct, 5);
-  cell("speedMps").textContent = fixed(f.speedMps, 2);
-  cell("speedKph").textContent = fixed(f.speedMps * 3.6, 1);
-  cell("throttle").textContent = fixed(f.throttle, 2);
-  cell("brake").textContent = fixed(f.brake, 2);
-  cell("gear").textContent = String(f.gear ?? "—");
+  setText("source", f.sourceName ?? "—");
+  setText("lapDistPct", fixed(f.lapDistPct, 5));
+  setText("speedMps", fixed(f.speedMps, 2));
+  setText("speedKph", fixed(f.speedMps * 3.6, 1));
+  setText("throttle", fixed(f.throttle, 2));
+  setText("brake", fixed(f.brake, 2));
+  setText("gear", String(f.gear ?? "—"));
 
   // M0b reads this off a real lap to pin the sign convention (§5). Shown
   // with an explicit sign so "which way is left" is answerable on sight.
-  const steer = cell("steerRad");
-  steer.textContent =
+  setText(
+    "steerRad",
     typeof f.steerRad === "number"
       ? `${f.steerRad >= 0 ? "+" : ""}${f.steerRad.toFixed(4)} rad`
-      : "—";
+      : "—",
+  );
 
   const populated = typeof f.lat === "number" && (f.lat !== 0 || f.lon !== 0);
-  cell("latlon").textContent = populated
+  setText("latlon", populated
     ? `${f.lat.toFixed(5)}, ${f.lon.toFixed(5)}`
-    : "not populated";
-  cell("lap").textContent = String(f.lap ?? "—");
-  cell("frames").textContent = String(frames);
-  cell("queued").textContent = f.queuedNoteIds?.length
+    : "not populated");
+  setText("lap", String(f.lap ?? "—"));
+  setText("frames", String(frames));
+  setText("queued", f.queuedNoteIds?.length
     ? f.queuedNoteIds.join(", ")
-    : "—";
+    : "—");
 
-  const suppressed = cell("suppressed");
-  suppressed.textContent = f.suppressedBy ?? "—";
-  suppressed.className = f.suppressedBy ? "quiet" : "";
+  setText("suppressed", f.suppressedBy ?? "—");
+  setClass("suppressed", f.suppressedBy ? "quiet" : "");
 });
 
 
@@ -143,7 +174,7 @@ const fitCanvas = () => {
 
 window.exxeed?.onMap((view) => {
   mapView = view;
-  cell("map-name").textContent = `${view.trackName}${view.configName ? ` — ${view.configName}` : ""}`;
+  setText("map-name", `${view.trackName}${view.configName ? ` — ${view.configName}` : ""}`);
   canvas?.classList.add("ready");
   fitCanvas();
 });
@@ -229,8 +260,7 @@ const traceCtx = traceCanvas?.getContext("2d") ?? null;
 window.exxeed?.onReference((view) => {
   reference = view;
   traceCanvas?.classList.add("ready");
-  cell("ref-name").textContent =
-    `reference — car ${view.carId}, ${view.lapTimeS.toFixed(3)}s`;
+  setText("ref-name", `reference — car ${view.carId}, ${view.lapTimeS.toFixed(3)}s`);
   fitTrace();
 });
 
