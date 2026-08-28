@@ -199,7 +199,6 @@ export const NoteSchema = z.object({
   confidence: z.number().min(0).max(1).optional(),
   /** Timestamp in the source video, for the editor's jump-to-source (§7.4). */
   sourceTs: z.string().optional(),
-  fadeable: z.boolean().default(true),
   /** Both variants are required: the scheduler's short-form fallback (§6.3) needs
    *  a real duration to compute lead distance, so both must be rendered. */
   audio: AudioVariantSchema,

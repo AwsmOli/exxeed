@@ -182,6 +182,11 @@ connecting, with no visible panel to explain it.
 Changing the note set, voice, car or data folder rebuilds the session in place.
 The overlays keep their positions.
 
+**Fewer callouts once a track is familiar** is a matter of picking a shorter note
+set — one naming only the corners that stay hard. The engine does not try to
+work out what you have learned; you tell it, because that is the one judgement
+you are better placed to make than the telemetry is.
+
 #### Environment overrides
 
 Every setting can still be overridden at start-up, which is what the scripts and

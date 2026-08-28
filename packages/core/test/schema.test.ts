@@ -64,17 +64,18 @@ describe("NoteSchema", () => {
     expect(() => NoteSchema.parse(bad)).toThrow();
   });
 
-  it("defaults leadAdjustS, fadeable and dirty", () => {
-    const {
-      leadAdjustS: _a,
-      fadeable: _b,
-      dirty: _c,
-      ...bare
-    } = spaGt3Notes.notes[1]!;
+  it("defaults leadAdjustS and dirty", () => {
+    const { leadAdjustS: _a, dirty: _b, ...bare } = spaGt3Notes.notes[1]!;
     const parsed = NoteSchema.parse(bare);
     expect(parsed.leadAdjustS).toBe(0);
-    expect(parsed.fadeable).toBe(true);
     expect(parsed.dirty).toBe(false);
+  });
+
+  it("drops a fadeable flag left over from an older note set", () => {
+    // Automatic fading is deferred (§6.5), so the flag means nothing. Zod strips
+    // unknown keys, which is why no migration was needed for the sets on disk.
+    const parsed = NoteSchema.parse({ ...spaGt3Notes.notes[0]!, fadeable: false });
+    expect(parsed).not.toHaveProperty("fadeable");
   });
 
   it("is a point and a message — nothing else is required", () => {

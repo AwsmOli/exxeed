@@ -4,10 +4,14 @@ duplicated here.
 
 ## Where this diverged from the plan
 
-Five decisions changed the shape of the thing. SPEC.md is updated for all of
+Six decisions changed the shape of the thing. SPEC.md is updated for all of
 them; this is the short version of what moved and why, because several items
 below only make sense with it.
 
+0. **Automatic fading is deferred.** The driver swaps to a shorter note set
+   instead of the engine inferring what they have learned. §1's promise is
+   unchanged; the mechanism moved from inferred to chosen. M4 is now empty of
+   engine work.
 1. **A note is a point and a message.** `phase`, `cornerIndex` and the anchor
    union are gone. The engine does not need to know whether a callout is about
    braking, throttle, a bump or the pit entry — it needs to know *where* and it
@@ -398,23 +402,32 @@ drawing error was previously silent — blank canvas, healthy-looking log, no
 devtools when running headless. It caught the panel split leaving a dozen element
 accesses unguarded, in four of the five windows.
 
-## M4 — Fading + profile
+## M4 — Deferred
 
-- [ ] Per-`(trackKey, carId, noteId)` learning state with the 15 m / 22.5 m hysteresis (§6.5)
-  **Rekeyed.** §6.5 said `(trackRef, carId, cornerIndex, phase)` and none of the
-  last two exist any more: a note is a point and a message (§4.4). It now measures
-  against the braking nearest the note's own `pct`, which needs no corner at all —
-  and a note with no braking near it, like a pit-entry marker, simply never fades.
-  SPEC.md §6.5 is already updated; this is the implementation.
-  Cheap to do now and expensive later: nothing implements fading yet, so the key
-  can still change without a migration.
-- [ ] Count only valid laps; persist to `/data/profile/`
-  Needs a `ProfileRepository` — §8 is absolute that nothing outside `packages/repo`
-  touches disk for artefacts, and the profile is one.
-- [ ] Decide what "the same braking point" means for a merged callout
-  A note covering T9-T11 has three braking events under it and fades on one. Worth
-  settling before the hysteresis is written, not after.
-  *Done when:* twenty laps of Daytona Road Course leaves only the corners you keep getting wrong.
+**Automatic fading is not in v1.** A driver picks a shorter note set once a track
+is familiar, rather than the engine deciding for them. SPEC.md §6.5 carries the
+reasoning; the short version is that it is opaque when it misfires, cannot be
+tuned before there is experience to tune against, and rests on an open question
+about which reference lap it should measure against.
+
+The goal from §1 — stop saying what the driver already knows — is unchanged. Only
+the mechanism moved, from inferred to chosen.
+
+- [x] Decide how a driver reduces the callouts
+  **More than one note set per track and car**, chosen in preferences. Needs no
+  new mechanism: note sets and the picker both already exist.
+- [ ] Author a short Daytona set alongside the full one
+  Only the corners that stay hard. Cannot sensibly be chosen before the full one
+  has been driven — picking which callouts to keep is exactly the judgement that
+  needs a lap first.
+- [ ] Revisit if the duplication hurts
+  Text and audio are copied across sets, so editing one callout means editing it
+  everywhere it appears. The smaller fix is a level on each note plus a setting
+  that picks how far down to play — one set, one audio pack, one place to edit.
+  Worth reaching for when the duplication is actually painful, not before.
+
+`fadeable` is gone from `Note`, and `/data/profile/` is unused — there is no
+learning state to persist.
 
 ## M5 — Ingest pipeline (parallel from the start, separate package)
 

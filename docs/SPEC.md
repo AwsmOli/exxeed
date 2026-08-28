@@ -36,6 +36,9 @@ alternating with driving.
 So the product is: extract that translation once, then deliver it by voice at the
 right instant, and **stop saying it once the driver has learned it.**
 
+> v1 does that last part manually: a driver picks a shorter note set once a track
+> is familiar, rather than the engine deciding for them. §6.5 has the reasoning.
+
 ### The two data sources, and what each is for
 
 | Source | Provides |
@@ -61,7 +64,7 @@ GENERATION (offline, slow, expensive, AI in the loop)
                                         │
                                         ▼
 RUNTIME (online, 60 Hz, dumb, deterministic)
-  telemetry + config ──► trigger ──► speak ──► fade
+  telemetry + config ──► trigger ──► speak
 ```
 
 **The runtime is deliberately stupid.** It performs no analysis, calls no model,
@@ -93,7 +96,7 @@ same circuit. §4.0 defines the keys that keep them apart.
 - Local-first: all data on disk, no server, no accounts — but every read goes
   through a repository interface shaped for **Supabase**, so the backend drops in
   later without touching callers (§8)
-- Runtime note engine: trigger, schedule, speak, fade
+- Runtime note engine: trigger, schedule, speak
 - Track map generation from a recorded lap
 - Two overlays: input trace vs reference lap, and a delta bar
 - Video ingest pipeline as a **separate offline package**, built in parallel
@@ -104,6 +107,7 @@ same circuit. §4.0 defines the keys that keep them apart.
 - Any other sim (the adapter interface exists; only the iRacing implementation does)
 - Accounts, sharing, community submission, moderation
 - Note-set merging — a user picks one set, full stop
+- Automatic fading (§6.5). The goal is met by picking a shorter note set.
 - Voice packs beyond one voice
 - Setup/telemetry analysis features
 
@@ -446,7 +450,6 @@ model. There is no phase, no corner index, no anchor union.
       "textShort": "Left",
       "priority": 1,                // 1 = highest
       "leadAdjustS": 0,             // author's timing fix for THIS note (§6.1)
-      "fadeable": true,
       "dirty": true,                // text edited since the audio was rendered
       "audio":      { "file": "…/t1.wav",       "durationMs": 2140 },
       "audioShort": { "file": "…/t1_short.wav", "durationMs": 940 }
@@ -758,41 +761,39 @@ the closest available proxy; hold suppression for 2 s after it clears.
 Also suppress on the out-lap: require one completed lap since `IsOnTrack` went
 true before arming anything.
 
-### 6.5 Fading — the differentiating feature
+### 6.5 Fading — deferred, and how the goal is met instead
 
-**v1 fades a note against the braking for the point it sits at.** Braking is the
-thing being learned and the thing there is a clean measurement for; a note carries
-no phase to key on (§4.4), so there is nothing finer to be had and nothing finer
-is needed.
+**Not built in v1.** The goal stands and the mechanism changed: a driver swaps
+note sets by hand instead of the engine deciding for them.
 
-Per `(trackKey, carId, noteId)`, keep a rolling window comparing the driver's own
-brake onset near the note's `pct` against the reference lap's, using the **same**
-function from §5.1 and the **wraparound-safe** `deltaM` from §4.6:
+The original design measured the driver's brake onset against a reference lap and
+muted a callout after three good laps, with hysteresis. It is still the right idea
+eventually. Three things made it the wrong thing to build first:
 
-```ts
-const errorM = Math.abs(deltaM(driverOnsetPct, refOnsetPct, lengthM));
+- **It is opaque when it misfires.** A callout that stops has no way to say why,
+  and a driver mid-session cannot tell "you have got this" from "something
+  broke". Every other silence in this system is explainable (§6.4); this one
+  would not be.
+- **It cannot be tuned before there is experience to tune against.** The 15 m
+  threshold and the three-lap window are guesses, and the honest way to pick them
+  is to have driven with callouts for a while — which needs the rest of the
+  system finished first.
+- **It depends on the reference being the right reference.** §13.3.1 already
+  notes that against an alien lap most drivers never match anything and nothing
+  ever fades. That is a whole open question standing under a feature.
 
-if (errorM < 15)        consecutiveGood++, consecutiveBad = 0;
-else if (errorM > 22.5) consecutiveBad++,  consecutiveGood = 0;
+**What replaces it:** more than one note set per track and car — a full one, and a
+shorter one naming only the corners that stay hard — chosen from preferences. The
+driver decides what they have learned, which is the one judgement they are better
+placed to make than the telemetry is.
 
-if (consecutiveGood >= 3) mute(noteId);
-if (consecutiveBad  >= 2) unmute(noteId);
-```
+The cost, accepted deliberately: the text and the audio are duplicated across
+sets, so editing a callout means editing it everywhere it appears. If that becomes
+the thing that hurts, the smaller fix is a level on each note and a setting that
+picks how far down to play — one set, one audio pack, one place to edit. Worth
+reaching for only once the duplication is actually painful.
 
-The dead band between 15 m and 22.5 m is deliberate hysteresis — without it a
-driver hovering at the threshold gets a callout flickering on and off, which is
-maddening.
-
-A note with no braking near it — a pit entry marker, a warning about a bump —
-has nothing to measure, so it never fades. That is the right answer: those are
-reminders, not skills, and a driver does not "learn" them in a way the telemetry
-can see. Set `fadeable: false` on anything that should stay regardless.
-
-Only count laps that were valid (no suppression event, no off-track). Persist per
-user profile in `/data/profile/`.
-
-After twenty laps the car goes quiet except at the corners they still haven't
-got — which is the whole point.
+`fadeable` is gone from `Note`, since there is nothing to opt out of.
 
 ---
 
@@ -838,7 +839,7 @@ on the next frame.
   through props or a template — a Vue update cycle per frame is a bug, not an
   optimisation target.
 - Reserve normal reactivity for what actually changes at human speed: the note-set
-  picker, the layout editor, settings, fade state.
+  picker, the layout editor, settings.
 
 The dev callout overlay (§7.3) is the exception — it changes a few times a second
 at most, so ordinary reactive state is fine there.
@@ -865,8 +866,9 @@ delta = currentElapsedS - reference.channels.elapsedS[pctIndex];
 ### 7.3 Dev callout overlay (debug flag)
 
 Current corner, next queued note, its `dAhead` vs `leadM`, note state
-(ARMED/SPENT), fire and drop events with reasons, and which corners are currently
-faded. Ugly is fine.
+(ARMED/SPENT), and fire and drop events with reasons. The drops matter more than
+the fires: every other silence in this system is explainable, so the one thing
+the overlay has to answer is "why did it not say anything". Ugly is fine.
 
 ---
 
@@ -1243,8 +1245,9 @@ tracks, in two cars, with the S/F test green.
 **M3 — Overlays.** Input trace vs reference, delta bar, dev callout overlay.
 *Done when:* you can see your brake trace lagging the reference in real time.
 
-**M4 — Fading + profile.** Per-note learning state, hysteresis, persistence. *Done when:* twenty laps of Daytona Road Course leaves only the
-corners you keep getting wrong.
+**M4 — Deferred.** Automatic fading is not in v1 (§6.5): a driver picks a shorter
+note set once a track is familiar, rather than the engine deciding for them. The
+milestone number is kept so the ones after it do not move.
 
 **M5 — Ingest pipeline** *(parallel from the start, separate package)*. Stages
 0–6, local review UI. *Done when:* a YouTube URL for a Spa GT3 guide produces a
@@ -1335,13 +1338,13 @@ windowed warning, overlay layout editor, note-set picker UI.
       *Partial mitigation:* braking is inferable from longitudinal deceleration if
       speed-vs-distance is present. A workable proxy, not a measurement — mark any
       `ReferenceLap` derived this way so downstream code knows its provenance.
-   3. **An alien lap may be the wrong reference for fading.** §6.5 mutes a callout
-      once the driver matches the reference within 15 m. Against a genuinely alien
-      braking point most drivers will never match anything, and nothing ever fades
-      — which breaks the one feature that makes this feel like a coach. The fading
-      reference probably wants to be *a good lap in this car*, not the fastest lap
-      on earth. Consider separating "reference for the trace overlay" (fast, and
-      aspirational) from "reference for fading" (attainable).
+   3. **An alien lap is the wrong reference to be judged against.** This was the
+      third argument against automatic fading and it survives the deferral: a
+      reference nobody can match is fine to *aim at* and useless to be *measured*
+      by. It now applies to the input trace instead (§7.1), where the same lap is
+      both the ghost you chase and the thing your own trace is read against. If
+      fading returns, the two want separating — "reference to aspire to" and
+      "reference to be measured against" are not the same lap.
 
    **Cheap first step before committing:** hex-dump a `.blap` for a lap whose time
    you know. Look for that time as a float, and check whether file size scales with
