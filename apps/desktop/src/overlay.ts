@@ -269,7 +269,7 @@ export class OverlayLayout {
   #registerShortcut(): void {
     if (this.#shortcutRegistered) return;
     this.#shortcutRegistered = globalShortcut.register(EDIT_MODE_SHORTCUT, () => {
-      this.setEditing(!this.#editing);
+      this.toggleEditing();
     });
     if (!this.#shortcutRegistered) {
       process.stderr.write(
@@ -286,6 +286,17 @@ export class OverlayLayout {
       ipcMain.removeAllListeners(MOVE_WINDOW_CHANNEL);
       this.#moveHandlerInstalled = false;
     }
+  }
+
+  /**
+   * Flip layout-edit mode.
+   *
+   * The layout owns this state rather than the caller. Two places can ask for it
+   * — the global shortcut and the View menu — and a second copy of the flag
+   * anywhere would drift the first time the other one was used.
+   */
+  toggleEditing(): void {
+    this.setEditing(!this.#editing);
   }
 
   setEditing(editing: boolean): void {

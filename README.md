@@ -157,8 +157,15 @@ Replay runs at real time unless you ask otherwise — `EXXEED_SPEED=8` to hurry.
 
 ### Configuration
 
-Settings live in a preferences window — `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS),
-and it opens by itself on first run when no note set has been chosen. Note set,
+Settings live in a preferences window — **Preferences in the menu**, `Cmd/Ctrl+,`,
+or `Cmd/Ctrl+Shift+P` — and it opens by itself on first run when no note set has
+been chosen.
+
+> On macOS the menu bar is global, so it is always reachable. On Windows and
+> Linux a menu belongs to a window frame and every overlay is frameless, so in
+> overlay mode there is no visible menu there — the shortcuts are the interface.
+> They are global, so they work while the sim has focus, which a menu accelerator
+> never does. Note set,
 voice, lead adjust, reference car and which overlays to show are all there, saved
 to `settings.json` in the app's data folder.
 

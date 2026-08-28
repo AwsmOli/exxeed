@@ -47,6 +47,7 @@ import {
 
 import { audioKey } from "@exxeed/repo";
 
+import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, markClosing, OverlayLayout, sendTo } from "./overlay.js";
 import {
   installSettingsIpc,
@@ -466,10 +467,14 @@ function overlaySurfaces(layout: OverlayLayout): Surfaces {
 /** The surfaces the running loop is talking to, so a reload can reuse them. */
 let currentSurfaces: Surfaces | null = null;
 
+/** The open overlays, so the menu can unlock them. Null outside overlay mode. */
+let overlayLayout: OverlayLayout | null = null;
+
 function startOverlays(): void {
   process.stdout.write(FULLSCREEN_WARNING);
 
   const layout = new OverlayLayout();
+  overlayLayout = layout;
   const panels = chosenPanels();
 
   panels.forEach((panel, index) => {
@@ -512,6 +517,12 @@ void app.whenReady().then(() => {
   };
 
   start();
+
+  buildApplicationMenu({
+    openPreferences: () => openPreferences(PRELOAD),
+    toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
+    overlayMode,
+  });
 
   process.stdout.write(
     debugEnabled()
