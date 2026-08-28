@@ -132,8 +132,11 @@ EXXEED_OVERLAY=1 EXXEED_PANELS=delta,trace pnpm dev
 
 Panels: `telemetry`, `map`, `trace`, `delta`, `callouts`.
 
-`Ctrl+Shift+E` (`Cmd+Shift+E` on macOS) unlocks **every** overlay at once for
-dragging, and locks them again. Positions are remembered per panel and restored
+`Ctrl+Shift+E` (`Cmd+Shift+E` on macOS) unlocks **every** overlay at once — they
+turn opaque with a blue border, name themselves, and can be **dragged anywhere
+with the mouse**. The same shortcut locks them again and saves the layout. While
+locked they are click-through, so they cannot be moved and cannot steal a click
+from the sim. Positions are remembered per panel and restored
 next launch; an overlay whose display has gone away comes back on the primary
 one rather than opening somewhere invisible. Launch prints where each landed,
 which is the only way to answer "off-screen or behind the game?".

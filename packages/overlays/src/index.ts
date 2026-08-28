@@ -65,6 +65,23 @@ export const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
  */
 export const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
 
+/**
+ * Renderer → main: move this window by a screen-pixel delta.
+ *
+ * The one channel that runs that way. Dragging is done in JS rather than with
+ * `-webkit-app-region: drag` because that property swallows every mouse event in
+ * its region — no way to tell a click from a drag, no cursor feedback of its own,
+ * and it behaves inconsistently on transparent frameless windows. A mousedown,
+ * a delta, and `setPosition` is both more predictable and something we can show
+ * the user is happening.
+ */
+export const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
+
+export interface MoveWindowRequest {
+  readonly dx: number;
+  readonly dy: number;
+}
+
 /** The track outline, main → renderer, once at session start. */
 export const MAP_CHANNEL = "exxeed:map";
 

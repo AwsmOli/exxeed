@@ -15,9 +15,58 @@ if (panel !== null) {
   }
 }
 
-window.exxeed?.onEditMode((editing) => {
-  document.body.classList.toggle("editing", editing === true);
+let editing = false;
+
+window.exxeed?.onEditMode((on) => {
+  editing = on === true;
+  document.body.classList.toggle("editing", editing);
 });
+
+// ---------------------------------------------------------------------------
+// Dragging
+//
+// Screen coordinates, not client ones: the window moves out from under the
+// pointer as we go, so anything measured relative to the window would feed its
+// own movement back in and the overlay would accelerate away.
+//
+// Done here rather than with -webkit-app-region because that swallows every
+// mouse event in its region — no click/drag distinction, no cursor of our own,
+// and inconsistent behaviour on transparent frameless windows.
+// ---------------------------------------------------------------------------
+
+let dragFrom = null;
+
+document.addEventListener("mousedown", (event) => {
+  if (!editing || event.button !== 0) return;
+  dragFrom = { x: event.screenX, y: event.screenY };
+  document.body.classList.add("dragging");
+  event.preventDefault();
+});
+
+document.addEventListener("mousemove", (event) => {
+  if (dragFrom === null) return;
+
+  // The button state, not a blur or a mouseleave: moving a window can blur it,
+  // and the pointer leaving a small overlay mid-drag is normal. Either as an
+  // end-of-drag signal would strand the panel after one step.
+  if (event.buttons === 0) {
+    endDrag();
+    return;
+  }
+
+  const dx = event.screenX - dragFrom.x;
+  const dy = event.screenY - dragFrom.y;
+  if (dx === 0 && dy === 0) return;
+
+  dragFrom = { x: event.screenX, y: event.screenY };
+  window.exxeed?.moveWindow(dx, dy);
+});
+
+function endDrag() {
+  dragFrom = null;
+  document.body.classList.remove("dragging");
+}
+document.addEventListener("mouseup", endDrag);
 
 const cell = (id) => document.getElementById(id);
 

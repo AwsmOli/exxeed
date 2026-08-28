@@ -33,9 +33,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { app, BrowserWindow, globalShortcut, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
 
-import { PANEL_SPECS, type PanelId } from "@exxeed/overlays";
+import {
+  MOVE_WINDOW_CHANNEL,
+  PANEL_SPECS,
+  type MoveWindowRequest,
+  type PanelId,
+} from "@exxeed/overlays";
 
 export const EDIT_MODE_SHORTCUT = "CommandOrControl+Shift+E";
 
@@ -43,6 +48,29 @@ export const FULLSCREEN_WARNING =
   "Overlay mode: run the sim in BORDERLESS WINDOWED, not exclusive fullscreen —\n" +
   "  transparent overlays are not supported over exclusive fullscreen.\n" +
   `  Press ${EDIT_MODE_SHORTCUT} to unlock every overlay and drag it, again to lock.\n`;
+
+/**
+ * Windows that have begun closing.
+ *
+ * `isDestroyed()` is not a sufficient guard and catching is not an option:
+ * Electron disposes a render frame early in teardown, and a send after that
+ * point does not throw — it logs "Render frame was disposed" from inside
+ * Electron, where nothing here can intercept it. The `closed` event is too late
+ * to help, because it fires after the frame has already gone.
+ *
+ * `close` fires at the START of teardown, which is the moment sending has to
+ * stop. Closing five overlays at once widened a race that one window mostly hid.
+ */
+const closing = new WeakSet<BrowserWindow>();
+
+export function markClosing(window: BrowserWindow): void {
+  closing.add(window);
+}
+
+export function sendTo(window: BrowserWindow, channel: string, payload: unknown): void {
+  if (closing.has(window) || window.isDestroyed() || window.webContents.isDestroyed()) return;
+  window.webContents.send(channel, payload);
+}
 
 interface Bounds {
   readonly x: number;
@@ -94,6 +122,7 @@ export class OverlayLayout {
   #windows = new Map<PanelId, BrowserWindow>();
   #editing = false;
   #shortcutRegistered = false;
+  #moveHandlerInstalled = false;
 
   get windows(): readonly BrowserWindow[] {
     return [...this.#windows.values()];
@@ -101,9 +130,7 @@ export class OverlayLayout {
 
   /** Send to every open overlay. */
   broadcast(channel: string, payload: unknown): void {
-    for (const window of this.#windows.values()) {
-      if (!window.webContents.isDestroyed()) window.webContents.send(channel, payload);
-    }
+    for (const window of this.#windows.values()) sendTo(window, channel, payload);
   }
 
   create(panel: PanelId, index: number, preload: string, page: string): BrowserWindow {
@@ -147,6 +174,7 @@ export class OverlayLayout {
 
     void window.loadFile(page, { search: `overlay=1&panel=${panel}` });
 
+    window.on("close", () => markClosing(window));
     window.on("moved", () => {
       if (this.#editing) this.#remember(panel, window);
     });
@@ -166,6 +194,7 @@ export class OverlayLayout {
 
     this.#windows.set(panel, window);
     this.#registerShortcut();
+    this.#installMoveHandler();
     return window;
   }
 
@@ -173,6 +202,36 @@ export class OverlayLayout {
     const { x, y } = window.getBounds();
     this.#layout = { ...this.#layout, [panel]: { x, y } };
     saveLayout(this.#layout);
+  }
+
+  /**
+   * Renderer-driven dragging.
+   *
+   * Deliberately refuses to move anything while locked. The renderer is not
+   * trusted to police that — a window that is click-through cannot be dragged by
+   * a user, so a move request arriving in that state means something is wrong,
+   * and honouring it would let an overlay wander during a session.
+   */
+  #installMoveHandler(): void {
+    if (this.#moveHandlerInstalled) return;
+    this.#moveHandlerInstalled = true;
+
+    ipcMain.on(MOVE_WINDOW_CHANNEL, (event, request: MoveWindowRequest) => {
+      if (!this.#editing) return;
+
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (window === null || window.isDestroyed()) return;
+
+      // Only windows this layout owns.
+      const entry = [...this.#windows].find(([, w]) => w === window);
+      if (entry === undefined) return;
+
+      const { dx, dy } = request;
+      if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+
+      const { x, y } = window.getBounds();
+      window.setPosition(Math.round(x + dx), Math.round(y + dy));
+    });
   }
 
   #registerShortcut(): void {
@@ -191,15 +250,24 @@ export class OverlayLayout {
     if (!this.#shortcutRegistered) return;
     globalShortcut.unregister(EDIT_MODE_SHORTCUT);
     this.#shortcutRegistered = false;
+    if (this.#moveHandlerInstalled) {
+      ipcMain.removeAllListeners(MOVE_WINDOW_CHANNEL);
+      this.#moveHandlerInstalled = false;
+    }
   }
 
   setEditing(editing: boolean): void {
     this.#editing = editing;
+    process.stdout.write(
+      editing
+        ? `overlays unlocked — drag to arrange, ${EDIT_MODE_SHORTCUT} to lock\n`
+        : "overlays locked, layout saved\n",
+    );
 
     for (const [panel, window] of this.#windows) {
       if (window.isDestroyed()) continue;
       window.setIgnoreMouseEvents(!editing, { forward: true });
-      window.webContents.send("exxeed:edit-mode", editing);
+      sendTo(window, "exxeed:edit-mode", editing);
       if (!editing) this.#remember(panel, window);
     }
   }

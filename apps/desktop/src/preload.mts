@@ -24,8 +24,17 @@ const subscribe = (channel: string, callback: (payload: unknown) => void): (() =
 };
 
 const EDIT_MODE_CHANNEL = "exxeed:edit-mode";
+const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
 
 contextBridge.exposeInMainWorld("exxeed", {
+  /**
+   * Move this window by a screen-pixel delta. The only renderer -> main call:
+   * everything else is one-way, because the renderer decides nothing (§7).
+   */
+  moveWindow(dx: number, dy: number): void {
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    ipcRenderer.send(MOVE_WINDOW_CHANNEL, { dx, dy });
+  },
   /** Overlay layout-edit mode toggling on or off (§7). */
   onEditMode: (cb: (editing: unknown) => void) => subscribe(EDIT_MODE_CHANNEL, cb),
   onStateFrame: (cb: (frame: unknown) => void) => subscribe(STATE_FRAME_CHANNEL, cb),

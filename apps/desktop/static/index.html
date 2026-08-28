@@ -101,10 +101,14 @@
         font-size: 12px;
         line-height: 1.45;
       }
-      body.overlay h1 { font-size: 10px; opacity: 0.55; margin-bottom: 6px; }
+      /* A panel window shows its own heading, not the app's — at 78px tall the
+         delta bar has no room for both. */
+      body.overlay h1,
       body.overlay .src,
-      body.overlay .note,
-      body.overlay h2 { display: none; }
+      body.overlay .note { display: none; }
+      body.overlay h2 { display: block; font-size: 9.5px; opacity: 0.5; margin: 0 0 5px; }
+      /* Except while arranging, when knowing which panel is which is the point. */
+      body.overlay.editing h2 { opacity: 0.9; color: #58a6ff; }
       body.overlay .cols { display: block; }
       body.overlay table { min-width: 0; width: 100%; }
       body.overlay td:first-child { width: auto; padding-right: 14px; }
@@ -116,9 +120,11 @@
       body.overlay.editing .panel {
         background: rgba(10, 12, 15, 0.97);
         border-color: #58a6ff;
-        -webkit-app-region: drag;
-        cursor: move;
       }
+      /* The whole panel is the handle, so the cursor belongs on the body — the
+         pointer is over a canvas or a table cell most of the time. */
+      body.overlay.editing { cursor: grab; user-select: none; }
+      body.overlay.editing.dragging { cursor: grabbing; }
       .edit-hint { display: none; }
       body.overlay.editing .edit-hint {
         display: block;

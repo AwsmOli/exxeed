@@ -47,7 +47,7 @@ import {
 
 import { audioKey } from "@exxeed/repo";
 
-import { FULLSCREEN_WARNING, OverlayLayout } from "./overlay.js";
+import { FULLSCREEN_WARNING, markClosing, OverlayLayout, sendTo } from "./overlay.js";
 import { loadSession, type LoadedSession } from "./session.js";
 
 // Before any getPath call: without it userData lands under "@exxeed", taken from
@@ -385,9 +385,8 @@ function forwardRendererConsole(window: BrowserWindow): void {
 
 /** One window: broadcast and audio both mean "that window". */
 function singleWindowSurfaces(window: BrowserWindow): Surfaces {
-  const send = (channel: string, payload: unknown): void => {
-    if (!window.webContents.isDestroyed()) window.webContents.send(channel, payload);
-  };
+  window.on("close", () => markClosing(window));
+  const send = (channel: string, payload: unknown): void => sendTo(window, channel, payload);
   return {
     broadcast: send,
     audio: send,
@@ -404,9 +403,7 @@ function overlaySurfaces(layout: OverlayLayout): Surfaces {
     // nothing about it is visible — but it has to be exactly one.
     audio: (channel, payload) => {
       const host = layout.windows[0];
-      if (host !== undefined && !host.webContents.isDestroyed()) {
-        host.webContents.send(channel, payload);
-      }
+      if (host !== undefined) sendTo(host, channel, payload);
     },
     alive: () => layout.windows.some((w) => !w.isDestroyed()),
     onClosed: (callback) => {
