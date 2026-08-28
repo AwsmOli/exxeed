@@ -425,7 +425,7 @@ function startOverlays(): void {
   const panels = chosenPanels();
 
   panels.forEach((panel, index) => {
-    const window = layout.create(panel, index, PRELOAD, PAGE);
+    const window = layout.create(panel, index, panels, PRELOAD, PAGE);
     forwardRendererConsole(window);
   });
 

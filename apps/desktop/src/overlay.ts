@@ -108,13 +108,37 @@ function onSomeDisplay(x: number, y: number): boolean {
   });
 }
 
+const GAP = 12;
+
 /**
- * Default positions: stacked down the left edge, in panel order. Deliberately not
- * overlapping, so a first run gives something arrangeable rather than a pile.
+ * Default positions: down the left edge, each panel below the last, wrapping to
+ * a new column when it runs out of height.
+ *
+ * Stacking by a fixed small offset was worse than useless — five panels landed
+ * on top of each other and the first job was pulling a pile apart before any
+ * arranging could start.
  */
-function defaultPosition(index: number): Bounds {
+function defaultPosition(panels: readonly PanelId[], index: number): Bounds {
   const area = screen.getPrimaryDisplay().workArea;
-  return { x: area.x + 24, y: area.y + 24 + index * 8 };
+  let x = area.x + 24;
+  let y = area.y + 24;
+  let columnWidth = 0;
+
+  for (let i = 0; i < index; i++) {
+    const previous = PANEL_SPECS[panels[i]!];
+    columnWidth = Math.max(columnWidth, previous.width);
+    y += previous.height + GAP;
+
+    // Off the bottom of the display — start another column.
+    const next = PANEL_SPECS[panels[i + 1]!];
+    if (next !== undefined && y + next.height > area.y + area.height) {
+      x += columnWidth + GAP;
+      y = area.y + 24;
+      columnWidth = 0;
+    }
+  }
+
+  return { x, y };
 }
 
 export class OverlayLayout {
@@ -133,11 +157,19 @@ export class OverlayLayout {
     for (const window of this.#windows.values()) sendTo(window, channel, payload);
   }
 
-  create(panel: PanelId, index: number, preload: string, page: string): BrowserWindow {
+  create(
+    panel: PanelId,
+    index: number,
+    panels: readonly PanelId[],
+    preload: string,
+    page: string,
+  ): BrowserWindow {
     const spec = PANEL_SPECS[panel];
     const saved = this.#layout[panel];
     const position =
-      saved !== undefined && onSomeDisplay(saved.x, saved.y) ? saved : defaultPosition(index);
+      saved !== undefined && onSomeDisplay(saved.x, saved.y)
+        ? saved
+        : defaultPosition(panels, index);
 
     const window = new BrowserWindow({
       x: position.x,
