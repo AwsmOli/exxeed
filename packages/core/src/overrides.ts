@@ -208,9 +208,10 @@ export function applyOverrides(
           const to = bounds[i + 1]!;
           const measured = measure(lap, from, to);
           // The apex comes back as a grid cell centre, and a cut landing near a
-          // cell boundary can put that a fraction before `from` — which would
-          // leave a corner whose apex sits outside itself, and PHASE_PCT would
-          // then aim apex and throttle notes just short of the corner.
+          // cell boundary can put that a fraction before `from`, leaving a corner
+          // whose apex sits outside itself. Nothing at runtime reads apexPct any
+          // more (§4.4), but the editor draws corner arcs from it and a map that
+          // says something impossible is worth refusing.
           const apexPct =
             measured !== null && within(from, to, measured.apexPct)
               ? measured.apexPct

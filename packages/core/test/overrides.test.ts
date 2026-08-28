@@ -142,8 +142,9 @@ describe("applyOverrides", () => {
 
   it("never puts a corner's apex outside the corner", () => {
     // A cut landing near a grid-cell boundary used to produce an apex a fraction
-    // before its own entry. PHASE_PCT aims apex and throttle notes at apexPct,
-    // so that quietly fires them short of the corner.
+    // before its own entry — a corner whose apex sits outside itself. Nothing at
+    // runtime reads apexPct any more (§4.4), but the editor draws corner arcs
+    // from it, and a map that says something impossible is worth refusing.
     const GRID = 2000;
     const steerRad = new Array<number>(GRID).fill(0.3);
     const speedMps = new Array<number>(GRID).fill(40);

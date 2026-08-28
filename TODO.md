@@ -2,6 +2,38 @@ Milestones from [docs/SPEC.md](docs/SPEC.md) §11. Read §12 (Pitfalls) before
 writing code — it is a read-before-coding list, not a task list, so it is not
 duplicated here.
 
+## Where this diverged from the plan
+
+Five decisions changed the shape of the thing. SPEC.md is updated for all of
+them; this is the short version of what moved and why, because several items
+below only make sense with it.
+
+1. **A note is a point and a message.** `phase`, `cornerIndex` and the anchor
+   union are gone. The engine does not need to know whether a callout is about
+   braking, throttle, a bump or the pit entry — it needs to know *where* and it
+   needs the words. Merging beat splitting: Daytona went from 12 notes to 5, one
+   per braking point, because two lines per corner is more than a driver can use.
+   A `pct` is also the most stable anchor available, not the least — lap position
+   is physical tarmac, corner numbering is a derived artefact — so a NoteSet is
+   keyed by `TrackKey` and carries `lengthM`, and **the runtime loads one artefact
+   plus its audio**. No TrackMap, no LandmarkInventory.
+2. **Landmarks are an M5 concern, not a prerequisite.** A landmark reference in
+   the words is a string. The inventory exists so §10 stage 3 can hand the model a
+   closed vocabulary.
+3. **`Lat`/`Lon` do not exist on iRacing**, so §4.1.1's primary centreline path is
+   dead and dead reckoning is the only one. That brought a hazard the original did
+   not have: yaw handedness cannot be assumed and closure will not catch a
+   mirrored map.
+4. **Overlays are separate windows**, one per panel, each placeable and remembered.
+   A rig has a shape and one combined panel can only be in one place.
+5. **Configuration is a preferences window**, not environment variables. Twelve
+   env vars were a scripting interface being used as a product; they survive as
+   start-up overrides because the scripts here rely on them.
+
+Two milestones were also done out of order: §7's overlay flags landed in M0b so
+the steering sign could be read while driving, and §10's stage 6 landed in M2
+because a hand-authored note set with no audio cannot speak.
+
 ## M0a — Skeleton (platform-neutral, works on macOS)
 
 - [x] pnpm workspace + strict tsconfig
@@ -13,7 +45,9 @@ duplicated here.
 - [x] `wrapPct` / `aheadM` / `deltaM` (§4.6)
   Every distance comparison in the codebase goes through these.
 - [x] `TrackKey` / `TrackRef` (§4.0) and Zod schemas for the §4 artefacts
-- [x] `resolveEventPct` + `PHASE_PCT` (§4.7)
+- [x] `resolveEventPct` + `PHASE_PCT` (§4.7) — *later deleted*
+  Built as specified, then removed wholesale when a note became a point and a
+  message (§4.4). Left ticked because it was done, not because it is there.
 - [x] `TelemetryFrame` + `TelemetrySource` interface
   Include `Lat`/`Lon` from the start so M1's centreline comes free rather than needing a second driving session.
 - [x] NDJSON telemetry recorder (§9.1) — record every frame, always, cheaply
@@ -35,7 +69,9 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   garbage is worse than one that refuses.
 - SPEC.md §4.7's listing does `map.corners[note.anchor.cornerIndex]`, which indexes
   by array *position*. Corner indices are 1-based and §5.2's override file can
-  renumber them, so the implementation looks up by the `index` field instead.
+  renumber them, so the implementation looked up by the `index` field instead.
+  Moot now — anchors are gone — but it is why §4.7 was rewritten rather than
+  patched.
 
 ## Small stuff
 
@@ -43,13 +79,31 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   `exxeed-ingest render <noteSetId>` does it, and it is stage 6 rather than a
   stand-in for it. Still needs the venv and a voice model, both gitignored — see
   README, "Rendering audio".
-- [ ] Rewrite the Daytona text to name what the driver can see
-  Current notes say "Brake, turn 1, left" — that is a metronome, not the product.
-  §1's whole argument is naming something visible. `transcript.example.txt` (an
-  MX-5 Daytona track guide, untracked, third-party) names the real ones: "the
-  black seam", "the second lamp post on the left", "once the second-to-last lamp
-  post disappears out of view", "the one marker" for the chicane. That is what
-  the callouts should say, and it is the first honest test of the premise.
+- [x] `REACTION_BUFFER_S` raised from 0.5 s to 1.0 s
+  The gap a driver actually hears is buffer-sized, not text-sized. Measured at
+  Daytona: **halving every clip moved the gap by 0.02-0.08 s**, because the lead
+  is derived from the duration, so a shorter clip just starts later and lands in
+  the same place. Shortening text is the lever for making a callout *fit*, never
+  for giving it air. §6.1's worked example moves 173 m to 207 m, and the §6.2
+  start/finish example fires at 0.99003 rather than 0.99496; both updated in
+  SPEC.md along with the tests that encode them, and the golden file rebaselined.
+  The cost is that notes which only just fitted now fall back or drop — the Spa
+  synthetic's throttle cue changed from `event_passed` to `no_fit_after_short`.
+  Daytona has room: nothing drops, and the tightest gap between callouts is 12.5 s.
+- [x] Rewrite the Daytona text to name what the driver can see
+  Done, from `transcript.example.txt`, and rendered with Piper — five notes, real
+  speech, measured durations, no note `dirty`. The set is now anchored on the
+  **measured brake onsets** from the reference lap rather than `entryPct`: the
+  words say "brake", so the anchor has to be where the braking starts, which is
+  also what §10 stage 4 validates against. That moved every note 20-57 m earlier.
+  T2 is gone — the reference lap's second dab at 0.0725 is the trail through the
+  T1 complex, and the coach calls it as one corner (§4.4 "merge, do not split").
+  T12 is deliberately silent: the transcript's line there is track limits, a
+  condition over 700 m, not a point event. One line to add if that reads wrong.
+  **The two slip-road notes are the weak point.** T6 and T7 are "brake at the
+  left slip road" and "brake at the right slip road", and the road is on the
+  opposite side to the turn each time. Direction leads the phrasing so the short
+  form stays unambiguous, but this is the pair to listen to first on track.
 
 - [ ] Check in a multi-lap slice of the Daytona session as an engine fixture
   `data/reference/daytona-2011-road-mx5-lap.ndjson` is one extracted lap, so §6.4
@@ -70,7 +124,11 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
 - [x] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
 - [x] Correct §6.2's and §9's start/finish worked examples in docs/SPEC.md
   Done, along with §4.1.1 (Lat/Lon are zero; dead reckoning is what ships) and §12 (the two runtime bugs, and the measured steering sign).
-- [ ] Install `ffprobe` before starting M5 stage 6
+- [x] ~~Install `ffprobe` before starting M5 stage 6~~ — **not needed**
+  Piper emits WAV, and `wavDurationMs` reads the duration straight out of the
+  header. That is measuring, not estimating, which is what §12's rule actually
+  asks for. `ffprobe` only comes back if a future voice provider emits something
+  that is not WAV.
 
 ## M0b — Live SDK (needs a Windows machine with iRacing)
 
@@ -173,8 +231,6 @@ Three things came out of doing this that were not visible from macOS:
   Note the two sign-change cases pull opposite ways: T6's entry must merge across a
   sign flip, T9/T10 must split at one. Three times the magnitude separates them,
   which is exactly why §5.2 says hand-fix rather than tune a rule.
-- [ ] `brakeOnsetPct` / `throttleOnPct` (§5.1) → `ReferenceLap.perCorner`
-  One definition shared by reference and live driver, or §6.5's error metric compares different quantities.
 - [x] Throwaway script rendering detected corners so you can eyeball them
   `tools/trackmap/src/render.ts`, behind `--svg`. Not actually throwaway: it is the
   only way to tell a correct map from a plausible one, and §5.2's workflow is look,
@@ -240,13 +296,15 @@ than numbering whatever detection happened to return.
   it. Everything else clears the ~1.9 s a full-form callout needs — including the
   T9–T11 complex, at 2.67 s and 4.07 s. Expect more pairs to collapse in a GT3.
 - [x] Hand-author note sets for Daytona Road Course and Spa (long, turn 1 wraps — deliberately the hard case)
-  Daytona is 6 notes, one per braking point, merged from 12 — one callout every ~22 s over the lap. Text is still placeholder and every note is `dirty`, so it stays `draft` until there is a real voice.
-  **Blocked on M0b.** A note set needs a TrackMap and a LandmarkInventory to anchor against, and both come from a recorded lap. `data/demo/` holds a two-corner Spa stub to develop against; inventing full corner geometry for a braking-point app would be worse than waiting.
+  Daytona is 5 notes, one per braking point, merged from 12 — one callout every ~27 s over the lap. Text and audio are both real as of the transcript rewrite above; it stays `draft` until the callouts have been heard from the car.
+  Spa remains the two-corner `data/demo/` stub. It is a fixture for the wrap case, not a note set anyone would drive, and it needs a Spa lap before it is more than that.
 - [x] Pick a voice provider (§13 Q4) and render real audio
   **Piper.** Local, free, offline, native WAV, runs anywhere — so the audio pack can be a build artefact rather than something that exists on one machine. Costs nothing to swap later: the whole v1 corpus is ~126k characters, which fits inside most providers' free tiers, so quality is the only thing that would ever justify moving.
   Not deterministic by default — ~240 ms of drift between renders. `--noise-scale 0 --noise-w-scale 0` fixes it and the renderer passes them always.
 - [x] §9 required tests: the S/F double-fire case, and two priority-1 notes contending resolve deterministically
-  Still owed from §9: `brakeOnsetPct` returns the onset (needs M1), and golden-file timelines against a real recording (needs M0b).
+  `brakeOnsetPct` returns the onset landed with M1. Still owed: a golden-file
+  timeline against a *real* recording — see the multi-lap fixture under Small
+  stuff, which is the one thing blocking it.
 - [x] Wire the engine into the Electron app
   Main owns the loop, the engine and the decision; the renderer is only the output device, since Node has no audio out. That window sets `backgroundThrottling: false` so the output path cannot be throttled either.
 - [x] Golden-file the replay timeline
@@ -255,70 +313,172 @@ than numbering whatever detection happened to return.
 *Done when:* callouts land where a coach would say them, at both tracks, in two
 cars, with the S/F test green.
 
-**The machinery is finished; the content is not.** Everything mechanical works end
-to end — trigger, state machine, scheduler, suppression, preloading, audio out,
-golden-filed timeline:
+**The machinery is finished, and the content is real.** Daytona has five notes
+naming things a driver can see, rendered by Piper with measured durations, and
+they fire on the reference lap:
 
-    EXXEED_NOTES=spa-gt3-fixture EXXEED_SPEED=8 pnpm dev
-    pnpm --filter @exxeed/replay start <rec.ndjson> --notes spa-gt3-fixture --data data/demo
+    pnpm dev            # settings come from the preferences window now
+    pnpm --filter @exxeed/replay start <rec.ndjson> --notes daytona-mx5-draft --data data
 
-What is missing is real content, and both halves are blocked on things outside this
-machine: note sets need a recorded lap (M0b), and judging whether a callout *feels*
-right needs a real voice (§13 Q4). So M2 cannot be closed here, and the two open
-items above say why rather than being quietly ticked.
+What is left is the one thing that cannot be checked from a chair: whether the
+callouts land where a coach would say them, in the car. The set stays `draft`
+until then. §11's bar also asks for two tracks and two cars, and there is one of
+each.
 
-Two findings from running it rather than unit-testing it:
+Three findings from running it rather than unit-testing it:
 
 - A note that sat in the queue while the car drove past its event used to play
   anyway: `aheadM` is always positive (§4.6), so it reported the event as 6990 m
   ahead instead of 14 m behind. Now dropped as `event_passed`.
-- Looping a replay rewinds `tMs`, and the scheduler kept a stale `busyUntilMs`
-  across the gap — muting the channel into the next pass. It now treats time going
-  backwards as a new session.
+- Looping a replay rewound `tMs` and the lap counter, so the scheduler kept a
+  stale `busyUntilMs` and §6.4's out-lap gate never lifted. A looped pass now
+  continues both — reaching the end of a file is an artefact of replay, not
+  something that happened to the car.
+- §6.3's fit test was re-deriving the trigger's own inequality and disagreeing
+  with it. On an accelerating approach the lead *requirement* grows while
+  `dAhead` shrinks, so they close faster than the car moves and callouts fell
+  back to the short form for no audible reason. The trigger is now authoritative
+  for a note served on the tick it became due.
 
 ## M3 — Overlays
 
-- [x] Overlay window flags (§7) — transparent, frameless, always-on-top,
-      click-through, with a layout-edit toggle and remembered position
-  Brought forward from M3 so the M0b steering-sign reading can be done while
-  driving. `EXXEED_OVERLAY=1`. The borderless-windowed warning prints at launch;
-  it belongs in the first-run flow at M6.
-- [ ] Input trace vs reference (Canvas, §7.1)
-- [ ] Delta bar off `elapsedS` (§7.2)
-- [ ] Dev callout overlay behind a debug flag (§7.3)
-  Not a shipping feature — the only way to see what the engine is doing while sitting in the car.
-- [ ] Apply §7.0's Vue reactivity rules: `shallowRef` frames, `markRaw` channel arrays, Canvas subscribes to IPC directly
-  *Done when:* you can see your brake trace lagging the reference in real time.
+- [x] Overlay window flags (§7) — transparent, frameless, always-on-top, click-through
+  Brought forward so the M0b steering-sign reading could be done while driving.
+- [x] **One window per panel**, each placeable and remembered
+  Not in the original plan, and it should have been: a rig has a shape, and one
+  combined panel can only be in one place. `telemetry`, `map`, `trace`, `delta`,
+  `callouts`, all rendering the same document with the panel chosen by query
+  string. Positions persist per panel; a panel whose display has gone away comes
+  back on the primary one.
+- [x] Drag them with the mouse
+  `Cmd/Ctrl+Shift+E` unlocks every overlay at once — click-through windows cannot
+  be dragged, and unlocking them one at a time is the opposite of arranging a
+  layout. Done in JS rather than `-webkit-app-region: drag`, which swallows every
+  mouse event in its region. Uses `movementX`: `screenX` is derived from the
+  window's own origin, so it fed the window's movement back into the next delta
+  and overshot by 9%.
+- [x] The track map, with the car on it
+  Also unplanned. It is the fastest way to see that a map, a note set and the
+  telemetry agree about the same track — three artefacts that are individually
+  plausible and can still disagree. The car dot goes orange while suppressed,
+  which answers "why is nothing being said" at a glance.
+- [x] Input trace vs reference (Canvas, §7.1)
+  Throttle and brake, live against the reference ghosted behind, on a rolling
+  ±8% window. Both are on the pct grid (§4.3) so the ghost is an index lookup
+  with no time alignment. Corner guides are faint verticals and the reference's
+  `brakeOnsetPct` is marked — §7.1 calls seeing your own trace start after that
+  marker the most legible feedback in the app.
+- [x] Delta bar off `elapsedS` (§7.2)
+  `LapTimer` turns the sim's session clock into lap-elapsed and reports nothing
+  until it has actually seen a crossing: a delta against a lap whose start was
+  guessed is worse than none. Same half-lap test §6.2 re-arms on, because
+  counting every backwards step reported 4404 laps for a six-lap session.
+- [x] Dev callout overlay (§7.3)
+  Every engine decision now reaches the window, not just the plays. **Drops never
+  did**, so the log could show what was said but not what was withheld or why —
+  the more useful half when you are wondering about a silence. Plus the next note
+  ahead in metres and whether it is armed.
+  Not gated behind a debug flag, deliberately: the whole window *is* the dev
+  surface, so a flag would gate nothing until there is a shipping UI at M6.
+- [ ] ~~Apply §7.0's Vue reactivity rules~~ — **superseded: there is no Vue**
+  The renderer is plain JS that already does what those rules ask — subscribe to
+  IPC directly, stash the frame in a plain variable, draw in `requestAnimationFrame`,
+  never re-render on telemetry. §7.0 exists to stop a framework being wrapped
+  around 60 Hz data; not having the framework satisfies it more completely than
+  following the rules would.
+  Still a real decision to make, not a dodge: §3's stack table says Vue 3, and M6
+  wants a layout editor and a note-set picker where a framework would earn its
+  keep. **Revisit at M6**, when there is a form-heavy surface to justify adding a
+  bundler to the Electron app — not before, on the strength of two canvases.
+
+**M3 is done**, minus the Vue question, which is deferred rather than dropped.
+
+Renderer console output is forwarded to the terminal, which is not cosmetic: a
+drawing error was previously silent — blank canvas, healthy-looking log, no
+devtools when running headless. It caught the panel split leaving a dozen element
+accesses unguarded, in four of the five windows.
 
 ## M4 — Fading + profile
 
-- [ ] Per-`(trackRef, carId, cornerIndex, phase)` learning state with the 15 m / 22.5 m hysteresis (§6.5)
+- [ ] Per-`(trackKey, carId, noteId)` learning state with the 15 m / 22.5 m hysteresis (§6.5)
+  **Rekeyed.** §6.5 said `(trackRef, carId, cornerIndex, phase)` and none of the
+  last two exist any more: a note is a point and a message (§4.4). It now measures
+  against the braking nearest the note's own `pct`, which needs no corner at all —
+  and a note with no braking near it, like a pit-entry marker, simply never fades.
+  SPEC.md §6.5 is already updated; this is the implementation.
+  Cheap to do now and expensive later: nothing implements fading yet, so the key
+  can still change without a migration.
 - [ ] Count only valid laps; persist to `/data/profile/`
+  Needs a `ProfileRepository` — §8 is absolute that nothing outside `packages/repo`
+  touches disk for artefacts, and the profile is one.
+- [ ] Decide what "the same braking point" means for a merged callout
+  A note covering T9-T11 has three braking events under it and fades on one. Worth
+  settling before the hysteresis is written, not after.
   *Done when:* twenty laps of Daytona Road Course leaves only the corners you keep getting wrong.
 
 ## M5 — Ingest pipeline (parallel from the start, separate package)
 
 - [ ] Stages 0–2: normalise, metadata, triage funnel
-- [ ] Stage 3: extraction with the corner list and landmark inventory passed **as enums**
+- [ ] Stage 3: extraction with the corner list passed **as enums**
   §12: never let the LLM free-text a corner reference. Enum or null.
+  Two things changed under this. The corner index is now a stage-3 *output only* —
+  the pipeline resolves it to a `pct` before writing the note (§4.4), so nothing
+  downstream carries it. And the landmark inventory is optional: a landmark
+  reference in the words is just a string, so the enum is worth having to stop the
+  model inventing a bridge that is not there, not because the runtime needs one.
+  The prompt also has to say **one note per corner** — the model will happily emit
+  an approach, an apex and an exit note for the same corner, which is three lines
+  where a driver can use one.
 - [ ] Stage 4: cross-check against reference lap telemetry
 - [ ] Stage 5: the note editor (§7.4) — build it once, use it for both review and hand-authoring
-- [ ] Stage 6: TTS for both `text` and `textShort`, `ffprobe` real durations
-  **Needs `ffprobe` installed** — not currently on this machine.
-  *Done when:* a YouTube URL for a Spa GT3 guide produces a reviewed, rendered note set the runtime can load.
+  The Daytona set was hand-written as JSON, which was fine for five notes and will
+  not be for fifty. §7.4's trigger-window shading is the part that earns the
+  build: it makes "this callout is too long" and "these two overlap" visible
+  instead of something you find out on track.
+- [x] Stage 6: TTS for both `text` and `textShort`, measured durations
+  Done early, out of order, because the hand-authored note sets of M2 needed it
+  too — a note set with no audio cannot speak. `exxeed-ingest render <noteSetId>`,
+  Piper, durations read from the WAV header rather than estimated, and each note's
+  `dirty` flag cleared because text and audio now agree.
+  *Done when:* a YouTube URL for a track guide produces a reviewed, rendered note set the runtime can load.
 
 ## M6 — Packaging
 
 - [ ] Windows installer
+  Note that `app.isPackaged` is what decides whether debug is on, so packaging is
+  also the first time the off-by-default path gets exercised for real.
 - [ ] First-run flow including the borderless-windowed warning
   Put it in first-run, not the FAQ. It is the number one support question for every overlay app in existence.
-- [ ] Overlay layout editor, note-set picker UI
+  Half-done: preferences opens by itself when no note set is chosen, and the
+  warning prints at launch. Neither is a first-run *flow*, and the warning is on
+  stdout where no packaged user will ever see it.
+- [x] Note-set picker UI
+  The preferences window (`Cmd/Ctrl+,`), with note set, voice, lead adjust,
+  reference car and which overlays to show. Replaced twelve environment variables,
+  which were a scripting interface being used as a product. The env vars still
+  work as start-up overrides because the scripts here lean on them, and the window
+  says which fields are being overridden.
+- [x] Overlay layout editor
+  Unlock, drag, lock, remembered per panel. What is still missing is resizing —
+  panels are fixed-size, which is fine for a delta bar and limiting for the trace.
+- [ ] Resize overlays, not just move them
 
 ## Open questions (§13)
 
-- [ ] **Landmark inventory bootstrap.** Manual for the first two tracks, or worth building a marking tool in M1?
+- [x] ~~**Landmark inventory bootstrap.**~~ **Settled: not needed yet.**
+  A landmark reference in the *words* is just a string — "brake at the black seam"
+  needs no `Landmark` record. The inventory is machinery for §10 stage 3, so it is
+  an M5 question, not an M1 one. Daytona's notes name real markers from a track
+  guide with no inventory anywhere. A marking tool becomes worth building when the
+  model needs a closed vocabulary, and not before.
 - [ ] **Car class taxonomy.** Need a car-ID → class mapping table, and a granularity decision (GT3 vs GT3-by-manufacturer).
+  Now has a second consumer: the preferences window picks a reference lap by car
+  id, and a note set names a car *class*. With one car and one track that gap is
+  invisible; it will not stay that way.
 - [ ] **Reference lap source.** Live SDK recording for v1; `.ibt` and `.blap`/`.olap` import deferred.
 - [ ] Cheap first step on `.blap`: hex-dump a lap whose time you know, look for that time as a float, check whether file size scales with track length in a way that implies per-sample records. An hour of work tells you whether it's tractable at all.
-- [ ] **Voice provider.** One voice for v1. Only affects stage 6 and is swappable, but pick before M2 so durations are real.
+- [x] ~~**Voice provider.**~~ **Settled: Piper**, `en_US-lessac-medium`.
+  See M2. Cost did not decide it — the whole v1 corpus is ~126k characters, which
+  fits inside most providers' free tiers — so quality is the only thing that would
+  ever justify moving, and `TtsEngine` keeps that a one-file change.
 - [ ] **CrewChief landmark corpus.** Worth an email to Jim Britton about reuse. A shortcut, not a dependency — don't block on it.
