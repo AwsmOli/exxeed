@@ -162,11 +162,15 @@ and it opens by itself on first run when no note set has been chosen. Note set,
 voice, lead adjust, reference car and which overlays to show are all there, saved
 to `settings.json` in the app's data folder.
 
-`EXXEED_DEBUG=1` adds a **Debug** section for the things that only make sense
-against a recording: replay file, replay speed, loop, and skipping the out-lap.
-Those are saved like anything else but **only take effect while the flag is on**
-— otherwise a replay file set once could quietly stop the sim connecting weeks
-later, with no visible panel to explain it.
+A **Debug** section covers the things that only make sense against a recording:
+replay file, replay speed, loop, and skipping the out-lap. It is **on
+automatically when running from source**, so `pnpm dev` needs no flag; a packaged
+build has it off unless started with `EXXEED_DEBUG=1`. `EXXEED_DEBUG=0` forces it
+off from source, which is how to check packaged behaviour without packaging.
+
+Debug settings are saved like anything else but **only take effect while debug is
+on** — otherwise a replay file set once could quietly stop a real user's sim from
+connecting, with no visible panel to explain it.
 
 Changing the note set, voice, car or data folder rebuilds the session in place.
 The overlays keep their positions.

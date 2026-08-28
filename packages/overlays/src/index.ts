@@ -207,6 +207,31 @@ export function withEnvOverrides(
   };
 }
 
+/**
+ * Is the debug surface available?
+ *
+ * Running from source is development by definition, so the Debug section is on
+ * there without anyone having to remember a flag — and `app.isPackaged` says so
+ * cross-platform, where an env var set in an npm script would not survive
+ * Windows `cmd`.
+ *
+ * A packaged build is off unless explicitly asked, which is what keeps the
+ * safety meaningful: debug settings persist but only bite while debug is on, so
+ * a replay file set once can never quietly stop a real user's sim connecting.
+ *
+ * `EXXEED_DEBUG` decides either way when set — including "0" to force it off,
+ * which is how you check packaged behaviour without packaging.
+ */
+export function resolveDebugEnabled(
+  packaged: boolean,
+  envValue: string | undefined,
+): boolean {
+  if (envValue !== undefined && envValue !== "") {
+    return envValue !== "0" && envValue.toLowerCase() !== "false";
+  }
+  return !packaged;
+}
+
 /** What the preferences window needs to populate its pickers. */
 export interface SettingsOptions {
   readonly noteSets: readonly { readonly id: string; readonly label: string }[];

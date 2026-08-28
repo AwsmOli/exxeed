@@ -15,19 +15,23 @@ import { join } from "node:path";
 
 import { app } from "electron";
 
-import { withDefaults, withEnvOverrides, type Settings } from "@exxeed/overlays";
+import {
+  resolveDebugEnabled,
+  withDefaults,
+  withEnvOverrides,
+  type Settings,
+} from "@exxeed/overlays";
 
 const overrides = (): Readonly<Record<string, string | undefined>> => process.env;
 
 const settingsPath = (): string => join(app.getPath("userData"), "settings.json");
 
-const env = (name: string): string | undefined => {
-  const value = process.env[name];
-  return value === undefined || value === "" ? undefined : value;
-};
-
-/** Is the debug surface available at all? One flag, replacing several. */
-export const debugEnabled = (): boolean => env("EXXEED_DEBUG") !== undefined;
+/**
+ * Is the debug surface available at all? One flag, replacing several — and on by
+ * default when running from source, so `pnpm dev` needs no flag at all.
+ */
+export const debugEnabled = (): boolean =>
+  resolveDebugEnabled(app.isPackaged, process.env["EXXEED_DEBUG"]);
 
 function readStored(): Partial<Settings> {
   try {

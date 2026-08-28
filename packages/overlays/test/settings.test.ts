@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SETTINGS, withDefaults, withEnvOverrides } from "@exxeed/overlays";
+import {
+  DEFAULT_SETTINGS,
+  resolveDebugEnabled,
+  withDefaults,
+  withEnvOverrides,
+} from "@exxeed/overlays";
 
 describe("withDefaults", () => {
   it("fills in everything from nothing", () => {
@@ -94,5 +99,30 @@ describe("withEnvOverrides", () => {
 
   it("falls back to the stored panels when the environment names none that exist", () => {
     expect(withEnvOverrides(base, { EXXEED_PANELS: "nope" }).panels).toEqual(base.panels);
+  });
+});
+
+describe("resolveDebugEnabled", () => {
+  it("is on when running from source, so pnpm dev needs no flag", () => {
+    expect(resolveDebugEnabled(false, undefined)).toBe(true);
+  });
+
+  it("is off in a packaged build unless asked", () => {
+    // This is what keeps the safety meaningful: debug settings persist but only
+    // bite while debug is on, so a replay file set once cannot quietly stop a
+    // real user's sim from connecting.
+    expect(resolveDebugEnabled(true, undefined)).toBe(false);
+    expect(resolveDebugEnabled(true, "1")).toBe(true);
+  });
+
+  it("can be forced off from source, for checking packaged behaviour", () => {
+    expect(resolveDebugEnabled(false, "0")).toBe(false);
+    expect(resolveDebugEnabled(false, "false")).toBe(false);
+    expect(resolveDebugEnabled(false, "FALSE")).toBe(false);
+  });
+
+  it("treats an empty value as unset, which is how a shell clears one", () => {
+    expect(resolveDebugEnabled(true, "")).toBe(false);
+    expect(resolveDebugEnabled(false, "")).toBe(true);
   });
 });

@@ -513,9 +513,11 @@ void app.whenReady().then(() => {
 
   start();
 
-  if (debugEnabled()) {
-    process.stdout.write("debug enabled — the preferences window gains a Debug section\n");
-  }
+  process.stdout.write(
+    debugEnabled()
+      ? "debug on (running from source) — preferences has a Debug section\n"
+      : "debug off — EXXEED_DEBUG=1 to enable\n",
+  );
   process.stdout.write(`preferences: ${PREFERENCES_SHORTCUT}\n`);
 
   // Nothing configured yet: open preferences rather than running silently and
