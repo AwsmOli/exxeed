@@ -155,9 +155,39 @@ Replay runs at real time unless you ask otherwise — `EXXEED_SPEED=8` to hurry.
 > like a broken engine. The flag relaxes both, and main refuses to honour it for
 > a live source.
 
-Environment variables: `EXXEED_REPLAY` (recording path), `EXXEED_SPEED`,
-`EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_LEAD_ADJUST`,
-`EXXEED_OVERLAY`, `EXXEED_SKIP_OUTLAP`.
+### Run flags
+
+The app is configured entirely by environment variables — there is no settings UI
+until M6.
+
+| | |
+|---|---|
+| `EXXEED_NOTES` | Note set id. **Without it the app runs telemetry-only** — no engine, no callouts. |
+| `EXXEED_DATA` | Artefact root. Default `data/demo`. |
+| `EXXEED_VOICE` | Voice id of the audio pack. Default `en_test`. |
+| `EXXEED_CAR` | Car id for the reference lap (§7.1, §7.2). Defaults to the only one recorded for the track. |
+| `EXXEED_LEAD_ADJUST` | Seconds added to every callout's lead. This driver's preference, never the note set's (§6.1). |
+| `EXXEED_REPLAY` | Replay this recording instead of connecting to the sim. |
+| `EXXEED_SPEED` | Replay rate. Default 1, i.e. real time. |
+| `EXXEED_SKIP_OUTLAP` | Speak from the first frame. Replay only — main refuses it for a live source. |
+| `EXXEED_OVERLAY` | Overlay windows instead of one desktop window. |
+| `EXXEED_PANELS` | Which overlays to open. Default all five. |
+
+Two more are read by the ingest CLI rather than the app: `EXXEED_PIPER` (the
+piper executable) and `EXXEED_PIPER_MODEL` (the `.onnx` voice), both overridable
+with `--piper` and `--model`.
+
+### Command-line tools
+
+```
+exxeed-replay   <recording.ndjson> [--speed N] [--notes ID] [--data DIR] [--lead-adjust S]
+exxeed-trackmap <lap.ndjson> --track-id N --config ID [--overrides PATH] [--svg PATH] [--dry-run]
+exxeed-ingest   render <noteSetId> [--model PATH] [--length-scale N] [--voice ID]
+```
+
+Each prints its full option list when run without arguments. Note that
+`exxeed-replay` defaults to running **flat out**, not real time — pass
+`--speed 1` to watch it.
 
 **iRacing is Windows-only, and so is the telemetry SDK.** `@irsdk-node/native`
 ships prebuilds for `win32-x64` and `win32-arm64` only; off Windows its installer
