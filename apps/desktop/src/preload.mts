@@ -25,8 +25,18 @@ const subscribe = (channel: string, callback: (payload: unknown) => void): (() =
 
 const EDIT_MODE_CHANNEL = "exxeed:edit-mode";
 const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
+const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
+const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
+const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
 
 contextBridge.exposeInMainWorld("exxeed", {
+  /** Preferences. The only request/response pair — everything else is one-way. */
+  getSettings: (): Promise<unknown> => ipcRenderer.invoke(SETTINGS_GET_CHANNEL),
+  setSettings: (patch: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(SETTINGS_SET_CHANNEL, patch),
+  onSettingsChanged: (cb: (payload: unknown) => void) =>
+    subscribe(SETTINGS_CHANGED_CHANNEL, cb),
+
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:
    * everything else is one-way, because the renderer decides nothing (§7).

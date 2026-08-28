@@ -1,0 +1,138 @@
+<!doctype html>
+<!--
+  Preferences, and the debug panel when the app was started with EXXEED_DEBUG.
+
+  A plain form on purpose. Everything here changes at human speed, so none of
+  §7.0's hot-path rules apply and there is nothing to draw.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+    <title>Exxeed — Preferences</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; padding: 22px 26px 28px;
+        background: #101215; color: #e6e9ee;
+        font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      h1 { margin: 0 0 2px; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; }
+      .sub { color: #8a93a0; margin-bottom: 20px; font-size: 12px; }
+      h2 {
+        font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase;
+        color: #8a93a0; margin: 24px 0 10px; padding-bottom: 5px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      h2:first-of-type { margin-top: 0; }
+      .row { display: flex; align-items: baseline; gap: 14px; margin-bottom: 11px; }
+      label.name { width: 132px; flex: none; color: #8a93a0; }
+      input[type="text"], input[type="number"], select {
+        background: #171a1f; color: #e6e9ee; font: inherit;
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 5px;
+        padding: 4px 7px; min-width: 230px;
+      }
+      input[type="number"] { min-width: 90px; }
+      input:focus, select:focus { outline: none; border-color: #58a6ff; }
+      .hint { color: #6f7885; font-size: 11.5px; margin: -5px 0 12px 146px; max-width: 380px; }
+      .panels { display: flex; flex-wrap: wrap; gap: 12px; }
+      .panels label { display: flex; align-items: center; gap: 5px; color: #e6e9ee; }
+      .note {
+        margin-top: 22px; padding: 9px 11px; border-radius: 6px;
+        background: rgba(88,166,255,0.07); border: 1px solid rgba(88,166,255,0.22);
+        color: #9db8dc; font-size: 11.5px; max-width: 520px;
+      }
+      .note.warn { background: rgba(240,136,62,0.07); border-color: rgba(240,136,62,0.25); color: #d8a06a; }
+      #saved { color: #7ee787; font-size: 11.5px; height: 14px; margin-top: 14px; }
+      #debug[hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Exxeed</h1>
+    <div class="sub" id="data-dir">…</div>
+
+    <h2>Callouts</h2>
+
+    <div class="row">
+      <label class="name" for="noteSet">Note set</label>
+      <select id="noteSet"></select>
+    </div>
+    <div class="hint">Nothing selected means telemetry only — the overlays still draw, but the engine says nothing.</div>
+
+    <div class="row">
+      <label class="name" for="voice">Voice</label>
+      <select id="voice"></select>
+    </div>
+
+    <div class="row">
+      <label class="name" for="leadAdjust">Lead adjust</label>
+      <input type="number" id="leadAdjust" step="0.05" />
+      <span style="color:#6f7885">seconds</span>
+    </div>
+    <div class="hint">
+      Positive is earlier. Yours alone — it is added on top of whatever the note
+      set's author already corrected, and never travels with the note set.
+    </div>
+
+    <div class="row">
+      <label class="name" for="car">Reference car</label>
+      <select id="car"></select>
+    </div>
+    <div class="hint">Which recorded lap the input trace and delta bar compare against.</div>
+
+    <h2>Overlays</h2>
+    <div class="row">
+      <label class="name">Panels</label>
+      <div class="panels" id="panels"></div>
+    </div>
+    <div class="hint">Unlock and drag them with Ctrl/Cmd+Shift+E. Positions are remembered.</div>
+
+    <section id="debug" hidden>
+      <h2>Debug</h2>
+      <div class="hint" style="margin-left:0">
+        These are saved but only take effect while the app is started with the
+        debug flag, so a replay file set once cannot quietly stop the sim from
+        connecting later.
+      </div>
+
+      <div class="row">
+        <label class="name" for="replayPath">Replay file</label>
+        <input type="text" id="replayPath" placeholder="(none — connect to iRacing)" />
+      </div>
+      <div class="hint">An .ndjson recording. Leave empty to use the sim.</div>
+
+      <div class="row">
+        <label class="name" for="replaySpeed">Replay speed</label>
+        <input type="number" id="replaySpeed" step="0.5" min="0.5" />
+        <span style="color:#6f7885">× real time</span>
+      </div>
+
+      <div class="row">
+        <label class="name" for="loopReplay">Loop</label>
+        <input type="checkbox" id="loopReplay" />
+      </div>
+      <div class="hint">Start again at the end, continuing the clock and the lap count rather than rewinding.</div>
+
+      <div class="row">
+        <label class="name" for="skipOutLap">Skip out-lap</label>
+        <input type="checkbox" id="skipOutLap" />
+      </div>
+      <div class="hint">
+        Speak from the first frame. A recording of one extracted lap otherwise
+        plays back in silence — correct behaviour that looks exactly like a
+        broken engine. Ignored for a live session.
+      </div>
+    </section>
+
+    <div class="note" id="restart-note" hidden>
+      Changing the note set, voice or data folder reloads the session — the
+      engine and its audio are rebuilt. The overlays keep their positions.
+    </div>
+
+    <div class="note warn" id="override-note" hidden></div>
+
+    <div id="saved"></div>
+
+    <script type="module" src="./preferences.js"></script>
+  </body>
+</html>

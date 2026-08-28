@@ -48,6 +48,13 @@ import {
 import { audioKey } from "@exxeed/repo";
 
 import { FULLSCREEN_WARNING, markClosing, OverlayLayout, sendTo } from "./overlay.js";
+import {
+  installSettingsIpc,
+  openPreferences,
+  PREFERENCES_SHORTCUT,
+  registerPreferencesShortcut,
+} from "./preferences.js";
+import { debugEnabled, SettingsStore } from "./settings.js";
 import { loadSession, type LoadedSession } from "./session.js";
 
 // Before any getPath call: without it userData lands under "@exxeed", taken from
@@ -66,6 +73,29 @@ const env = (name: string): string | undefined => {
 };
 
 /**
+ * The settings store, available only once Electron is ready — `app.getPath`
+ * needs that. An accessor rather than a definite-assignment assertion so a
+ * mistake shows up as a clear error instead of a null dereference.
+ */
+let store: SettingsStore | null = null;
+
+const settings = (): SettingsStore => {
+  if (store === null) throw new Error("settings read before app was ready");
+  return store;
+};
+
+/**
+ * Bumped whenever the session has to be rebuilt. A running telemetry loop
+ * carries the token it started with and stops as soon as it stops matching,
+ * which is how a settings change replaces a session without two loops ever
+ * writing to the same recorder.
+ */
+let loopToken = 0;
+
+const resolveDataDir = (s: { dataDir: string | null }): string =>
+  s.dataDir ?? `${REPO_ROOT}/data/demo`;
+
+/**
  * Pick a source. iRacing when the platform can support it, otherwise replay a
  * recording — which is how the whole app is developed on macOS (§9).
  *
@@ -74,34 +104,49 @@ const env = (name: string): string | undefined => {
  * callout timing without driving.
  */
 function createSource(): TelemetrySource {
-  // EXXEED_SPEED only affects replay. Real time is real time.
-  const speed = Number(env("EXXEED_SPEED") ?? "1");
+  const { debug } = settings().get();
 
-  const replayPath = env("EXXEED_REPLAY");
-  if (replayPath !== undefined) return new ReplayAdapter(replayPath, { speed, loop: true });
+  // Debug settings only bite while the debug flag is on. They persist, so a
+  // replay file set once stays set — and without this, someone who set one and
+  // then started normally would have a sim that never connects and no visible
+  // panel to explain it.
+  if (!debugEnabled()) {
+    if (isIRacingSupported()) return new IRacingAdapter({ hz: 60 });
+    return new ReplayAdapter(FIXTURE, { speed: 1, loop: true });
+  }
+
+  if (debug.replayPath !== null) {
+    return new ReplayAdapter(debug.replayPath, {
+      speed: debug.replaySpeed,
+      loop: debug.loopReplay,
+    });
+  }
   if (isIRacingSupported()) return new IRacingAdapter({ hz: 60 });
-  return new ReplayAdapter(FIXTURE, { speed, loop: true });
+
+  // Nothing to connect to and nothing chosen: the built-in synthetic lap, so the
+  // window shows something rather than sitting blank.
+  return new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: debug.loopReplay });
 }
 
 async function createSession(replaying: boolean): Promise<LoadedSession | null> {
-  const noteSetId = env("EXXEED_NOTES");
-  if (noteSetId === undefined) return null;
+  const current = settings().get();
+  if (current.noteSetId === null) return null;
 
-  // EXXEED_SKIP_OUTLAP only means anything against a recording. On a live
-  // session the out-lap gate is the rule, not friction, so it is not negotiable
-  // from an environment variable.
-  const skipOutLap = replaying && env("EXXEED_SKIP_OUTLAP") !== undefined;
+  // Skipping the out-lap only means anything against a recording. On a live
+  // session the gate is the rule, not friction, so it is not negotiable from a
+  // settings file either.
+  const skipOutLap = replaying && debugEnabled() && current.debug.skipOutLap;
   if (skipOutLap) {
     process.stdout.write("skipping the out-lap gate — replay only (§6.4)\n");
   }
 
   return loadSession({
     assumeLapComplete: skipOutLap,
-    dataDir: env("EXXEED_DATA") ?? `${REPO_ROOT}/data/demo`,
-    noteSetId,
-    ...(env("EXXEED_CAR") === undefined ? {} : { carId: Number(env("EXXEED_CAR")) }),
-    voiceId: env("EXXEED_VOICE") ?? "en_test",
-    profile: { leadAdjustS: Number(env("EXXEED_LEAD_ADJUST") ?? "0") },
+    dataDir: resolveDataDir(current),
+    noteSetId: current.noteSetId,
+    ...(current.carId === null ? {} : { carId: current.carId }),
+    voiceId: current.voiceId,
+    profile: { leadAdjustS: current.leadAdjustS },
   });
 }
 
@@ -199,6 +244,7 @@ interface Surfaces {
 }
 
 async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
+  const token = ++loopToken;
   const source = createSource();
   const replaying = source instanceof ReplayAdapter;
 
@@ -268,7 +314,7 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
 
   try {
     for await (const frame of source) {
-      if (stopped || !surfaces.alive()) break;
+      if (stopped || token !== loopToken || !surfaces.alive()) break;
 
       // Always-on recording (§9). Every lap anyone drives must be replayable —
       // the moment this becomes opt-in, the interesting lap is the unrecorded one.
@@ -335,15 +381,14 @@ const PAGE = fileURLToPath(new URL("../static/index.html", import.meta.url));
  */
 function chosenPanels(): PanelId[] {
   const raw = env("EXXEED_PANELS");
-  if (raw === undefined) return [...PANELS];
-
-  const wanted = raw.split(",").map((s) => s.trim()).filter((s) => s !== "");
-  const unknown = wanted.filter((s) => !isPanelId(s));
-  for (const name of unknown) {
-    process.stderr.write(`unknown panel "${name}" — known: ${PANELS.join(", ")}\n`);
+  if (raw !== undefined) {
+    const wanted = raw.split(",").map((s) => s.trim()).filter((s) => s !== "");
+    for (const name of wanted.filter((s) => !isPanelId(s))) {
+      process.stderr.write(`unknown panel "${name}" — known: ${PANELS.join(", ")}\n`);
+    }
   }
-  const panels = wanted.filter(isPanelId);
-  return panels.length === 0 ? [...PANELS] : panels;
+  const panels = settings().get().panels;
+  return panels.length === 0 ? [...PANELS] : [...panels];
 }
 
 function createDesktopWindow(): BrowserWindow {
@@ -418,6 +463,9 @@ function overlaySurfaces(layout: OverlayLayout): Surfaces {
   };
 }
 
+/** The surfaces the running loop is talking to, so a reload can reuse them. */
+let currentSurfaces: Surfaces | null = null;
+
 function startOverlays(): void {
   process.stdout.write(FULLSCREEN_WARNING);
 
@@ -436,30 +484,60 @@ function startOverlays(): void {
   const last = layout.windows[layout.windows.length - 1];
   if (last === undefined) return;
   last.webContents.once("did-finish-load", () => {
-    void runTelemetryLoop(overlaySurfaces(layout));
+    currentSurfaces = overlaySurfaces(layout);
+    void runTelemetryLoop(currentSurfaces);
   });
 }
 
 function startDesktop(): void {
   const window = createDesktopWindow();
   window.webContents.once("did-finish-load", () => {
-    void runTelemetryLoop(singleWindowSurfaces(window));
+    currentSurfaces = singleWindowSurfaces(window);
+    void runTelemetryLoop(currentSurfaces);
   });
 }
 
 void app.whenReady().then(() => {
+  store = new SettingsStore();
+  installSettingsIpc(settings(), resolveDataDir);
+  registerPreferencesShortcut(PRELOAD);
+
   // EXXEED_OVERLAY gives the §7 overlays: transparent, frameless, click-through,
   // above the sim, one window per panel. Off by default because a fleet of
   // click-through always-on-top windows is a nuisance to develop against.
   const overlayMode = env("EXXEED_OVERLAY") !== undefined;
-  if (overlayMode) startOverlays();
-  else startDesktop();
+  const start = (): void => {
+    if (overlayMode) startOverlays();
+    else startDesktop();
+  };
+
+  start();
+
+  if (debugEnabled()) {
+    process.stdout.write("debug enabled — the preferences window gains a Debug section\n");
+  }
+  process.stdout.write(`preferences: ${PREFERENCES_SHORTCUT}\n`);
+
+  // Nothing configured yet: open preferences rather than running silently and
+  // leaving someone to wonder why. Silence and "no note set chosen" look
+  // identical from outside.
+  if (settings().get().noteSetId === null) {
+    process.stdout.write("no note set chosen — opening preferences\n");
+    openPreferences(PRELOAD);
+  }
+
+  // A changed note set, voice, car, data folder or lead adjust means a different
+  // engine and different audio, so the session is rebuilt. Panels are not in
+  // that list: adding or removing a window at runtime is M6's layout work.
+  settings().onChange(() => {
+    const surfaces = currentSurfaces;
+    if (surfaces === null) return;
+    process.stdout.write("settings changed — reloading the session\n");
+    void runTelemetryLoop(surfaces);
+  });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      if (overlayMode) startOverlays();
-      else startDesktop();
-    }
+    if (BrowserWindow.getAllWindows().length === 0) start();
   });
 });
 

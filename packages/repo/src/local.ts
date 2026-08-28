@@ -146,6 +146,22 @@ export class LocalFileNoteSetRepository implements NoteSetRepository {
     return raw === null ? null : NoteSetSchema.parse(raw);
   }
 
+  async listAll(): Promise<NoteSetSummary[]> {
+    const files = (await listDir(this.#dir())).filter((f) => f.endsWith(".json"));
+    const summaries: NoteSetSummary[] = [];
+
+    for (const file of files) {
+      const raw = await readJson(join(this.#dir(), file));
+      if (raw === null) continue;
+      // A note set that fails to parse should not hide the ones that do — a
+      // picker showing four of five is more useful than an error page.
+      const parsed = NoteSetSchema.safeParse(raw);
+      if (parsed.success) summaries.push(summariseNoteSet(parsed.data));
+    }
+
+    return summaries.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
   async listForTrack(key: TrackKey, carClass?: string): Promise<NoteSetSummary[]> {
     const files = (await listDir(this.#dir())).filter((f) => f.endsWith(".json"));
     const summaries: NoteSetSummary[] = [];
@@ -175,6 +191,10 @@ export class LocalFileAudioRepository implements AudioRepository {
   /** data/audio/{noteSetId}/{voiceId}/pack.json, mirroring §8.1's Storage layout. */
   #packPath(noteSetId: string, voiceId: string): string {
     return join(this.root, "audio", noteSetId, voiceId, "pack.json");
+  }
+
+  async listVoices(noteSetId: string): Promise<string[]> {
+    return (await listDir(join(this.root, "audio", noteSetId))).sort();
   }
 
   async getPack(noteSetId: string, voiceId: string): Promise<AudioPack | null> {

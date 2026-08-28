@@ -52,12 +52,16 @@ export interface ReferenceLapRepository {
 export interface NoteSetRepository {
   /** Keyed by TrackKey: a note set holds lap positions, not corner indices. */
   listForTrack(key: TrackKey, carClass?: string): Promise<NoteSetSummary[]>;
+  /** Every note set on disk, for a picker that has no track chosen yet. */
+  listAll(): Promise<NoteSetSummary[]>;
   get(id: string): Promise<NoteSet | null>;
   put(set: NoteSet): Promise<void>;
 }
 
 export interface AudioRepository {
   getPack(noteSetId: string, voiceId: string): Promise<AudioPack | null>;
+  /** Which voices a note set has been rendered in. */
+  listVoices(noteSetId: string): Promise<string[]>;
   /**
    * Raw WAV bytes. Every file for the loaded track is read into memory at session
    * start; nothing touches disk at trigger time (SPEC.md §4.5).

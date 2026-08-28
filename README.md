@@ -155,27 +155,34 @@ Replay runs at real time unless you ask otherwise — `EXXEED_SPEED=8` to hurry.
 > like a broken engine. The flag relaxes both, and main refuses to honour it for
 > a live source.
 
-### Run flags
+### Configuration
 
-The app is configured entirely by environment variables — there is no settings UI
-until M6.
+Settings live in a preferences window — `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS),
+and it opens by itself on first run when no note set has been chosen. Note set,
+voice, lead adjust, reference car and which overlays to show are all there, saved
+to `settings.json` in the app's data folder.
 
-| | |
-|---|---|
-| `EXXEED_NOTES` | Note set id. **Without it the app runs telemetry-only** — no engine, no callouts. |
-| `EXXEED_DATA` | Artefact root. Default `data/demo`. |
-| `EXXEED_VOICE` | Voice id of the audio pack. Default `en_test`. |
-| `EXXEED_CAR` | Car id for the reference lap (§7.1, §7.2). Defaults to the only one recorded for the track. |
-| `EXXEED_LEAD_ADJUST` | Seconds added to every callout's lead. This driver's preference, never the note set's (§6.1). |
-| `EXXEED_REPLAY` | Replay this recording instead of connecting to the sim. |
-| `EXXEED_SPEED` | Replay rate. Default 1, i.e. real time. |
-| `EXXEED_SKIP_OUTLAP` | Speak from the first frame. Replay only — main refuses it for a live source. |
-| `EXXEED_OVERLAY` | Overlay windows instead of one desktop window. |
-| `EXXEED_PANELS` | Which overlays to open. Default all five. |
+`EXXEED_DEBUG=1` adds a **Debug** section for the things that only make sense
+against a recording: replay file, replay speed, loop, and skipping the out-lap.
+Those are saved like anything else but **only take effect while the flag is on**
+— otherwise a replay file set once could quietly stop the sim connecting weeks
+later, with no visible panel to explain it.
 
-Two more are read by the ingest CLI rather than the app: `EXXEED_PIPER` (the
-piper executable) and `EXXEED_PIPER_MODEL` (the `.onnx` voice), both overridable
-with `--piper` and `--model`.
+Changing the note set, voice, car or data folder rebuilds the session in place.
+The overlays keep their positions.
+
+#### Environment overrides
+
+Every setting can still be overridden at start-up, which is what the scripts and
+tests in this repo use. An override is never written back — running one session
+at `EXXEED_SPEED=8` should not silently become the saved preference — and the
+preferences window says which fields are being overridden rather than letting an
+edit look like it did nothing.
+
+`EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_CAR`, `EXXEED_LEAD_ADJUST`,
+`EXXEED_PANELS`, `EXXEED_REPLAY`, `EXXEED_SPEED`, `EXXEED_SKIP_OUTLAP`,
+`EXXEED_OVERLAY`, `EXXEED_DEBUG`. Two more belong to the ingest CLI:
+`EXXEED_PIPER` and `EXXEED_PIPER_MODEL`.
 
 ### Command-line tools
 

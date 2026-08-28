@@ -66,6 +66,170 @@ export const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
 export const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
 
 /**
+ * Everything the app is configured by.
+ *
+ * Replaces a dozen environment variables. Those were a scripting interface being
+ * used as a product: fine for a test harness, hopeless for someone who wants to
+ * change a voice. They still work as start-up overrides — CI and the replay
+ * scripts rely on them — but they are no longer how the thing is meant to be
+ * driven.
+ *
+ * The `debug` group is separated because it is the part that only makes sense
+ * against a recording. It is editable only when the app was started with the
+ * debug flag; the rest is always editable.
+ */
+export interface Settings {
+  /** Null means telemetry only — no engine, no callouts. */
+  readonly noteSetId: string | null;
+  /** Null means the built-in demo data. */
+  readonly dataDir: string | null;
+  readonly voiceId: string;
+  /** Null means "the only reference lap recorded for this track". */
+  readonly carId: number | null;
+  /** Seconds added to every callout's lead. This driver's, not the note set's. */
+  readonly leadAdjustS: number;
+  readonly panels: readonly PanelId[];
+  readonly debug: DebugSettings;
+}
+
+export interface DebugSettings {
+  /** Replay this recording instead of connecting to the sim. */
+  readonly replayPath: string | null;
+  /** Replay rate. 1 is real time. */
+  readonly replaySpeed: number;
+  readonly loopReplay: boolean;
+  /** Speak from the first frame. Replay only — refused for a live source. */
+  readonly skipOutLap: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  noteSetId: null,
+  dataDir: null,
+  voiceId: "en_test",
+  carId: null,
+  leadAdjustS: 0,
+  panels: [...PANELS],
+  debug: {
+    replayPath: null,
+    replaySpeed: 1,
+    loopReplay: true,
+    skipOutLap: false,
+  },
+};
+
+/**
+ * Merge stored values over the defaults, field by field.
+ *
+ * Not a spread. A settings file written by an older version is missing keys, and
+ * a shallow merge would drop the whole `debug` group the moment one field of it
+ * was absent — which is exactly the shape of file that upgrades produce.
+ *
+ * Pure, so it can be tested without touching a disk.
+ */
+export function withDefaults(stored: Partial<Settings> | null | undefined): Settings {
+  const s = stored ?? {};
+
+  const panels = Array.isArray(s.panels)
+    ? s.panels.filter((p): p is PanelId => typeof p === "string" && isPanelId(p))
+    : DEFAULT_SETTINGS.panels;
+
+  const number = (v: unknown, fallback: number): number =>
+    typeof v === "number" && Number.isFinite(v) ? v : fallback;
+
+  const storedDebug =
+    typeof s.debug === "object" && s.debug !== null ? s.debug : ({} as Partial<DebugSettings>);
+
+  return {
+    noteSetId: s.noteSetId ?? DEFAULT_SETTINGS.noteSetId,
+    dataDir: s.dataDir ?? DEFAULT_SETTINGS.dataDir,
+    voiceId: typeof s.voiceId === "string" && s.voiceId !== "" ? s.voiceId : DEFAULT_SETTINGS.voiceId,
+    carId: typeof s.carId === "number" ? s.carId : DEFAULT_SETTINGS.carId,
+    leadAdjustS: number(s.leadAdjustS, DEFAULT_SETTINGS.leadAdjustS),
+    // An empty list would open no windows at all, with no way back from inside
+    // the app. Treat it as "not set".
+    panels: panels.length === 0 ? DEFAULT_SETTINGS.panels : panels,
+    debug: {
+      replayPath: storedDebug.replayPath ?? DEFAULT_SETTINGS.debug.replayPath,
+      replaySpeed: number(storedDebug.replaySpeed, DEFAULT_SETTINGS.debug.replaySpeed),
+      loopReplay:
+        typeof storedDebug.loopReplay === "boolean"
+          ? storedDebug.loopReplay
+          : DEFAULT_SETTINGS.debug.loopReplay,
+      skipOutLap:
+        typeof storedDebug.skipOutLap === "boolean"
+          ? storedDebug.skipOutLap
+          : DEFAULT_SETTINGS.debug.skipOutLap,
+    },
+  };
+}
+
+/**
+ * Apply environment overrides on top of stored settings.
+ *
+ * They still exist because the scripts and tests in this repo lean on them, but
+ * an override is never written back: running one session with a replay speed of
+ * 8 should not quietly become the saved preference.
+ */
+export function withEnvOverrides(
+  settings: Settings,
+  env: Readonly<Record<string, string | undefined>>,
+): Settings {
+  const get = (name: string): string | undefined => {
+    const v = env[name];
+    return v === undefined || v === "" ? undefined : v;
+  };
+  const num = (name: string): number | undefined => {
+    const raw = get(name);
+    if (raw === undefined) return undefined;
+    const v = Number(raw);
+    return Number.isFinite(v) ? v : undefined;
+  };
+
+  const panelsRaw = get("EXXEED_PANELS");
+  const panels =
+    panelsRaw === undefined
+      ? settings.panels
+      : panelsRaw.split(",").map((p) => p.trim()).filter(isPanelId);
+
+  return {
+    noteSetId: get("EXXEED_NOTES") ?? settings.noteSetId,
+    dataDir: get("EXXEED_DATA") ?? settings.dataDir,
+    voiceId: get("EXXEED_VOICE") ?? settings.voiceId,
+    carId: num("EXXEED_CAR") ?? settings.carId,
+    leadAdjustS: num("EXXEED_LEAD_ADJUST") ?? settings.leadAdjustS,
+    panels: panels.length === 0 ? settings.panels : panels,
+    debug: {
+      replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
+      replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
+      loopReplay: settings.debug.loopReplay,
+      skipOutLap: get("EXXEED_SKIP_OUTLAP") !== undefined || settings.debug.skipOutLap,
+    },
+  };
+}
+
+/** What the preferences window needs to populate its pickers. */
+export interface SettingsOptions {
+  readonly noteSets: readonly { readonly id: string; readonly label: string }[];
+  readonly voices: readonly string[];
+  readonly cars: readonly number[];
+  /** True when the app was started with the debug flag. */
+  readonly debugEnabled: boolean;
+  readonly dataDir: string;
+}
+
+export interface SettingsPayload {
+  readonly settings: Settings;
+  readonly options: SettingsOptions;
+}
+
+/** Renderer → main, invoke: read the current settings and pickers. */
+export const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
+/** Renderer → main, invoke: merge a patch and persist it. */
+export const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
+/** Main → renderer: settings changed, here they are. */
+export const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
+
+/**
  * Renderer → main: move this window by a screen-pixel delta.
  *
  * The one channel that runs that way. Dragging is done in JS rather than with
