@@ -30,6 +30,8 @@ const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
 const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
 const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
 const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
+const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
+const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
 
 contextBridge.exposeInMainWorld("exxeed", {
   /** Preferences. The only request/response pair — everything else is one-way. */
@@ -43,6 +45,9 @@ contextBridge.exposeInMainWorld("exxeed", {
   loadNotes: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_LOAD_CHANNEL),
   saveNotes: (patches: unknown): Promise<unknown> =>
     ipcRenderer.invoke(EDITOR_SAVE_CHANNEL, patches),
+  renderNotes: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_RENDER_CHANNEL),
+  onRenderRequested: (cb: () => void) =>
+    subscribe(EDITOR_RENDER_REQUEST_CHANNEL, () => cb()),
 
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:

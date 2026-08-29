@@ -47,6 +47,8 @@ function render(payload) {
   fill($("car"), options.cars, current.carId, "— first available —");
 
   $("leadAdjust").value = String(current.leadAdjustS);
+  if (document.activeElement !== $("piperModel")) $("piperModel").value = current.piperModel ?? "";
+  if (document.activeElement !== $("piperBinary")) $("piperBinary").value = current.piperBinary ?? "";
 
   const panels = $("panels");
   panels.replaceChildren();
@@ -111,6 +113,10 @@ $("leadAdjust").addEventListener("change", (e) => {
   const v = Number(e.target.value);
   if (Number.isFinite(v)) save({ leadAdjustS: v });
 });
+
+const orNull = (v) => (v.trim() === "" ? null : v.trim());
+$("piperModel").addEventListener("change", (e) => save({ piperModel: orNull(e.target.value) }));
+$("piperBinary").addEventListener("change", (e) => save({ piperBinary: orNull(e.target.value) }));
 
 $("replayPath").addEventListener("change", (e) =>
   save({ debug: { replayPath: e.target.value.trim() === "" ? null : e.target.value.trim() } }));

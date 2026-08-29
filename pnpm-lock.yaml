@@ -41,6 +41,9 @@ importers:
       '@exxeed/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      '@exxeed/tts':
+        specifier: workspace:*
+        version: link:../../packages/tts
     devDependencies:
       electron:
         specifier: ^33.0.2
@@ -74,6 +77,15 @@ importers:
         specifier: ^4.4.0
         version: 4.4.0
 
+  packages/tts:
+    dependencies:
+      '@exxeed/core':
+        specifier: workspace:*
+        version: link:../core
+      '@exxeed/repo':
+        specifier: workspace:*
+        version: link:../repo
+
   services/ingest:
     dependencies:
       '@exxeed/core':
@@ -82,6 +94,9 @@ importers:
       '@exxeed/repo':
         specifier: workspace:*
         version: link:../../packages/repo
+      '@exxeed/tts':
+        specifier: workspace:*
+        version: link:../../packages/tts
 
   tools/replay:
     dependencies:

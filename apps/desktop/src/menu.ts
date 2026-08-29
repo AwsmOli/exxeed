@@ -26,6 +26,7 @@ import { app, Menu, shell, type MenuItemConstructorOptions } from "electron";
 export interface MenuActions {
   readonly openPreferences: () => void;
   readonly openEditor: () => void;
+  readonly renderAudio: () => void;
   readonly toggleOverlayEdit: () => void;
   readonly overlayMode: boolean;
 }
@@ -43,6 +44,12 @@ export function buildApplicationMenu(actions: MenuActions): void {
     label: "Edit Notes…",
     accelerator: "CommandOrControl+E",
     click: () => actions.openEditor(),
+  };
+
+  const renderAudio: MenuItemConstructorOptions = {
+    label: "Render Audio",
+    accelerator: "CommandOrControl+Shift+R",
+    click: () => actions.renderAudio(),
   };
 
   const arrange: MenuItemConstructorOptions = {
@@ -76,10 +83,19 @@ export function buildApplicationMenu(actions: MenuActions): void {
     : [];
 
   const fileMenu: MenuItemConstructorOptions = isMac
-    ? { label: "File", submenu: [editNotes, { type: "separator" }, { role: "close" }] }
+    ? {
+        label: "File",
+        submenu: [editNotes, renderAudio, { type: "separator" }, { role: "close" }],
+      }
     : {
         label: "File",
-        submenu: [editNotes, preferences, { type: "separator" }, { role: "quit" }],
+        submenu: [
+          editNotes,
+          renderAudio,
+          preferences,
+          { type: "separator" },
+          { role: "quit" },
+        ],
       };
 
   // Without this, copy and paste do not work in the preferences text fields on

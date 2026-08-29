@@ -351,12 +351,54 @@ $("apply-suggestion").addEventListener("click", () => {
   });
 });
 
+/**
+ * Stage 6, without leaving the window.
+ *
+ * A text edit makes the note's audio stale, and its duration sets lead distance
+ * — so an edited note is mistimed until this runs, not merely mispronounced. The
+ * window redraws from the new durations, which is the point: you see what the
+ * longer sentence costs in track.
+ */
+async function render() {
+  if (payload === null) return;
+
+  // Save first. Rendering reads the note set from disk, so unsaved text would be
+  // silently rendered as the old words.
+  if (dirty()) await save();
+
+  const button = $("render");
+  button.disabled = true;
+  setStatus("rendering…", null);
+
+  const result = await window.exxeed.renderNotes();
+  button.disabled = false;
+
+  if (result.ok && result.payload !== null) {
+    payload = result.payload;
+    edits.clear();
+    refresh();
+  }
+  setStatus(result.message, result.ok);
+}
+
+$("render").addEventListener("click", () => void render());
+window.exxeed.onRenderRequested(() => void render());
+
+let statusTimer = null;
+function setStatus(text, ok) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = ok === null ? "meta" : `meta ${ok ? "ok" : "bad"}`;
+  if (statusTimer !== null) clearTimeout(statusTimer);
+  if (ok !== null) statusTimer = setTimeout(() => { el.textContent = ""; }, 6000);
+}
+
 $("revert").addEventListener("click", () => {
   edits.clear();
   refresh();
 });
 
-$("save").addEventListener("click", async () => {
+async function save() {
   const patches = [...edits.entries()].map(([id, patch]) => ({ id, ...patch }));
   const next = await window.exxeed.saveNotes(patches);
   if (next !== null) {
@@ -364,7 +406,9 @@ $("save").addEventListener("click", async () => {
     edits.clear();
   }
   refresh();
-});
+}
+
+$("save").addEventListener("click", () => void save());
 
 window.addEventListener("resize", refresh);
 
@@ -377,5 +421,10 @@ window.exxeed.loadNotes().then((data) => {
   $("title").textContent =
     `${payload.title} · ${payload.notes.length} callouts · ${payload.status}` +
     (payload.hasReference ? "" : " · no reference lap, so no speaking windows");
+
+  if (!payload.canRender) {
+    $("render").disabled = true;
+    $("render").title = "Set a Piper voice model in preferences to render audio";
+  }
   refresh();
 });

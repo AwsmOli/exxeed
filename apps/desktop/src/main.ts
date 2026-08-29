@@ -49,7 +49,7 @@ import { audioKey } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, markClosing, OverlayLayout, sendTo } from "./overlay.js";
-import { installEditorIpc, openEditor } from "./editor.js";
+import { installEditorIpc, openEditor, requestRender } from "./editor.js";
 import {
   installSettingsIpc,
   openPreferences,
@@ -523,6 +523,7 @@ void app.whenReady().then(() => {
   buildApplicationMenu({
     openPreferences: () => openPreferences(PRELOAD),
     openEditor: () => openEditor(PRELOAD),
+    renderAudio: () => requestRender(PRELOAD),
     toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
     overlayMode,
   });

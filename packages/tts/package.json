@@ -1,0 +1,16 @@
+{
+  "name": "@exxeed/tts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render a note set's audio and measure it. SPEC.md §10 stage 6.",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": ["dist"],
+  "scripts": { "build": "tsc --build" },
+  "dependencies": {
+    "@exxeed/core": "workspace:*",
+    "@exxeed/repo": "workspace:*"
+  }
+}

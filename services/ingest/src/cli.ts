@@ -29,8 +29,7 @@ import { resolve } from "node:path";
 
 import { localRepositories } from "@exxeed/repo";
 
-import { renderNoteSet } from "./render.js";
-import { PiperEngine } from "./tts.js";
+import { PiperEngine, renderNoteSet } from "@exxeed/tts";
 
 const STAGES = [
   "0 normalise", "1 metadata", "2 triage", "3 extract",

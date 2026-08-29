@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Video ingest pipeline. Standalone offline CLI — never bundled into the app. Stub until M5.",
+  "description": "Video ingest pipeline. Standalone offline CLI \u2014 never bundled into the app. Stub until M5.",
   "bin": {
     "exxeed-ingest": "./dist/cli.js"
   },
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@exxeed/core": "workspace:*",
-    "@exxeed/repo": "workspace:*"
+    "@exxeed/repo": "workspace:*",
+    "@exxeed/tts": "workspace:*"
   }
 }

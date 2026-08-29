@@ -61,6 +61,15 @@ describe("withEnvOverrides", () => {
     expect(withEnvOverrides(base, {})).toEqual(base);
   });
 
+  it("carries the piper paths, and lets the environment override them", () => {
+    const stored = withDefaults({ piperModel: "/voices/stored.onnx" });
+    expect(stored.piperModel).toBe("/voices/stored.onnx");
+    expect(stored.piperBinary).toBeNull();
+
+    const overridden = withEnvOverrides(stored, { EXXEED_PIPER_MODEL: "/voices/env.onnx" });
+    expect(overridden.piperModel).toBe("/voices/env.onnx");
+  });
+
   it("lets the environment win", () => {
     const merged = withEnvOverrides(base, {
       EXXEED_NOTES: "from-env",

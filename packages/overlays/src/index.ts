@@ -89,6 +89,14 @@ export interface Settings {
   /** Seconds added to every callout's lead. This driver's, not the note set's. */
   readonly leadAdjustS: number;
   readonly panels: readonly PanelId[];
+  /**
+   * Where Piper lives, so the editor can re-render a callout after editing it.
+   *
+   * Null means "not set up", and the editor says so rather than failing at the
+   * moment someone presses the button.
+   */
+  readonly piperBinary: string | null;
+  readonly piperModel: string | null;
   readonly debug: DebugSettings;
 }
 
@@ -109,6 +117,8 @@ export const DEFAULT_SETTINGS: Settings = {
   carId: null,
   leadAdjustS: 0,
   panels: [...PANELS],
+  piperBinary: null,
+  piperModel: null,
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -148,6 +158,8 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
     // An empty list would open no windows at all, with no way back from inside
     // the app. Treat it as "not set".
     panels: panels.length === 0 ? DEFAULT_SETTINGS.panels : panels,
+    piperBinary: s.piperBinary ?? DEFAULT_SETTINGS.piperBinary,
+    piperModel: s.piperModel ?? DEFAULT_SETTINGS.piperModel,
     debug: {
       replayPath: storedDebug.replayPath ?? DEFAULT_SETTINGS.debug.replayPath,
       replaySpeed: number(storedDebug.replaySpeed, DEFAULT_SETTINGS.debug.replaySpeed),
@@ -198,6 +210,8 @@ export function withEnvOverrides(
     carId: num("EXXEED_CAR") ?? settings.carId,
     leadAdjustS: num("EXXEED_LEAD_ADJUST") ?? settings.leadAdjustS,
     panels: panels.length === 0 ? settings.panels : panels,
+    piperBinary: get("EXXEED_PIPER") ?? settings.piperBinary,
+    piperModel: get("EXXEED_PIPER_MODEL") ?? settings.piperModel,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
@@ -251,6 +265,18 @@ export interface SettingsPayload {
 export const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
 /** Renderer → main, invoke: save edited notes and get the recomputed view back. */
 export const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
+/** Renderer → main, invoke: re-render the note set's audio (§10 stage 6). */
+export const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
+
+/** Main → editor: the menu asked for a render, do the same thing the button does. */
+export const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
+
+export interface RenderResultView {
+  readonly ok: boolean;
+  /** Why it could not run, or what went wrong. */
+  readonly message: string;
+  readonly payload: EditorPayload | null;
+}
 
 /** One note as the editor sees it: what it says, where, and when it speaks. */
 export interface EditorNote {
@@ -298,6 +324,8 @@ export interface EditorPayload {
    * — the editor says so rather than drawing something made up.
    */
   readonly hasReference: boolean;
+  /** False when Piper is not configured, so the editor can say so up front. */
+  readonly canRender: boolean;
 }
 
 /** What the editor sends back. Only the fields it can change. */

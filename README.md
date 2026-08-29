@@ -78,6 +78,16 @@ and a voice model is ~60 MB of downloaded weights rather than source.
 Rendering writes the measured duration into both the pack and the note, and
 clears each note's `dirty` flag.
 
+### Editing notes
+
+`Cmd/Ctrl+E` opens the note editor: the track, every callout's text, and each
+one's speaking window shaded back from its point. Double-click a label to edit
+it, drag a point to move it, or snap it to the measured braking point.
+
+**Render Audio** (`Cmd/Ctrl+Shift+R`) re-renders the set through Piper and
+redraws the windows from the new durations. Set the voice model in preferences
+first — without it the button is disabled rather than failing when pressed.
+
 ## Testing on Windows
 
 The live SDK, the steering sign convention, and recording a real lap all need a

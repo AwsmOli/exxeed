@@ -94,6 +94,8 @@
         background: rgba(240,136,62,0.07); border-color: rgba(240,136,62,0.25); color: #d8a06a;
       }
       .empty { color: #6f7885; }
+      #status.ok { color: #7ee787; }
+      #status.bad { color: #f0883e; }
       footer {
         flex: none; padding: 9px 20px; border-top: 1px solid rgba(255,255,255,0.08);
         color: #6f7885; font-size: 11.5px; display: flex; gap: 18px;
@@ -107,7 +109,9 @@
       <h1>Notes</h1>
       <span class="meta" id="title">…</span>
       <span class="grow"></span>
+      <span class="meta" id="status"></span>
       <span class="meta" id="dirty-count"></span>
+      <button id="render">Render audio</button>
       <button id="revert" disabled>Revert</button>
       <button id="save" class="primary" disabled>Save</button>
     </header>

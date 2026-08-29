@@ -80,6 +80,22 @@
     </div>
     <div class="hint">Which recorded lap the input trace and delta bar compare against.</div>
 
+    <h2>Voice rendering</h2>
+    <div class="row">
+      <label class="name" for="piperModel">Voice model</label>
+      <input type="text" id="piperModel" placeholder="voices/en_US-lessac-medium.onnx" />
+    </div>
+    <div class="row">
+      <label class="name" for="piperBinary">Piper</label>
+      <input type="text" id="piperBinary" placeholder=".venv/bin/piper" />
+    </div>
+    <div class="hint">
+      Where Piper and its <code>.onnx</code> voice live. Without them the note
+      editor cannot re-render a callout after you change its words — and until it
+      is re-rendered the note is mistimed, not just mispronounced, because the
+      audio's length is what sets its lead.
+    </div>
+
     <h2>Overlays</h2>
     <div class="row">
       <label class="name">Panels</label>

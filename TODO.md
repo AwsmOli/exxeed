@@ -431,6 +431,51 @@ learning state to persist.
 
 ## M5 — Ingest pipeline (parallel from the start, separate package)
 
+- [ ] Scan a playlist or channel to build a backlog of track/car combos
+  Run stages 0–3 over every video a channel has, and keep the output as a **pool
+  of ordered hints** rather than a note set per video. Resolution to `pct` happens
+  later, when there is a reference lap for that track and car — so the backlog is
+  a worklist of combos ready to refine, and ingest stops being blocked on having
+  driven the track first.
+
+  **Why a pool and not one note set per video.** Agreement across sources is the
+  quality signal the current one-video shape cannot express. The Daytona
+  transcript already showed it in miniature: its hot lap and breakdown lap agreed
+  on the brake percentage at T4, T6 and T7 and differed by 5% at T1. And its
+  chicane advice — "a little bit more brake to get through the second apex" — is
+  contradicted by the reference lap, which brakes once and never returns. With one
+  video there is no way to tell whether the coach or the reference driver is the
+  outlier. With five there is.
+
+  **Store the ordinal, not just the words.** A guide narrates corners in lap
+  order, so the third braking instruction in a video is the third braking event on
+  track — and braking events fall out of a reference lap with a threshold and a
+  loop (six at Daytona). Aligning those two sequences assigns corners with no
+  landmark understanding at all. It is the cheapest and strongest signal available,
+  it is free at extraction time, and it cannot be recovered afterwards.
+
+  **The artefact is new** — track and car-class guess, ordinal, the landmark
+  phrase verbatim, a normalised action, `videoId`, `sourceTs`, channel, confidence
+  — plus a resolve step taking pool + reference lap + corner list → NoteSet. That
+  is a §10 rewrite, not a task inside the existing stages.
+
+  **Two things to settle first.** Fetching third-party transcripts is the sticking
+  point: `captions.download` only works for videos you own, and auto-generated
+  captions are not exposed through the Data API at all, so every working tool
+  (`yt-dlp --write-auto-subs`, `youtube-transcript-api`) uses the internal
+  `timedtext` endpoint, against YouTube's ToS. That reads differently for a
+  personal tool than for something shipped, and it is a decision, not an oversight.
+  The metadata half is clean and free — `playlistItems.list` is one quota unit per
+  fifty videos against 10,000 a day. Cost is not a constraint either: at §10's
+  numbers a 500-video channel comes in under a dollar.
+- [ ] §10's "cap `text` at 8 words" no longer matches the note sets we want
+  The Daytona set runs 11-19 words and 3.4-5.0 s a callout, because the transcript
+  carries a braking landmark *and* an aim point *and* a throttle reference per
+  corner, and the timing has room for all three — 11-33 s between callouts, and
+  nothing drops. The cap was never the binding constraint; it is a cognitive-load
+  judgement, and it currently disagrees with the only hand-authored set we have.
+  Settle it before stage 3 is prompted against it, or the pipeline will generate
+  notes unlike the ones actually chosen.
 - [ ] Stages 0–2: normalise, metadata, triage funnel
 - [ ] Stage 3: extraction with the corner list passed **as enums**
   §12: never let the LLM free-text a corner reference. Enum or null.
@@ -453,10 +498,16 @@ learning state to persist.
   a suggested `leadAdjustS` correcting the engine's approximation is one click.
   Editing text marks the note dirty and greys its window, because the duration it
   was drawn from belongs to the old words.
-- [ ] Re-render audio from the editor
-  Today a text edit means dropping to `exxeed-ingest render` and reopening. §7.4
-  wants a fast local preview so length can be judged while writing — with Piper
-  already local, that is a button rather than a project.
+- [x] Re-render audio from the editor
+  A button, and File > Render Audio (`Cmd/Ctrl+Shift+R`). Saves first — rendering
+  reads the note set from disk, so unsaved words would be rendered as the old
+  ones — then redraws every speaking window from the new durations, which is the
+  point: you see what a longer sentence costs in track.
+  Stage 6 moved to `packages/tts` to make this possible without the app depending
+  on `services/ingest`. §10's "never bundled into the app" is about stages 0-5:
+  no LLM in the client, no service-role key in a zip anyone can open. Stage 6 is
+  a local binary with no network and no credential, and it already served both
+  the pipeline and hand-authoring.
 - [x] Stage 6: TTS for both `text` and `textShort`, measured durations
   Done early, out of order, because the hand-authored note sets of M2 needed it
   too — a note set with no audio cannot speak. `exxeed-ingest render <noteSetId>`,

@@ -15,8 +15,20 @@ import { fileURLToPath } from "node:url";
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import type { EditorNote, EditorNotePatch, EditorPayload, Settings } from "@exxeed/overlays";
-import { EDITOR_LOAD_CHANNEL, EDITOR_SAVE_CHANNEL } from "@exxeed/overlays";
+import type {
+  EditorNote,
+  EditorNotePatch,
+  EditorPayload,
+  RenderResultView,
+  Settings,
+} from "@exxeed/overlays";
+import {
+  EDITOR_LOAD_CHANNEL,
+  EDITOR_RENDER_CHANNEL,
+  EDITOR_RENDER_REQUEST_CHANNEL,
+  EDITOR_SAVE_CHANNEL,
+} from "@exxeed/overlays";
+import { PiperEngine, renderNoteSet } from "@exxeed/tts";
 import type { Note, NoteSet, ReferenceLap, TrackMap } from "@exxeed/core";
 import { aheadM, metres, nearestBrakeOnset, pct, triggerWindow } from "@exxeed/core";
 import { localRepositories } from "@exxeed/repo";
@@ -116,6 +128,7 @@ async function buildPayload(
   dataDir: string,
   noteSetId: string,
   leadAdjustS: number,
+  canRender: boolean,
 ): Promise<EditorPayload> {
   const loaded = await load(dataDir, noteSetId);
   const view = loaded.map === null ? null : toMapView(loaded.map, loaded.noteSet.notes);
@@ -135,8 +148,12 @@ async function buildPayload(
     })) ?? [],
     notes: buildNotes(loaded, leadAdjustS),
     hasReference: loaded.reference !== null,
+    canRender,
   };
 }
+
+const canRender = (settings: Settings): boolean =>
+  settings.piperModel !== null && settings.piperModel !== "";
 
 export function installEditorIpc(
   getSettings: () => Settings,
@@ -145,7 +162,76 @@ export function installEditorIpc(
   ipcMain.handle(EDITOR_LOAD_CHANNEL, async () => {
     const settings = getSettings();
     if (settings.noteSetId === null) return null;
-    return buildPayload(resolveDataDir(settings), settings.noteSetId, settings.leadAdjustS);
+    return buildPayload(
+      resolveDataDir(settings),
+      settings.noteSetId,
+      settings.leadAdjustS,
+      canRender(settings),
+    );
+  });
+
+  /**
+   * Stage 6, from the editor.
+   *
+   * §7.4 wants the author to hear what they just wrote and judge its length, and
+   * the length is not a detail — `durationMs` sets lead distance, so a note whose
+   * text has changed is mistimed until it is re-rendered, not merely mispronounced.
+   * Dropping to a CLI and reopening the window to find that out is exactly the
+   * friction that stops anyone doing it.
+   */
+  ipcMain.handle(EDITOR_RENDER_CHANNEL, async (): Promise<RenderResultView> => {
+    const settings = getSettings();
+    if (settings.noteSetId === null) {
+      return { ok: false, message: "no note set selected", payload: null };
+    }
+    if (settings.piperModel === null || settings.piperModel === "") {
+      return {
+        ok: false,
+        message: "no voice model set — add one in preferences",
+        payload: null,
+      };
+    }
+
+    const dataDir = resolveDataDir(settings);
+    const repos = localRepositories(dataDir);
+    const noteSet = await repos.noteSets.get(settings.noteSetId);
+    if (noteSet === null) {
+      return { ok: false, message: `no note set "${settings.noteSetId}"`, payload: null };
+    }
+
+    const engine = new PiperEngine({
+      binary: settings.piperBinary ?? "piper",
+      model: settings.piperModel,
+      voiceId: settings.voiceId,
+    });
+
+    try {
+      const result = await renderNoteSet({
+        noteSet,
+        engine,
+        audio: repos.audio,
+        noteSets: repos.noteSets,
+      });
+      return {
+        ok: true,
+        message: `rendered ${result.clips.length} clips`,
+        payload: await buildPayload(
+          dataDir,
+          settings.noteSetId,
+          settings.leadAdjustS,
+          canRender(settings),
+        ),
+      };
+    } catch (err) {
+      // Piper missing, a bad model path, a voice that will not load — all of it
+      // belongs in front of the author rather than in a terminal they are not
+      // looking at.
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+        payload: null,
+      };
+    }
   });
 
   ipcMain.handle(EDITOR_SAVE_CHANNEL, async (_event, patches: EditorNotePatch[]) => {
@@ -181,11 +267,34 @@ export function installEditorIpc(
     notes.sort((a, b) => a.pct - b.pct);
 
     await repos.noteSets.put({ ...noteSet, notes });
-    return buildPayload(dataDir, settings.noteSetId, settings.leadAdjustS);
+    return buildPayload(
+      dataDir,
+      settings.noteSetId,
+      settings.leadAdjustS,
+      canRender(settings),
+    );
   });
 }
 
 let editor: BrowserWindow | null = null;
+
+/**
+ * Ask the editor to render, from the menu.
+ *
+ * Routed through the window rather than run here so there is one path: the same
+ * save-first, redraw-after sequence the button follows. Two ways to start a
+ * render that behaved differently would be worse than one.
+ */
+export function requestRender(preload: string): void {
+  const window = openEditor(preload);
+  if (window.webContents.isLoading()) {
+    window.webContents.once("did-finish-load", () =>
+      window.webContents.send(EDITOR_RENDER_REQUEST_CHANNEL),
+    );
+  } else {
+    window.webContents.send(EDITOR_RENDER_REQUEST_CHANNEL);
+  }
+}
 
 export function openEditor(preload: string): BrowserWindow {
   if (editor !== null && !editor.isDestroyed()) {

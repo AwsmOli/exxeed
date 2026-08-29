@@ -13,6 +13,7 @@ export default defineConfig({
       "@exxeed/core": pkg("core"),
       "@exxeed/telemetry": pkg("telemetry"),
       "@exxeed/repo": pkg("repo"),
+      "@exxeed/tts": pkg("tts"),
     },
   },
   test: {

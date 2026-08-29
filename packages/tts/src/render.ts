@@ -17,7 +17,7 @@ import { wavDurationMs } from "@exxeed/core";
 import type { AudioRepository, NoteSetRepository } from "@exxeed/repo";
 import { audioKey } from "@exxeed/repo";
 
-import type { TtsEngine } from "./tts.js";
+import type { TtsEngine } from "./engine.js";
 
 export interface RenderedClip {
   readonly key: string;
