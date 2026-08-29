@@ -1,0 +1,173 @@
+<!doctype html>
+<!--
+  The note editor — SPEC.md §7.4.
+
+  SVG, not Canvas: interactive, changes at human speed, needs hit-testing on
+  every element. None of §7.0's hot-path rules apply here.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+    <title>Exxeed — Notes</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; height: 100vh; display: flex; flex-direction: column;
+        background: #101215; color: #e6e9ee; overflow: hidden;
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      header {
+        padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+        display: flex; align-items: baseline; gap: 16px; flex: none;
+      }
+      h1 { margin: 0; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; }
+      .meta { color: #8a93a0; font-size: 12px; }
+      .grow { flex: 1; }
+      button {
+        background: #1b1f26; color: #e6e9ee; font: inherit;
+        border: 1px solid rgba(255,255,255,0.14); border-radius: 5px;
+        padding: 4px 11px; cursor: pointer;
+      }
+      button:hover:not(:disabled) { border-color: #58a6ff; }
+      button:disabled { opacity: 0.4; cursor: default; }
+      button.primary { background: #1f6feb; border-color: #1f6feb; }
+      button.primary:disabled { background: #1b1f26; border-color: rgba(255,255,255,0.14); }
+
+      main { flex: 1; display: flex; min-height: 0; }
+      #map-wrap { flex: 1; position: relative; min-width: 0; }
+      svg { width: 100%; height: 100%; display: block; }
+
+      .track { fill: none; stroke: rgba(255,255,255,0.16); stroke-width: 3; stroke-linejoin: round; }
+      .window { fill: none; stroke: rgba(88,166,255,0.5); stroke-width: 9; stroke-linecap: round; }
+      .window.clash { stroke: rgba(240,136,62,0.55); }
+      .window.stale { stroke: rgba(140,148,160,0.4); stroke-dasharray: 6 5; }
+      .window.selected { stroke: rgba(88,166,255,0.95); }
+      .runtime { fill: none; stroke: rgba(255,255,255,0.5); stroke-width: 2; stroke-dasharray: 3 3; }
+      .corner { fill: none; stroke: rgba(255,255,255,0.28); stroke-width: 5; }
+      .dot { fill: #58a6ff; cursor: grab; }
+      .dot.selected { fill: #fff; }
+      .dot.dragging { cursor: grabbing; }
+      .sf { fill: #f0883e; }
+
+      #labels { position: absolute; inset: 0; pointer-events: none; }
+      /* §7.4 wants the whole lap's script readable without clicking anything, so
+         these wrap rather than truncate — a callout cut off mid-sentence is the
+         one thing this view cannot afford to do. */
+      .label {
+        position: absolute; transform: translate(-50%, -125%);
+        background: rgba(10,12,15,0.92); border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 5px; padding: 3px 7px; font-size: 11px; line-height: 1.35;
+        pointer-events: auto; cursor: text;
+        width: max-content; max-width: 190px; white-space: normal;
+      }
+      .label.selected { border-color: #58a6ff; }
+      .label.dirty { border-color: rgba(240,136,62,0.6); }
+      .label[contenteditable="true"] {
+        border-color: #58a6ff; background: #0b0d10; overflow: visible; cursor: text;
+      }
+
+      aside {
+        width: 330px; flex: none; border-left: 1px solid rgba(255,255,255,0.08);
+        padding: 16px 18px; overflow-y: auto;
+      }
+      h2 {
+        font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase;
+        color: #8a93a0; margin: 0 0 10px;
+      }
+      .field { margin-bottom: 12px; }
+      .field label { display: block; color: #8a93a0; font-size: 11.5px; margin-bottom: 3px; }
+      input[type="text"], input[type="number"], textarea {
+        width: 100%; box-sizing: border-box; background: #171a1f; color: #e6e9ee;
+        font: inherit; border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 5px; padding: 5px 7px;
+      }
+      textarea { resize: vertical; min-height: 46px; }
+      input:focus, textarea:focus { outline: none; border-color: #58a6ff; }
+      .stat { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11.5px; }
+      .stat span:first-child { color: #8a93a0; }
+      .note-box {
+        margin-top: 12px; padding: 8px 10px; border-radius: 6px; font-size: 11.5px;
+        background: rgba(88,166,255,0.07); border: 1px solid rgba(88,166,255,0.22); color: #9db8dc;
+      }
+      .note-box.warn {
+        background: rgba(240,136,62,0.07); border-color: rgba(240,136,62,0.25); color: #d8a06a;
+      }
+      .empty { color: #6f7885; }
+      footer {
+        flex: none; padding: 9px 20px; border-top: 1px solid rgba(255,255,255,0.08);
+        color: #6f7885; font-size: 11.5px; display: flex; gap: 18px;
+      }
+      .key { display: inline-flex; gap: 5px; align-items: center; }
+      .key b { color: #9aa4b2; font-weight: normal; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Notes</h1>
+      <span class="meta" id="title">…</span>
+      <span class="grow"></span>
+      <span class="meta" id="dirty-count"></span>
+      <button id="revert" disabled>Revert</button>
+      <button id="save" class="primary" disabled>Save</button>
+    </header>
+
+    <main>
+      <div id="map-wrap">
+        <svg id="map" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="labels"></div>
+      </div>
+
+      <aside id="panel">
+        <p class="empty" id="empty">Select a callout on the map.</p>
+
+        <div id="detail" hidden>
+          <h2 id="detail-id">—</h2>
+
+          <div class="field">
+            <label for="text">Text</label>
+            <textarea id="text" rows="2"></textarea>
+          </div>
+          <div class="field">
+            <label for="textShort">Short form — used when the full one no longer fits</label>
+            <input type="text" id="textShort" />
+          </div>
+
+          <h2 style="margin-top:18px">Position</h2>
+          <div class="field">
+            <label for="offset">Nudge along the track, metres</label>
+            <input type="number" id="offset" step="5" value="0" />
+          </div>
+          <button id="snap">Snap to braking point</button>
+
+          <h2 style="margin-top:18px">Timing</h2>
+          <div class="field">
+            <label for="lead">Lead adjust, seconds — positive is earlier</label>
+            <input type="number" id="lead" step="0.05" />
+          </div>
+          <button id="apply-suggestion">Apply suggestion</button>
+
+          <div style="margin-top:14px">
+            <div class="stat"><span>Speaks for</span><span id="stat-lead">—</span></div>
+            <div class="stat"><span>Starts</span><span id="stat-window">—</span></div>
+            <div class="stat"><span>Audio</span><span id="stat-audio">—</span></div>
+            <div class="stat"><span>At</span><span id="stat-pct">—</span></div>
+          </div>
+
+          <div class="note-box" id="suggestion" hidden></div>
+          <div class="note-box warn" id="clash" hidden></div>
+          <div class="note-box warn" id="stale" hidden></div>
+        </div>
+      </aside>
+    </main>
+
+    <footer>
+      <span class="key"><b>double-click</b> a label to edit it</span>
+      <span class="key"><b>drag</b> a point to move it</span>
+      <span class="key">blue arc = where the voice is speaking</span>
+      <span class="key">dashed white = where the engine actually starts</span>
+    </footer>
+
+    <script type="module" src="./editor.js"></script>
+  </body>
+</html>

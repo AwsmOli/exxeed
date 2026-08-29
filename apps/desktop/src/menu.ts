@@ -25,6 +25,7 @@ import { app, Menu, shell, type MenuItemConstructorOptions } from "electron";
 
 export interface MenuActions {
   readonly openPreferences: () => void;
+  readonly openEditor: () => void;
   readonly toggleOverlayEdit: () => void;
   readonly overlayMode: boolean;
 }
@@ -36,6 +37,12 @@ export function buildApplicationMenu(actions: MenuActions): void {
     label: "Preferences…",
     accelerator: "CommandOrControl+,",
     click: () => actions.openPreferences(),
+  };
+
+  const editNotes: MenuItemConstructorOptions = {
+    label: "Edit Notes…",
+    accelerator: "CommandOrControl+E",
+    click: () => actions.openEditor(),
   };
 
   const arrange: MenuItemConstructorOptions = {
@@ -69,8 +76,11 @@ export function buildApplicationMenu(actions: MenuActions): void {
     : [];
 
   const fileMenu: MenuItemConstructorOptions = isMac
-    ? { label: "File", submenu: [{ role: "close" }] }
-    : { label: "File", submenu: [preferences, { type: "separator" }, { role: "quit" }] };
+    ? { label: "File", submenu: [editNotes, { type: "separator" }, { role: "close" }] }
+    : {
+        label: "File",
+        submenu: [editNotes, preferences, { type: "separator" }, { role: "quit" }],
+      };
 
   // Without this, copy and paste do not work in the preferences text fields on
   // macOS — the roles are what wire the system shortcuts to the focused input.

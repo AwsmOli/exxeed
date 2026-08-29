@@ -28,6 +28,8 @@ const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
 const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
 const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
 const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
+const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
+const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
 
 contextBridge.exposeInMainWorld("exxeed", {
   /** Preferences. The only request/response pair — everything else is one-way. */
@@ -36,6 +38,11 @@ contextBridge.exposeInMainWorld("exxeed", {
     ipcRenderer.invoke(SETTINGS_SET_CHANNEL, patch),
   onSettingsChanged: (cb: (payload: unknown) => void) =>
     subscribe(SETTINGS_CHANGED_CHANNEL, cb),
+
+  /** The note editor (§7.4). */
+  loadNotes: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_LOAD_CHANNEL),
+  saveNotes: (patches: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(EDITOR_SAVE_CHANNEL, patches),
 
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:

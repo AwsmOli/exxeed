@@ -20,6 +20,7 @@ export * from "./overrides.js";
 export * from "./map.js";
 export * from "./profile.js";
 export * from "./trigger.js";
+export * from "./trigger-window.js";
 export * from "./suppression.js";
 export * from "./scheduler.js";
 export * from "./engine.js";

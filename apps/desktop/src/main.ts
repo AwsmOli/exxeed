@@ -49,6 +49,7 @@ import { audioKey } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, markClosing, OverlayLayout, sendTo } from "./overlay.js";
+import { installEditorIpc, openEditor } from "./editor.js";
 import {
   installSettingsIpc,
   openPreferences,
@@ -505,6 +506,7 @@ function startDesktop(): void {
 void app.whenReady().then(() => {
   store = new SettingsStore();
   installSettingsIpc(settings(), resolveDataDir);
+  installEditorIpc(() => settings().get(), resolveDataDir);
   registerPreferencesShortcut(PRELOAD);
 
   // EXXEED_OVERLAY gives the §7 overlays: transparent, frameless, click-through,
@@ -520,6 +522,7 @@ void app.whenReady().then(() => {
 
   buildApplicationMenu({
     openPreferences: () => openPreferences(PRELOAD),
+    openEditor: () => openEditor(PRELOAD),
     toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
     overlayMode,
   });

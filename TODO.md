@@ -443,11 +443,20 @@ learning state to persist.
   an approach, an apex and an exit note for the same corner, which is three lines
   where a driver can use one.
 - [ ] Stage 4: cross-check against reference lap telemetry
-- [ ] Stage 5: the note editor (§7.4) — build it once, use it for both review and hand-authoring
-  The Daytona set was hand-written as JSON, which was fine for five notes and will
-  not be for fifty. §7.4's trigger-window shading is the part that earns the
-  build: it makes "this callout is too long" and "these two overlap" visible
-  instead of something you find out on track.
+- [x] Stage 5: the note editor (§7.4) — build it once, use it for both review and hand-authoring
+  `Cmd/Ctrl+E`. SVG map, every callout's text readable without clicking, each
+  one's speaking window shaded back along the centreline from its point, and the
+  engine's own start drawn dashed inside it — the two differ wherever speed is
+  changing, which is §7.4's constant-speed problem made visible instead of
+  inferred. Double-click a label to edit in place, drag a point to move it, nudge
+  by metres, or snap it to the measured braking point. Overlaps are flagged, and
+  a suggested `leadAdjustS` correcting the engine's approximation is one click.
+  Editing text marks the note dirty and greys its window, because the duration it
+  was drawn from belongs to the old words.
+- [ ] Re-render audio from the editor
+  Today a text edit means dropping to `exxeed-ingest render` and reopening. §7.4
+  wants a fast local preview so length can be judged while writing — with Piper
+  already local, that is a button rather than a project.
 - [x] Stage 6: TTS for both `text` and `textShort`, measured durations
   Done early, out of order, because the hand-authored note sets of M2 needed it
   too — a note set with no audio cannot speak. `exxeed-ingest render <noteSetId>`,

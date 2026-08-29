@@ -247,6 +247,68 @@ export interface SettingsPayload {
   readonly options: SettingsOptions;
 }
 
+/** Renderer → main, invoke: everything the note editor draws (§7.4). */
+export const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
+/** Renderer → main, invoke: save edited notes and get the recomputed view back. */
+export const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
+
+/** One note as the editor sees it: what it says, where, and when it speaks. */
+export interface EditorNote {
+  readonly id: string;
+  readonly pct: number;
+  readonly text: string;
+  readonly textShort: string;
+  readonly priority: number;
+  readonly leadAdjustS: number;
+  /** Text edited since the audio was rendered, so the window below is stale. */
+  readonly dirty: boolean;
+  readonly durationMs: number;
+  readonly shortDurationMs: number;
+  /** Where the voice starts, walking the reference speed profile (§7.4). */
+  readonly startPct: number;
+  /** Where the ENGINE will start, which is not the same on a changing speed. */
+  readonly runtimeStartPct: number;
+  readonly leadS: number;
+  readonly windowM: number;
+  /** Seconds to add so the engine's start matches the true one. */
+  readonly suggestedLeadAdjustS: number;
+  /** Nearest measured braking point, for "put it where braking starts". */
+  readonly nearestOnsetPct: number | null;
+  /** Ids of notes whose speaking window overlaps this one's. */
+  readonly overlaps: readonly string[];
+}
+
+export interface EditorPayload {
+  readonly noteSetId: string;
+  readonly title: string;
+  readonly lengthM: number;
+  readonly status: string;
+  /** Centreline normalised to 0..1 with aspect preserved, as the map view. */
+  readonly x: readonly number[];
+  readonly y: readonly number[];
+  readonly corners: readonly {
+    readonly index: number;
+    readonly entryPct: number;
+    readonly apexPct: number;
+    readonly exitPct: number;
+  }[];
+  readonly notes: readonly EditorNote[];
+  /**
+   * Without a reference lap there is no speed profile, so no window can be drawn
+   * — the editor says so rather than drawing something made up.
+   */
+  readonly hasReference: boolean;
+}
+
+/** What the editor sends back. Only the fields it can change. */
+export interface EditorNotePatch {
+  readonly id: string;
+  readonly pct: number;
+  readonly text: string;
+  readonly textShort: string;
+  readonly leadAdjustS: number;
+}
+
 /** Renderer → main, invoke: read the current settings and pickers. */
 export const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
 /** Renderer → main, invoke: merge a patch and persist it. */
