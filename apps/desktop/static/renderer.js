@@ -232,6 +232,9 @@ window.exxeed?.onMap((view) => {
   mapView = view;
   setText("map-name", `${view.trackName}${view.configName ? ` — ${view.configName}` : ""}`);
   canvas?.classList.add("ready");
+  // Silences the placeholder line: with a map to draw, the panel has no need to
+  // also write down which track it is.
+  document.body.classList.add("has-map");
   fitCanvas();
 });
 

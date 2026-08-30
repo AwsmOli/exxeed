@@ -136,9 +136,21 @@
       body.overlay h1,
       body.overlay .src,
       body.overlay .note { display: none; }
-      body.overlay h2 { display: block; font-size: 9.5px; opacity: 0.5; margin: 0 0 5px; }
-      /* Except while dragging, when knowing which panel is which is the point. */
-      body.overlay.dragging h2 { opacity: 0.9; color: #58a6ff; }
+      /* No titles. A label naming what you are already looking at is a line of
+         text over the track for no information — the map is a map, the bar is a
+         delta. The one exception is the map's own line, and only while there is
+         no map: then it is not a title, it is the panel's entire content. */
+      body.overlay h2 { display: none; }
+      /* An explicit hide rather than leaning on the h2 rule above: there is a
+         `body.overlay #map-name` further up carrying an id, which outranks it
+         and would keep the line on screen forever. */
+      body.overlay.has-map #map-name { display: none; }
+      body.overlay:not(.has-map) #map-name {
+        display: block;
+        font-size: 10.5px;
+        opacity: 0.75;
+        margin: 0;
+      }
       body.overlay .cols { display: block; }
       body.overlay table { min-width: 0; width: 100%; }
       body.overlay td:first-child { width: auto; padding-right: 14px; }
