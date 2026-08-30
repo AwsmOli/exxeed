@@ -34,10 +34,26 @@ export const debugEnabled = (): boolean =>
   resolveDebugEnabled(app.isPackaged, process.env["EXXEED_DEBUG"]);
 
 function readStored(): Partial<Settings> {
+  let text: string;
   try {
-    const raw: unknown = JSON.parse(readFileSync(settingsPath(), "utf8"));
-    return typeof raw === "object" && raw !== null ? (raw as Partial<Settings>) : {};
+    text = readFileSync(settingsPath(), "utf8");
   } catch {
+    // No settings yet. Defaults are the answer and there is nothing to say.
+    return {};
+  }
+
+  try {
+    // Strip a byte-order mark first. Notepad and PowerShell's Set-Content both
+    // write one by default, JSON.parse throws on it, and the old catch-all
+    // turned that into "every setting silently back to default" — which looks
+    // like the app forgetting rather than a file it could not read.
+    const raw: unknown = JSON.parse(text.replace(/^\uFEFF/, ""));
+    return typeof raw === "object" && raw !== null ? (raw as Partial<Settings>) : {};
+  } catch (err) {
+    process.stderr.write(
+      `could not read ${settingsPath()}: ${err instanceof Error ? err.message : String(err)}\n` +
+        `falling back to defaults — the file is not being overwritten, so fix it and restart\n`,
+    );
     return {};
   }
 }

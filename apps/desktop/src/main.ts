@@ -582,6 +582,7 @@ function startOverlays(): void {
 
   const layout = new OverlayLayout();
   overlayLayout = layout;
+
   const panels = chosenPanels();
 
   panels.forEach((panel, index) => {
@@ -600,6 +601,10 @@ function startOverlays(): void {
     // supervisor's business, not a window's: a window finishing load says
     // nothing about whether the sim is up.
     currentSurfaces = overlaySurfaces(layout);
+    // Read wantRunning NOW rather than when the windows were created: autostart
+    // fires between those two moments, so a value captured at creation would
+    // hide the overlays a beat after the session had shown them.
+    layout.setVisible(wantRunning);
     broadcastStatus({});
   });
 }
@@ -817,6 +822,10 @@ async function supervise(): Promise<void> {
 function startSession(): void {
   if (wantRunning) return;
   wantRunning = true;
+  // The overlays exist to show a session. With none running they are five
+  // translucent rectangles of nothing sitting over whatever else is on screen,
+  // so they follow the session rather than the app.
+  overlayLayout?.setVisible(true);
   void supervise();
 }
 
@@ -824,6 +833,7 @@ function stopSession(): void {
   wantRunning = false;
   // Bumping the token makes any running loop stop at its next frame.
   loopToken++;
+  overlayLayout?.setVisible(false);
 }
 
 void app.whenReady().then(() => {

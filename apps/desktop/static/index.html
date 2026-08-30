@@ -40,10 +40,23 @@
          arrives — without one there is no ghost to draw against. */
       #trace { display: none; width: 280px; height: 120px; }
       #trace.ready { display: block; }
+      /* The one panel that keeps a background. Throttle and brake are read as
+         "how full is the lane", and a lane with no visible top or bottom has no
+         fullness — 100% and 60% look the same against the sim. */
+      body.overlay #trace {
+        background: rgba(10, 12, 15, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
       #ref-name { margin-top: 14px; }
       .trace-key { max-width: 280px; color: #6f7885; font-size: 10.5px; margin-top: 3px; }
 
       #delta { max-width: 280px; margin-top: 10px; }
+      /* Hidden until a delta exists. A bar pinned at zero next to the words
+         "waiting for a lap" is a panel spending its whole area saying nothing. */
+      body.overlay #delta { display: none; }
+      body.overlay #delta.ready { display: block; }
       #delta-track {
         position: relative; height: 8px; border-radius: 4px;
         background: rgba(255,255,255,0.07);
@@ -103,13 +116,18 @@
         user-select: none;
         cursor: default;
       }
+      /* No panel background. An overlay should cost only the pixels its content
+         actually occupies — a filled box the size of the window blocks the view
+         even where it has nothing to say. Legibility over a bright, moving image
+         comes from the text shadow instead, which costs nothing where there is
+         no text. Only the trace gets a background, because a chart you cannot
+         see the extent of cannot tell you whether you are at 100%. */
       body.overlay .panel {
-        background: rgba(10, 12, 15, 0.82);
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        border-radius: 8px;
-        padding: 10px 13px;
+        background: transparent;
+        border: 0;
+        padding: 0;
         margin: var(--overlay-inset);
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.7);
         font-size: 12px;
         line-height: 1.45;
       }
@@ -131,8 +149,9 @@
          overlay that permanently announced "you can move me" would just be
          permanent noise. Only the act of dragging is worth showing. */
       body.overlay.dragging .panel {
-        background: rgba(10, 12, 15, 0.97);
-        border-color: #58a6ff;
+        background: rgba(10, 12, 15, 0.9);
+        border-radius: 6px;
+        outline: 1px solid #58a6ff;
       }
       /* The whole panel is the handle, so the cursor belongs on the body — the
          pointer is over a canvas or a table cell most of the time. */
@@ -183,7 +202,7 @@
         <h2>Delta</h2>
         <div id="delta">
           <div id="delta-track"><div id="delta-fill"></div></div>
-          <div id="delta-text">waiting for a lap</div>
+          <div id="delta-text"></div>
         </div>
       </section>
 

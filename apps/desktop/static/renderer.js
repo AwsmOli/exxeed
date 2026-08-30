@@ -235,6 +235,22 @@ window.exxeed?.onMap((view) => {
   fitCanvas();
 });
 
+// With no map there is nothing to draw, and a blank panel is indistinguishable
+// from a broken one. The status already knows why — waiting for the sim, or on a
+// track nobody has mapped — so the map panel borrows the sentence.
+window.exxeed?.onSessionStatus((status) => {
+  if (mapView !== null) return;
+  const why =
+    status.phase === "running"
+      ? status.recordingTo === null
+        ? "no map for this track"
+        : "recording — no map yet"
+      : status.phase === "waiting"
+        ? "waiting for the sim"
+        : "stopped";
+  setText("map-name", why);
+});
+
 window.addEventListener("resize", fitCanvas);
 
 const draw = () => {
@@ -461,12 +477,19 @@ const drawDelta = () => {
   if (bar === null || text === null) return;
 
   const d = latest?.deltaS;
+  const panel = cell("delta");
+
+  // Nothing to compare against yet — on the out-lap, or with no reference lap
+  // for this car. Show nothing at all rather than a bar at zero and an excuse:
+  // the delta is the one panel whose whole job is a number, and it has none.
   if (typeof d !== "number") {
+    panel?.classList.remove("ready");
     bar.style.width = "0%";
-    text.textContent = latest?.lapElapsedS == null ? "waiting for a lap" : "—";
+    text.textContent = "";
     text.className = "";
     return;
   }
+  panel?.classList.add("ready");
 
   // ±2 s fills the bar. Beyond that the number matters more than the length.
   const clamped = Math.max(-2, Math.min(2, d));

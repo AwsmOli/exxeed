@@ -174,6 +174,23 @@ export class OverlayLayout {
     for (const window of this.#windows.values()) sendTo(window, channel, payload);
   }
 
+  /**
+   * Show or hide every overlay at once.
+   *
+   * Hidden rather than closed: closing would destroy the renderers, and they
+   * hold the decoded audio and the reference-lap arrays that were loaded once at
+   * session start (§4.5). Rebuilding all of that to stop showing a panel would
+   * be a large cost for a visual change — and the audio would have to be
+   * re-decoded before the first callout of the next session.
+   */
+  setVisible(visible: boolean): void {
+    for (const window of this.#windows.values()) {
+      if (window.isDestroyed()) continue;
+      if (visible) window.showInactive();
+      else window.hide();
+    }
+  }
+
   create(
     panel: PanelId,
     index: number,
