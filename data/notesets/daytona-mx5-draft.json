@@ -8,118 +8,197 @@
   "lengthM": 5687.290045843393,
   "carClass": "mx5",
   "source": {
-    "type": "manual",
-    "title": "Draft cut from the reference lap — text not yet written",
-    "channel": "—"
+    "type": "youtube",
+    "title": "Samba Racing — Global Mazda MX-5, Daytona Road track guide",
+    "channel": "Samba Racing"
   },
   "status": "draft",
   "createdAt": "2026-08-27T00:00:00Z",
   "notes": [
     {
       "id": "t1",
-      "pct": 0.06125000000000003,
-      "text": "Brake, turn 1, left, second out",
-      "textShort": "Left",
+      "pct": 0.0613,
+      "text": "Brake at the black seam, seventy percent, second gear",
+      "textShort": "Black seam",
       "priority": 1,
       "leadAdjustS": 0,
-      "fadeable": true,
       "audio": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t1.wav",
-        "durationMs": 2554
+        "durationMs": 3146
       },
       "audioShort": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t1_short.wav",
-        "durationMs": 546
+        "durationMs": 940
       },
       "dirty": false
     },
     {
-      "id": "t2",
-      "pct": 0.11299999999999999,
-      "text": "Brake, turn 2, left, third out",
-      "textShort": "Left",
-      "priority": 1,
+      "id": "t1_gas",
+      "pct": 0.0848,
+      "text": "Gas when you point at the billboards",
+      "textShort": "Billboards",
+      "priority": 2,
       "leadAdjustS": 0,
-      "fadeable": true,
       "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t2.wav",
-        "durationMs": 2496
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t1_gas.wav",
+        "durationMs": 1881
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t2_short.wav",
-        "durationMs": 546
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t1_gas_short.wav",
+        "durationMs": 813
       },
       "dirty": false
     },
     {
       "id": "t4",
-      "pct": 0.15274999999999994,
-      "text": "Brake, turn 4, right, first out",
-      "textShort": "Right",
+      "pct": 0.1527,
+      "text": "Brake as the second to last lamp post disappears, eighty five, first gear",
+      "textShort": "Lamp post",
       "priority": 1,
       "leadAdjustS": 0,
-      "fadeable": true,
       "audio": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t4.wav",
-        "durationMs": 2496
+        "durationMs": 4331
       },
       "audioShort": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t4_short.wav",
-        "durationMs": 499
+        "durationMs": 894
+      },
+      "dirty": false
+    },
+    {
+      "id": "t4_gas",
+      "pct": 0.1668,
+      "text": "Gas when you see the ferris wheel",
+      "textShort": "Ferris wheel",
+      "priority": 2,
+      "leadAdjustS": 0,
+      "audio": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t4_gas.wav",
+        "durationMs": 1741
+      },
+      "audioShort": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t4_gas_short.wav",
+        "durationMs": 871
       },
       "dirty": false
     },
     {
       "id": "t6",
-      "pct": 0.28475000000000006,
-      "text": "Brake, turn 6, right, first out",
-      "textShort": "Right",
+      "pct": 0.2848,
+      "text": "Brake at the end of the road on the left, eighty percent, first gear",
+      "textShort": "End of the road",
       "priority": 1,
       "leadAdjustS": 0,
-      "fadeable": true,
       "audio": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t6.wav",
-        "durationMs": 2705
+        "durationMs": 3297
       },
       "audioShort": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t6_short.wav",
-        "durationMs": 499
+        "durationMs": 813
+      },
+      "dirty": false
+    },
+    {
+      "id": "t6_gas",
+      "pct": 0.3098,
+      "text": "Gas towards the apex",
+      "textShort": "Gas",
+      "priority": 2,
+      "leadAdjustS": 0,
+      "audio": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t6_gas.wav",
+        "durationMs": 1474
+      },
+      "audioShort": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t6_gas_short.wav",
+        "durationMs": 615
       },
       "dirty": false
     },
     {
       "id": "t7",
-      "pct": 0.36675000000000013,
-      "text": "Brake, turn 7, left, second out",
-      "textShort": "Left",
+      "pct": 0.3668,
+      "text": "Brake at the end of the road on the right, eighty five, first gear",
+      "textShort": "End of the road",
       "priority": 1,
       "leadAdjustS": 0,
-      "fadeable": true,
       "audio": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t7.wav",
-        "durationMs": 2589
+        "durationMs": 3146
       },
       "audioShort": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t7_short.wav",
-        "durationMs": 546
+        "durationMs": 813
+      },
+      "dirty": false
+    },
+    {
+      "id": "t7_gas",
+      "pct": 0.3762,
+      "text": "Gas at the end of the tyre wall, full early",
+      "textShort": "Tyre wall",
+      "priority": 2,
+      "leadAdjustS": 0,
+      "audio": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t7_gas.wav",
+        "durationMs": 2345
+      },
+      "audioShort": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t7_gas_short.wav",
+        "durationMs": 731
       },
       "dirty": false
     },
     {
       "id": "t9",
-      "pct": 0.65625,
-      "text": "Brake, turns 9 to 11, left right left, third out",
-      "textShort": "Left",
+      "pct": 0.6563,
+      "text": "Chicane, brake at the one marker, later than you expect, sixty percent, third gear",
+      "textShort": "One marker",
       "priority": 1,
       "leadAdjustS": 0,
-      "fadeable": true,
       "audio": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t9.wav",
-        "durationMs": 3355
+        "durationMs": 4865
       },
       "audioShort": {
         "file": "daytona-mx5-draft/en_US-lessac-medium/t9_short.wav",
-        "durationMs": 546
+        "durationMs": 813
+      },
+      "dirty": false
+    },
+    {
+      "id": "t9_gas",
+      "pct": 0.6837,
+      "text": "Gas between the second and third kerbs, full by the third",
+      "textShort": "Gas",
+      "priority": 2,
+      "leadAdjustS": 0,
+      "audio": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t9_gas.wav",
+        "durationMs": 3065
+      },
+      "audioShort": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t9_gas_short.wav",
+        "durationMs": 615
+      },
+      "dirty": false
+    },
+    {
+      "id": "t12",
+      "pct": 0.7572,
+      "text": "Twelve goes on forever, keep the middle of the car over the yellow",
+      "textShort": "Stay low",
+      "priority": 3,
+      "leadAdjustS": 0,
+      "audio": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t12.wav",
+        "durationMs": 2972
+      },
+      "audioShort": {
+        "file": "daytona-mx5-draft/en_US-lessac-medium/t12_short.wav",
+        "durationMs": 685
       },
       "dirty": false
     }

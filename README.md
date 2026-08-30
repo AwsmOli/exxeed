@@ -54,6 +54,22 @@ Callouts are rendered offline, once per note set, by [Piper](https://github.com/
 — local, free, and native 16-bit WAV, so nothing calls a TTS API at runtime and
 there is no `ffprobe` dependency: duration is read straight out of the header.
 
+**Windows** — the platform the app itself runs on, since iRacing is Windows only:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install piper-tts
+
+mkdir voices
+$BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium"
+curl.exe -sSL -o voices\en_US-lessac-medium.onnx "$BASE.onnx"
+curl.exe -sSL -o voices\en_US-lessac-medium.onnx.json "$BASE.onnx.json"
+
+pnpm --filter @exxeed/ingest start render daytona-mx5-draft --data data --model voices/en_US-lessac-medium.onnx
+```
+
+macOS or Linux, for rendering a pack away from the sim machine:
+
 ```sh
 python3 -m venv .venv && .venv/bin/pip install piper-tts
 
@@ -65,8 +81,15 @@ pnpm --filter @exxeed/ingest start render daytona-mx5-draft \
   --data data --model voices/en_US-lessac-medium.onnx
 ```
 
+A venv puts its executables in `Scripts\` on Windows and `bin/` elsewhere, and
+`--piper` defaults to whichever matches the platform it is running on. Override
+it with `--piper` or `EXXEED_PIPER` if piper lives somewhere else.
+
 The venv and `voices/` are gitignored — piper is kept out of any system Python,
-and a voice model is ~60 MB of downloaded weights rather than source.
+and a voice model is ~60 MB of downloaded weights rather than source. So is
+`data/audio/`: **an audio pack is a build artefact, not source.** A fresh clone
+has note sets but no sound, and rendering is what produces it — if callouts are
+silent, or beep, that is the step that has not been run.
 
 > **Piper is not deterministic by default.** It samples noise during inference,
 > so the same sentence rendered twice differs by ~240 ms. That matters more here

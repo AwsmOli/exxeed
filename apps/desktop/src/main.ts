@@ -130,16 +130,26 @@ function createSource(): TelemetrySource {
   return new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: debug.loopReplay });
 }
 
-async function createSession(replaying: boolean): Promise<LoadedSession | null> {
+async function createSession(): Promise<LoadedSession | null> {
   const current = settings().get();
   if (current.noteSetId === null) return null;
 
-  // Skipping the out-lap only means anything against a recording. On a live
-  // session the gate is the rule, not friction, so it is not negotiable from a
-  // settings file either.
-  const skipOutLap = replaying && debugEnabled() && current.debug.skipOutLap;
+  // §6.4 requires a completed lap before anything arms, and §6.2 starts every
+  // note SPENT. Together they cost more than the spec intends: not just the
+  // out-lap, but most of the first flying lap too, because a note only re-arms
+  // once its point is more than half a lap away. Measured on Daytona that is one
+  // callout out of six on the first flying lap, and a full set only on the
+  // second.
+  //
+  // The gate exists so a callout never fires while the driver is still coming
+  // out of the pits. That is worth having by default and it stays the default —
+  // but it is a preference, not a law, and someone who joins a session already
+  // on track is being made to wait two laps for nothing.
+  const skipOutLap = current.debug.skipOutLap;
   if (skipOutLap) {
-    process.stdout.write("skipping the out-lap gate — replay only (§6.4)\n");
+    process.stdout.write(
+      "out-lap gate off — every note starts ARMED, so callouts begin on the first corner (§6.4)\n",
+    );
   }
 
   return loadSession({
@@ -248,11 +258,10 @@ interface Surfaces {
 async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   const token = ++loopToken;
   const source = createSource();
-  const replaying = source instanceof ReplayAdapter;
 
   let session: LoadedSession | null = null;
   try {
-    session = await createSession(replaying);
+    session = await createSession();
   } catch (err) {
     process.stderr.write(`could not load note set: ${String(err)}\n`);
   }

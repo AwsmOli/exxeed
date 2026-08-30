@@ -106,7 +106,22 @@ export interface DebugSettings {
   /** Replay rate. 1 is real time. */
   readonly replaySpeed: number;
   readonly loopReplay: boolean;
-  /** Speak from the first frame. Replay only — refused for a live source. */
+  /**
+   * Speak from the first corner instead of waiting out §6.4's out-lap gate.
+   *
+   * On by default, which is a deliberate departure from §6.4. The gate exists so
+   * a callout cannot fire while the driver is still leaving the pits — but every
+   * one of those states is *already* suppressed on its own: OnPitRoad, IsInGarage,
+   * PlayerCarTowTime and the 30 km/h crawl threshold all hold independently. The
+   * gate is a second layer over cases the first layer covers.
+   *
+   * What it costs is not one lap but nearly two. §6.2 starts every note SPENT,
+   * and a note only re-arms once its point is more than half a lap away, so
+   * opening the gate at the line still leaves only the back half of the lap
+   * armed — measured on Daytona, one callout out of six on the first flying lap
+   * and a full set only on the second. Someone joining a session already on
+   * track waits that long for nothing.
+   */
   readonly skipOutLap: boolean;
 }
 
@@ -123,7 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
     replayPath: null,
     replaySpeed: 1,
     loopReplay: true,
-    skipOutLap: false,
+    skipOutLap: true,
   },
 };
 

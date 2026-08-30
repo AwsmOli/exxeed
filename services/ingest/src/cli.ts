@@ -20,7 +20,8 @@
  *
  *   --data <dir>      artefact root, default ./data
  *   --model <path>    piper .onnx voice model (or EXXEED_PIPER_MODEL)
- *   --piper <path>    piper executable (or EXXEED_PIPER, default ./.venv/bin/piper)
+ *   --piper <path>    piper executable (or EXXEED_PIPER; defaults to the venv:
+ *                     .venv/Scripts/piper.exe on Windows, .venv/bin/piper elsewhere)
  *   --length-scale N  speaking rate; below 1 is faster, default 1
  *   --voice <id>      override the voiceId recorded in the pack
  */
@@ -55,11 +56,19 @@ function usage(): number {
   return 1;
 }
 
+/** Where `python -m venv .venv` puts the piper executable on this platform. */
+const defaultPiperPath = (): string =>
+  process.platform === "win32" ? ".venv/Scripts/piper.exe" : ".venv/bin/piper";
+
 async function render(argv: readonly string[]): Promise<number> {
   const positional: string[] = [];
   let dataDir = "data";
   let model = env("EXXEED_PIPER_MODEL");
-  let binary = env("EXXEED_PIPER") ?? ".venv/bin/piper";
+  // A venv puts its executables in Scripts\ on Windows and bin/ everywhere else.
+  // Defaulting to the POSIX layout made the one platform this app actually runs
+  // on — iRacing is Windows only (§3) — the one platform where rendering failed
+  // out of the box, with an ENOENT naming a path that was never going to exist.
+  let binary = env("EXXEED_PIPER") ?? defaultPiperPath();
   let lengthScale = 1;
   let voiceId: string | undefined;
 
