@@ -16,7 +16,7 @@
 
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 
 import { deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
 import {
@@ -25,10 +25,14 @@ import {
   ENGINE_EVENT_CHANNEL,
   MAP_CHANNEL,
   REFERENCE_CHANNEL,
+  SESSION_COMMAND_CHANNEL,
+  SESSION_STATUS_CHANNEL,
   STATE_FRAME_CHANNEL,
   type AudioClip,
   type AudioPlayCommand,
   type EngineEventView,
+  type SessionCommand,
+  type SessionStatus,
   type StateFrame,
   isPanelId,
   PANELS,
@@ -45,10 +49,10 @@ import {
   type TelemetrySource,
 } from "@exxeed/telemetry";
 
-import { audioKey } from "@exxeed/repo";
+import { audioKey, localRepositories } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
-import { FULLSCREEN_WARNING, markClosing, OverlayLayout, sendTo } from "./overlay.js";
+import { FULLSCREEN_WARNING, OverlayLayout, sendTo } from "./overlay.js";
 import { installEditorIpc, openEditor, requestRender } from "./editor.js";
 import {
   installSettingsIpc,
@@ -130,9 +134,75 @@ function createSource(): TelemetrySource {
   return new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: debug.loopReplay });
 }
 
-async function createSession(): Promise<LoadedSession | null> {
+/** `sim:trackId:configId` — the key `noteSetByTrack` remembers a choice under. */
+const trackKeyId = (k: { sim: string; trackId: number; configId: string }): string =>
+  `${k.sim}:${k.trackId}:${k.configId}`;
+
+/**
+ * Which note set to load for the track the sim just reported.
+ *
+ * The sim knows what it loaded, so asking a driver to pick a note set that
+ * matches is asking them to restate something already known. Preference order:
+ * the set used here last, then the only candidate, then the first of several.
+ *
+ * Returns null when the track has no note sets at all — which is not a failure,
+ * it is a track nobody has written notes for yet. The overlays still run.
+ */
+async function noteSetForTrack(
+  identity: SessionIdentity | null,
+  dataDir: string,
+): Promise<{ id: string | null; detail: string | null }> {
+  if (identity?.trackKey == null) {
+    return { id: null, detail: "the sim did not report which track this is" };
+  }
+
+  const key = identity.trackKey;
+  const candidates = await localRepositories(dataDir).noteSets.listForTrack(key);
+  if (candidates.length === 0) {
+    return { id: null, detail: `no note set for ${identity.trackName}` };
+  }
+
+  const remembered = settings().get().noteSetByTrack[trackKeyId(key)];
+  const chosen =
+    remembered !== undefined && candidates.some((c) => c.id === remembered)
+      ? remembered
+      : candidates[0]!.id;
+
+  return {
+    id: chosen,
+    detail:
+      candidates.length === 1
+        ? null
+        : `${candidates.length} note sets here; using ${chosen}`,
+  };
+}
+
+/** Persist which note set was used here, so a track with several keeps its choice. */
+function rememberNoteSet(identity: SessionIdentity | null, noteSetId: string | null): void {
+  if (noteSetId === null || identity?.trackKey == null) return;
+  const key = trackKeyId(identity.trackKey);
+  const current = settings().get().noteSetByTrack;
+  if (current[key] === noteSetId) return;
+  settings().updateQuietly({ noteSetByTrack: { ...current, [key]: noteSetId } });
+}
+
+/**
+ * Whether this track has already been mapped, and so has nothing left to record.
+ *
+ * Deliberately asks the repository rather than a setting: the point of §9's
+ * always-on recording is that nobody has to remember to switch it on before the
+ * lap that turned out to matter. "Do I already have this?" is a question the
+ * data can answer on its own.
+ */
+async function haveTrackData(identity: SessionIdentity | null, dataDir: string): Promise<boolean> {
+  if (identity?.trackKey == null) return false;
+  const version = await localRepositories(dataDir).trackMaps.latestVersion(identity.trackKey);
+  return version !== null;
+}
+
+async function createSession(noteSetId: string | null): Promise<LoadedSession | null> {
   const current = settings().get();
-  if (current.noteSetId === null) return null;
+  if (noteSetId === null) return null;
 
   // §6.4 requires a completed lap before anything arms, and §6.2 starts every
   // note SPENT. Together they cost more than the spec intends: not just the
@@ -155,7 +225,7 @@ async function createSession(): Promise<LoadedSession | null> {
   return loadSession({
     assumeLapComplete: skipOutLap,
     dataDir: resolveDataDir(current),
-    noteSetId: current.noteSetId,
+    noteSetId,
     ...(current.carId === null ? {} : { carId: current.carId }),
     voiceId: current.voiceId,
     profile: { leadAdjustS: current.leadAdjustS },
@@ -255,13 +325,41 @@ interface Surfaces {
   readonly onClosed: (callback: () => void) => void;
 }
 
+/** What the control window is showing. Kept here so a new window can be told. */
+let sessionStatus: SessionStatus = {
+  phase: "stopped",
+  autoStart: true,
+  trackName: null,
+  carName: null,
+  noteSetId: null,
+  detail: null,
+  recordingTo: null,
+};
+
+function broadcastStatus(patch: Partial<SessionStatus>): void {
+  sessionStatus = { ...sessionStatus, ...patch, autoStart: settings().get().autoStart };
+  currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
+  controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
+}
+
 async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   const token = ++loopToken;
   const source = createSource();
 
+  // Connect FIRST. The sim knows which track and car it loaded, and that is what
+  // decides the note set — asking a driver to pick one that matches is asking
+  // them to restate something the sim has already said. It also makes a failed
+  // connect cheap: nothing has been loaded yet to throw away.
+  await source.connect();
+
+  const identity = source.identity;
+  const chosen = await noteSetForTrack(identity, resolveDataDir(settings().get()));
+  if (chosen.detail !== null) process.stdout.write(`${chosen.detail}\n`);
+  rememberNoteSet(identity, chosen.id);
+
   let session: LoadedSession | null = null;
   try {
-    session = await createSession();
+    session = await createSession(chosen.id);
   } catch (err) {
     process.stderr.write(`could not load note set: ${String(err)}\n`);
   }
@@ -293,24 +391,39 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     );
   }
 
-  try {
-    await source.connect();
-  } catch (err) {
-    process.stderr.write(`telemetry source failed to connect: ${String(err)}\n`);
-    surfaces.broadcast(STATE_FRAME_CHANNEL, emptyFrame);
-    return;
-  }
+  // §9 asks for always-on recording, and the reason is good: "the moment this
+  // becomes opt-in, the interesting lap is the one you didn't record." But that
+  // argument is about laps you might want to *cut a map from*, and once a track
+  // has a map there is nothing left to cut — every further session writes a
+  // couple of megabytes a minute to answer a question already answered.
+  //
+  // So it stays always-on for a track nobody has mapped yet, and stops for one
+  // that is done. The condition is deliberately "is there a map", not a setting:
+  // a driver should never have to know to switch it on before the lap that
+  // mattered.
+  const mapped = await haveTrackData(identity, resolveDataDir(settings().get()));
+  const recorder = mapped
+    ? null
+    : new NdjsonRecorder(recordingPath(identity), {
+        startedAt: new Date().toISOString(),
+        source: source.name,
+        ...(identity ?? {}),
+      });
 
-  // Built after connect, not before: the track and car are only known once the
-  // sim has handed over its session data, and they decide where this lands.
-  const recorder = new NdjsonRecorder(recordingPath(source.identity), {
-    startedAt: new Date().toISOString(),
-    source: source.name,
-    ...(source.identity ?? {}),
-  });
   process.stdout.write(
-    `recording ${describeIdentity(source.identity)} -> ${recorder.path}\n`,
+    recorder === null
+      ? `not recording — ${describeIdentity(identity)} is already mapped\n`
+      : `recording ${describeIdentity(identity)} -> ${recorder.path}\n`,
   );
+
+  broadcastStatus({
+    phase: "running",
+    trackName: identity?.trackName ?? null,
+    carName: identity?.carName ?? null,
+    noteSetId: chosen.id,
+    detail: chosen.detail,
+    recordingTo: recorder?.path ?? null,
+  });
 
   const lapTimer = new LapTimer();
 
@@ -329,7 +442,7 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
 
       // Always-on recording (§9). Every lap anyone drives must be replayable —
       // the moment this becomes opt-in, the interesting lap is the unrecorded one.
-      recorder.write(frame);
+      recorder?.write(frame);
 
       const lapElapsedS = lapTimer.update(frame.sessionTimeS, frame.lapDistPct);
       let suppressedBy: StateFrame["suppressedBy"] = null;
@@ -376,7 +489,7 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     }
   } finally {
     await source.close();
-    await recorder.close();
+    await recorder?.close();
   }
 }
 
@@ -402,27 +515,6 @@ function chosenPanels(): PanelId[] {
   return panels.length === 0 ? [...PANELS] : [...panels];
 }
 
-function createDesktopWindow(): BrowserWindow {
-  const window = new BrowserWindow({
-    width: 760,
-    height: 660,
-    title: "Exxeed",
-    webPreferences: {
-      preload: PRELOAD,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      // This renderer is the audio output device. Throttling it would delay
-      // callouts, which is the one thing §7 is trying to prevent.
-      backgroundThrottling: false,
-    },
-  });
-
-  forwardRendererConsole(window);
-  void window.loadFile(PAGE);
-  return window;
-}
-
 /**
  * Renderer console output to the terminal.
  *
@@ -437,18 +529,6 @@ function forwardRendererConsole(window: BrowserWindow): void {
     const where = source === "" ? "" : ` (${source.split("/").pop() ?? source}:${String(line)})`;
     process.stderr.write(`renderer: ${message}${where}\n`);
   });
-}
-
-/** One window: broadcast and audio both mean "that window". */
-function singleWindowSurfaces(window: BrowserWindow): Surfaces {
-  window.on("close", () => markClosing(window));
-  const send = (channel: string, payload: unknown): void => sendTo(window, channel, payload);
-  return {
-    broadcast: send,
-    audio: send,
-    alive: () => !window.isDestroyed() && !window.webContents.isDestroyed(),
-    onClosed: (callback) => window.once("closed", callback),
-  };
 }
 
 /** Several windows: everything goes everywhere except the audio. */
@@ -499,17 +579,119 @@ function startOverlays(): void {
   const last = layout.windows[layout.windows.length - 1];
   if (last === undefined) return;
   last.webContents.once("did-finish-load", () => {
+    // Only publish the surfaces. Whether a session should be running is the
+    // supervisor's business, not a window's: a window finishing load says
+    // nothing about whether the sim is up.
     currentSurfaces = overlaySurfaces(layout);
-    void runTelemetryLoop(currentSurfaces);
+    broadcastStatus({});
   });
 }
 
-function startDesktop(): void {
-  const window = createDesktopWindow();
-  window.webContents.once("did-finish-load", () => {
-    currentSurfaces = singleWindowSurfaces(window);
-    void runTelemetryLoop(currentSurfaces);
+/** The control window — start/stop, and what the app is currently doing. */
+let controlWindow: BrowserWindow | null = null;
+
+const CONTROL_PAGE = fileURLToPath(new URL("../static/control.html", import.meta.url));
+
+function openControlWindow(): void {
+  if (controlWindow !== null && !controlWindow.isDestroyed()) {
+    controlWindow.focus();
+    return;
+  }
+
+  const window = new BrowserWindow({
+    width: 420,
+    height: 520,
+    title: "Exxeed",
+    webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
+
+  controlWindow = window;
+  window.once("closed", () => {
+    controlWindow = null;
+  });
+  void window.loadFile(CONTROL_PAGE);
+  window.webContents.once("did-finish-load", () => broadcastStatus({}));
+}
+
+/**
+ * True while the app should be connected, or trying to be.
+ *
+ * Separate from whether a loop is currently running: the sim coming and going is
+ * expected, and "on" has to survive it. Stopping is the only thing that clears
+ * this.
+ */
+let wantRunning = false;
+/** Guards against two supervisors racing after a rapid stop/start. */
+let supervising = false;
+
+const sleepMs = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Keep a session running for as long as the app is meant to be on.
+ *
+ * The sim is not a precondition, it is a participant: it starts after the app,
+ * it restarts between sessions, and it exits while the app stays open. Treating
+ * "not running yet" as a startup error made the app something you had to launch
+ * in the right order. Waiting is the normal resting state.
+ */
+async function supervise(): Promise<void> {
+  if (supervising) return;
+  supervising = true;
+
+  try {
+    while (wantRunning) {
+      const surfaces = currentSurfaces;
+      if (surfaces === null) return;
+
+      try {
+        broadcastStatus({ phase: "waiting", detail: "waiting for the sim" });
+        await runTelemetryLoop(surfaces);
+        // A clean return means the source ended — the sim closed, or the replay
+        // finished. Either way, go back to waiting rather than giving up.
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        // Not an error worth shouting about: it is the expected state whenever
+        // the sim is not up yet, which is most of the time.
+        broadcastStatus({
+          phase: "waiting",
+          detail: message,
+          trackName: null,
+          carName: null,
+          noteSetId: null,
+          recordingTo: null,
+        });
+        surfaces.broadcast(STATE_FRAME_CHANNEL, emptyFrame);
+      }
+
+      if (!wantRunning) break;
+      await sleepMs(2000);
+    }
+  } finally {
+    supervising = false;
+    if (!wantRunning) {
+      broadcastStatus({
+        phase: "stopped",
+        detail: null,
+        trackName: null,
+        carName: null,
+        noteSetId: null,
+        recordingTo: null,
+      });
+      currentSurfaces?.broadcast(STATE_FRAME_CHANNEL, emptyFrame);
+    }
+  }
+}
+
+function startSession(): void {
+  if (wantRunning) return;
+  wantRunning = true;
+  void supervise();
+}
+
+function stopSession(): void {
+  wantRunning = false;
+  // Bumping the token makes any running loop stop at its next frame.
+  loopToken++;
 }
 
 void app.whenReady().then(() => {
@@ -518,23 +700,33 @@ void app.whenReady().then(() => {
   installEditorIpc(() => settings().get(), resolveDataDir);
   registerPreferencesShortcut(PRELOAD);
 
-  // EXXEED_OVERLAY gives the §7 overlays: transparent, frameless, click-through,
-  // above the sim, one window per panel. Off by default because a fleet of
-  // click-through always-on-top windows is a nuisance to develop against.
-  const overlayMode = env("EXXEED_OVERLAY") !== undefined;
-  const start = (): void => {
-    if (overlayMode) startOverlays();
-    else startDesktop();
-  };
-
+  // The overlays are the product (§7): transparent, frameless, always-on-top,
+  // one window per panel. They used to be behind EXXEED_OVERLAY and off by
+  // default, which meant the normal way to run the app was the one way that did
+  // not put anything over the sim — a development convenience that had become
+  // the default experience.
+  const start = (): void => startOverlays();
   start();
+  openControlWindow();
+
+  // Renderer → main. The control window is the only thing that sends these, and
+  // it is the only surface that can: the overlays are click-through.
+  ipcMain.on(SESSION_COMMAND_CHANNEL, (_event, raw: unknown) => {
+    const command = raw as SessionCommand;
+    if (command.kind === "start") startSession();
+    else if (command.kind === "stop") stopSession();
+    else if (command.kind === "autoStart") {
+      settings().updateQuietly({ autoStart: command.value });
+      broadcastStatus({});
+    }
+  });
 
   buildApplicationMenu({
     openPreferences: () => openPreferences(PRELOAD),
     openEditor: () => openEditor(PRELOAD),
     renderAudio: () => requestRender(PRELOAD),
     toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
-    overlayMode,
+    overlayMode: true,
   });
 
   process.stdout.write(
@@ -544,12 +736,14 @@ void app.whenReady().then(() => {
   );
   process.stdout.write(`preferences: ${PREFERENCES_SHORTCUT}\n`);
 
-  // Nothing configured yet: open preferences rather than running silently and
-  // leaving someone to wonder why. Silence and "no note set chosen" look
-  // identical from outside.
-  if (settings().get().noteSetId === null) {
-    process.stdout.write("no note set chosen — opening preferences\n");
-    openPreferences(PRELOAD);
+  // Nothing to configure up front any more: the note set follows the track the
+  // sim reports, so there is no longer a question to answer before starting.
+  if (settings().get().autoStart) {
+    process.stdout.write("autostart on — waiting for the sim\n");
+    startSession();
+  } else {
+    process.stdout.write("autostart off — press Start in the Exxeed window\n");
+    broadcastStatus({ phase: "stopped" });
   }
 
   // A changed note set, voice, car, data folder or lead adjust means a different

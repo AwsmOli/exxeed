@@ -62,8 +62,24 @@ export class SettingsStore {
     this.#listeners.push(listener);
   }
 
+  /**
+   * Persist a patch WITHOUT telling anyone.
+   *
+   * For state the app writes about itself rather than state a person changed —
+   * which note set was used at which track, say. Those listeners rebuild the
+   * session, so a session that records its own choice through `update` would
+   * rebuild itself, record the choice again, and never stop.
+   */
+  updateQuietly(patch: Partial<Settings>): Settings {
+    return this.#apply(patch, false);
+  }
+
   /** Merge a patch, persist it, and tell everyone. Returns the new settings. */
   update(patch: Partial<Settings>): Settings {
+    return this.#apply(patch, true);
+  }
+
+  #apply(patch: Partial<Settings>, notify: boolean): Settings {
     this.#stored = {
       ...this.#stored,
       ...patch,
@@ -81,7 +97,7 @@ export class SettingsStore {
     // Overrides still win after an edit, so what the app is actually doing and
     // what the window shows cannot drift apart.
     this.#current = withEnvOverrides(withDefaults(this.#stored), overrides());
-    for (const listener of this.#listeners) listener(this.#current);
+    if (notify) for (const listener of this.#listeners) listener(this.#current);
     return this.#current;
   }
 }

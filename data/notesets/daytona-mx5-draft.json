@@ -3,7 +3,7 @@
   "trackKey": {
     "sim": "iracing",
     "trackId": 192,
-    "configId": "road_course"
+    "configId": "road-course"
   },
   "lengthM": 5687.290045843393,
   "carClass": "mx5",

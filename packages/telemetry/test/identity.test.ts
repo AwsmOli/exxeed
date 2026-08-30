@@ -20,6 +20,10 @@ const dir = mkdtempSync(join(tmpdir(), "exxeed-identity-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const IDENTITY = {
+  // §4.0's key, which is what a note set or a track map is actually filed under.
+  // Without it a recording says which track in words but not in the form
+  // anything can look up.
+  trackKey: { sim: "iracing" as const, trackId: 192, configId: "road-course" },
   trackId: "daytona-2011-road",
   trackName: "Daytona International Speedway",
   trackConfig: "Road Course",

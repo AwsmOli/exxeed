@@ -65,6 +65,38 @@ export const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
  */
 export const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
 
+/** Whether the app is running, and what it is connected to. main → renderer. */
+export const SESSION_STATUS_CHANNEL = "exxeed:session-status";
+
+/** Renderer → main: start, stop, or set autostart. */
+export const SESSION_COMMAND_CHANNEL = "exxeed:session-command";
+
+/**
+ * What the app is doing, for the control window.
+ *
+ * "waiting" is a normal resting state, not a failure: the app is meant to be
+ * left running while the sim comes and goes underneath it.
+ */
+export type SessionPhase = "stopped" | "waiting" | "running";
+
+export interface SessionStatus {
+  readonly phase: SessionPhase;
+  readonly autoStart: boolean;
+  /** Track and car the sim reported, once connected. */
+  readonly trackName: string | null;
+  readonly carName: string | null;
+  /** Note set actually loaded, and why there is none when there is none. */
+  readonly noteSetId: string | null;
+  readonly detail: string | null;
+  /** Whether this session is writing a recording, and where. */
+  readonly recordingTo: string | null;
+}
+
+export type SessionCommand =
+  | { readonly kind: "start" }
+  | { readonly kind: "stop" }
+  | { readonly kind: "autoStart"; readonly value: boolean };
+
 /**
  * Everything the app is configured by.
  *
@@ -97,6 +129,23 @@ export interface Settings {
    */
   readonly piperBinary: string | null;
   readonly piperModel: string | null;
+  /**
+   * Connect to the sim as soon as it appears, without being asked.
+   *
+   * The app outlives any one session: it is started once and left running, and
+   * the sim comes and goes underneath it. Waiting for the sim is the normal
+   * state, not an error.
+   */
+  readonly autoStart: boolean;
+  /**
+   * Which note set was last used at each track, keyed by `sim:trackId:configId`.
+   *
+   * A track can have several sets — different coaches, different car classes —
+   * and the useful default is the one that was driven last rather than whichever
+   * sorts first. Per track, because the answer at Daytona says nothing about the
+   * answer at Spa.
+   */
+  readonly noteSetByTrack: Readonly<Record<string, string>>;
   readonly debug: DebugSettings;
 }
 
@@ -134,6 +183,8 @@ export const DEFAULT_SETTINGS: Settings = {
   panels: [...PANELS],
   piperBinary: null,
   piperModel: null,
+  autoStart: true,
+  noteSetByTrack: {},
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -175,6 +226,14 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
     panels: panels.length === 0 ? DEFAULT_SETTINGS.panels : panels,
     piperBinary: s.piperBinary ?? DEFAULT_SETTINGS.piperBinary,
     piperModel: s.piperModel ?? DEFAULT_SETTINGS.piperModel,
+    autoStart:
+      typeof s.autoStart === "boolean" ? s.autoStart : DEFAULT_SETTINGS.autoStart,
+    noteSetByTrack:
+      typeof s.noteSetByTrack === "object" && s.noteSetByTrack !== null
+        ? Object.fromEntries(
+            Object.entries(s.noteSetByTrack).filter(([, v]) => typeof v === "string"),
+          )
+        : DEFAULT_SETTINGS.noteSetByTrack,
     debug: {
       replayPath: storedDebug.replayPath ?? DEFAULT_SETTINGS.debug.replayPath,
       replaySpeed: number(storedDebug.replaySpeed, DEFAULT_SETTINGS.debug.replaySpeed),
@@ -227,6 +286,8 @@ export function withEnvOverrides(
     panels: panels.length === 0 ? settings.panels : panels,
     piperBinary: get("EXXEED_PIPER") ?? settings.piperBinary,
     piperModel: get("EXXEED_PIPER_MODEL") ?? settings.piperModel,
+    autoStart: get("EXXEED_AUTOSTART") !== undefined || settings.autoStart,
+    noteSetByTrack: settings.noteSetByTrack,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,

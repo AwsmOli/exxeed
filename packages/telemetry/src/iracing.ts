@@ -94,6 +94,8 @@ interface IRacingSessionData {
     readonly TrackName?: string;
     readonly TrackDisplayName?: string;
     readonly TrackConfigName?: string;
+    /** iRacing's own id, unique per track AND layout. This is §4.0's trackId. */
+    readonly TrackID?: number;
   };
   readonly DriverInfo?: {
     readonly DriverCarIdx?: number;
@@ -112,6 +114,14 @@ const first = <T>(v: T[] | T | undefined, fallback: T): T => {
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How many polls connect() gives the sim to produce session data before deciding
+ * it is not there. At 60 Hz this is about a second and a half — long enough to
+ * ride out the gap while a session loads, short enough that a supervisor polling
+ * for the sim stays responsive.
+ */
+const READY_ATTEMPTS = 90;
 
 export class IRacingAdapter implements TelemetrySource {
   readonly name = "iracing";
@@ -150,10 +160,23 @@ export class IRacingAdapter implements TelemetrySource {
       throw new Error("iRacing SDK did not start — is the sim running?");
     }
 
+    // startSDK() succeeding does NOT mean the sim is running. It maps the shared
+    // memory and returns true whether or not anything is on the other end, so an
+    // app that trusts it "connects" to nothing, reports no track, and records a
+    // file of pure header. The session data is the real handshake: it only
+    // appears once the sim has a session mapped.
+    this.#identity = await readIdentity(sdk, this.#intervalMs, READY_ATTEMPTS);
+    if (this.#identity === null) {
+      sdk.stopSDK();
+      throw new Error(
+        "the iRacing SDK is there but no session is — the sim is not running, " +
+          "or it is still at the menu",
+      );
+    }
+
     this.#sdk = sdk;
     this.#connected = true;
     this.#startedAtMs = Date.now();
-    this.#identity = await readIdentity(sdk, this.#intervalMs);
   }
 
   async close(): Promise<void> {
@@ -212,6 +235,14 @@ async function readIdentity(
         const trackName = weekend?.TrackName;
         if (trackName !== undefined && trackName !== "") {
           return {
+            // §4.0's TrackKey, straight from the sim. configId is slugged so it
+            // is stable and filesystem-safe; iRacing gives each layout its own
+            // TrackID anyway, so the pair is doubly unambiguous.
+            trackKey: {
+              sim: "iracing",
+              trackId: weekend?.TrackID ?? 0,
+              configId: slug(weekend?.TrackConfigName ?? ""),
+            },
             trackId: slug(trackName),
             trackName: weekend?.TrackDisplayName ?? trackName,
             trackConfig: weekend?.TrackConfigName ?? "",
