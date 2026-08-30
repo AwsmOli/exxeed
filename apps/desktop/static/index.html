@@ -60,7 +60,16 @@
       #delta-text.down { color: #f87171; }
 
       /* An overlay window holds exactly one panel, so the panel fills it. */
-      body.overlay .panel { margin: 0; height: 100vh; box-sizing: border-box; }
+      /* The panel is inset from the window edge, so its height has to be the
+         viewport MINUS both insets. It used to be a flat 100vh next to an 8px
+         margin, which made it 16px taller than the window it lives in — and
+         since the body clips, what got cut was precisely the bottom border and
+         its rounded corners. Derived from the same variable so the two cannot
+         drift apart again. */
+      body.overlay .panel {
+        height: calc(100vh - var(--overlay-inset) * 2);
+        box-sizing: border-box;
+      }
       body.overlay .cols { display: block; height: 100%; }
       body.overlay section { height: 100%; }
       body.overlay #map { width: 100%; height: calc(100% - 22px); }
@@ -85,6 +94,9 @@
         bright, changing, and not under our control.
       */
       body.overlay {
+        /* One source of truth for the gap between the window edge and the panel.
+           Both the margin and the panel's height are derived from it. */
+        --overlay-inset: 8px;
         background: transparent;
         padding: 0;
         overflow: hidden;
@@ -96,7 +108,7 @@
         border: 1px solid rgba(255, 255, 255, 0.09);
         border-radius: 8px;
         padding: 10px 13px;
-        margin: 8px;
+        margin: var(--overlay-inset);
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
         font-size: 12px;
         line-height: 1.45;
