@@ -16,7 +16,7 @@
 
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from "electron";
 
 import { deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
 import {
@@ -329,6 +329,8 @@ interface Surfaces {
 let sessionStatus: SessionStatus = {
   phase: "stopped",
   autoStart: true,
+  runAtLogin: false,
+  startMinimized: false,
   trackName: null,
   carName: null,
   noteSetId: null,
@@ -337,9 +339,17 @@ let sessionStatus: SessionStatus = {
 };
 
 function broadcastStatus(patch: Partial<SessionStatus>): void {
-  sessionStatus = { ...sessionStatus, ...patch, autoStart: settings().get().autoStart };
+  const current = settings().get();
+  sessionStatus = {
+    ...sessionStatus,
+    ...patch,
+    autoStart: current.autoStart,
+    runAtLogin: current.runAtLogin,
+    startMinimized: current.startMinimized,
+  };
   currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
   controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
+  refreshTrayMenu();
 }
 
 async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
@@ -597,6 +607,97 @@ function startOverlays(): void {
 /** The control window — start/stop, and what the app is currently doing. */
 let controlWindow: BrowserWindow | null = null;
 
+/**
+ * Set once the app is genuinely on its way out.
+ *
+ * Without it the close handler cannot tell "the user pressed X" from "the app is
+ * quitting", and would keep the window alive through the quit.
+ */
+let quitting = false;
+
+let tray: Tray | null = null;
+
+const TRAY_ICON = fileURLToPath(new URL("../static/tray.png", import.meta.url));
+
+function showControlWindow(): void {
+  if (controlWindow === null || controlWindow.isDestroyed()) {
+    openControlWindow();
+    return;
+  }
+  controlWindow.show();
+  controlWindow.focus();
+}
+
+/**
+ * The tray icon, and the only way out of the app once the window is hidden.
+ *
+ * Built once and then only relabelled: rebuilding the menu on every status change
+ * makes it flicker shut under the pointer on Windows.
+ */
+function createTray(): void {
+  if (tray !== null) return;
+
+  const icon = nativeImage.createFromPath(TRAY_ICON);
+  if (icon.isEmpty()) {
+    process.stderr.write(
+      `tray icon missing at ${TRAY_ICON} — the tray is the only way to quit once ` +
+        `the window is hidden, so closing the window will quit instead\n`,
+    );
+    return;
+  }
+
+  tray = new Tray(icon);
+  tray.setToolTip("Exxeed");
+  tray.on("click", () => showControlWindow());
+  tray.on("double-click", () => showControlWindow());
+  refreshTrayMenu();
+}
+
+function refreshTrayMenu(): void {
+  if (tray === null) return;
+
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Show Exxeed", click: () => showControlWindow() },
+      { type: "separator" },
+      {
+        label: sessionStatus.phase === "stopped" ? "Start" : "Stop",
+        click: () => (sessionStatus.phase === "stopped" ? startSession() : stopSession()),
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          quitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+
+  tray.setToolTip(
+    sessionStatus.phase === "running" && sessionStatus.trackName !== null
+      ? `Exxeed — ${sessionStatus.trackName}`
+      : `Exxeed — ${sessionStatus.phase}`,
+  );
+}
+
+/**
+ * Keep the OS login item in step with the setting.
+ *
+ * The list Windows keeps is the setting of record, so this writes it and then
+ * reads it back: a checkbox that says "on" while Windows disagrees is worse than
+ * having no checkbox.
+ */
+function applyLoginItem(runAtLogin: boolean): boolean {
+  // Only meaningful for a packaged build — from source the "app" is electron.exe
+  // with an argument, and registering that would launch a bare Electron at login.
+  if (!app.isPackaged) return runAtLogin;
+
+  app.setLoginItemSettings({ openAtLogin: runAtLogin, args: ["--minimized"] });
+  return app.getLoginItemSettings().openAtLogin;
+}
+
 const CONTROL_PAGE = fileURLToPath(new URL("../static/control.html", import.meta.url));
 
 function openControlWindow(): void {
@@ -614,17 +715,31 @@ function openControlWindow(): void {
 
   controlWindow = window;
 
-  // Closing this quits the app, because otherwise nothing can.
+  // Closing hides to the tray rather than quitting. The app is meant to be left
+  // running while the sim comes and goes, so "I am done looking at this window"
+  // and "I am done with the app" are different intentions and the close button
+  // is the first one.
   //
-  // The overlays are frameless (no close button), skipTaskbar (no taskbar entry)
-  // and always-on-top, and the application menu hangs off this window. Close it
-  // and the app is still running, still holding the SDK, still recording, with
-  // no surface left to stop it from — Task Manager was the only way out. Treating
-  // it as the main window is both what it looks like and the only way to leave.
+  // This is only safe because the tray exists. The overlays are frameless, have
+  // no taskbar entry and are always-on-top, and the application menu hangs off
+  // this window — without a tray icon, hiding it would leave the app running with
+  // no surface at all to stop it from, which is exactly the trap the previous
+  // version had.
+  window.on("close", (event) => {
+    if (quitting) return;
+    // No tray means nowhere to hide TO. Hiding anyway would strand the app with
+    // no visible surface and no way to quit, which is the trap this replaced —
+    // so without a tray, close still means quit.
+    if (tray === null) {
+      quitting = true;
+      return;
+    }
+    event.preventDefault();
+    window.hide();
+  });
+
   window.once("closed", () => {
     controlWindow = null;
-    stopSession();
-    app.quit();
   });
   void window.loadFile(CONTROL_PAGE);
   window.webContents.once("did-finish-load", () => broadcastStatus({}));
@@ -724,7 +839,27 @@ void app.whenReady().then(() => {
   // the default experience.
   const start = (): void => startOverlays();
   start();
-  openControlWindow();
+
+  // The tray comes first: the close button hides the window, so the app must
+  // already have somewhere to be hidden to before that is possible.
+  createTray();
+
+  // --minimized is what the login item passes, so a launch at login goes
+  // straight to the tray instead of putting a window in front of someone who
+  // has just reached their desktop.
+  const minimized =
+    settings().get().startMinimized || process.argv.includes("--minimized");
+  if (minimized) {
+    process.stdout.write("starting minimized — Exxeed is in the tray\n");
+  } else {
+    openControlWindow();
+  }
+
+  // Reconcile the checkbox with what Windows actually has registered; someone
+  // may have removed it from Startup outside the app.
+  const stored = settings().get().runAtLogin;
+  const actual = app.isPackaged ? app.getLoginItemSettings().openAtLogin : stored;
+  if (actual !== stored) settings().updateQuietly({ runAtLogin: actual });
 
   // Renderer → main. The control window is the only thing that sends these, and
   // it is the only surface that can: the overlays are click-through.
@@ -735,6 +870,17 @@ void app.whenReady().then(() => {
     else if (command.kind === "autoStart") {
       settings().updateQuietly({ autoStart: command.value });
       broadcastStatus({});
+    } else if (command.kind === "startMinimized") {
+      settings().updateQuietly({ startMinimized: command.value });
+      broadcastStatus({});
+    } else if (command.kind === "runAtLogin") {
+      // Write to the OS first and store what it actually ended up as, so the
+      // checkbox reflects Windows rather than our intent.
+      settings().updateQuietly({ runAtLogin: applyLoginItem(command.value) });
+      broadcastStatus({});
+    } else if (command.kind === "quit") {
+      quitting = true;
+      app.quit();
     }
   });
 

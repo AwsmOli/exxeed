@@ -65,6 +65,18 @@
 
       label.check { display: flex; align-items: center; gap: 9px; cursor: pointer; }
       .note { color: #6e7681; font-size: 11.5px; margin: 0; }
+      button.quit {
+        appearance: none;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 9px 14px;
+        font: 500 12.5px/1.2 inherit;
+        color: #8b949e;
+        background: transparent;
+        cursor: pointer;
+        align-self: flex-start;
+      }
+      button.quit:hover { color: #e6edf3; border-color: #6e7681; }
       code { color: #58a6ff; font-size: 11.5px; }
     </style>
   </head>
@@ -76,6 +88,16 @@
     <label class="check">
       <input type="checkbox" id="autoStart" />
       Start automatically when the sim appears
+    </label>
+
+    <label class="check">
+      <input type="checkbox" id="runAtLogin" />
+      Run when Windows starts
+    </label>
+
+    <label class="check">
+      <input type="checkbox" id="startMinimized" />
+      Start minimized to the tray
     </label>
 
     <div class="status">
@@ -90,9 +112,16 @@
     </div>
 
     <p class="note">
-      The overlays are separate always-on-top windows. They are click-through so
-      they never steal a click from the sim — press <code>Ctrl+Shift+E</code> to
-      unlock them for dragging, and again to lock.
+      Closing this window hides it in the tray; the app keeps running. Quit from
+      the tray icon, or here.
+    </p>
+
+    <button class="quit" id="quit">Quit Exxeed</button>
+
+    <p class="note">
+      The overlays are separate always-on-top windows and can be dragged
+      anywhere. <code>Ctrl+Shift+E</code> makes them click-through so clicks
+      reach the sim instead; press it again to grab them.
     </p>
 
     <script type="module" src="./control.js"></script>

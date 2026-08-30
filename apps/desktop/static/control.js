@@ -35,14 +35,23 @@ const render = (s) => {
       : s.recordingTo;
 
   el("autoStart").checked = s.autoStart === true;
+  el("runAtLogin").checked = s.runAtLogin === true;
+  el("startMinimized").checked = s.startMinimized === true;
 };
 
 el("power").addEventListener("click", () => {
   window.exxeed?.sendSessionCommand({ kind: phase === "stopped" ? "start" : "stop" });
 });
 
-el("autoStart").addEventListener("change", (event) => {
-  window.exxeed?.sendSessionCommand({ kind: "autoStart", value: event.target.checked });
+for (const kind of ["autoStart", "runAtLogin", "startMinimized"]) {
+  el(kind).addEventListener("change", (event) => {
+    window.exxeed?.sendSessionCommand({ kind, value: event.target.checked });
+  });
+}
+
+// Closing the window only hides it now, so quitting needs its own control.
+el("quit").addEventListener("click", () => {
+  window.exxeed?.sendSessionCommand({ kind: "quit" });
 });
 
 window.exxeed?.onSessionStatus(render);

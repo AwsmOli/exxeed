@@ -82,6 +82,8 @@ export type SessionPhase = "stopped" | "waiting" | "running";
 export interface SessionStatus {
   readonly phase: SessionPhase;
   readonly autoStart: boolean;
+  readonly runAtLogin: boolean;
+  readonly startMinimized: boolean;
   /** Track and car the sim reported, once connected. */
   readonly trackName: string | null;
   readonly carName: string | null;
@@ -95,7 +97,10 @@ export interface SessionStatus {
 export type SessionCommand =
   | { readonly kind: "start" }
   | { readonly kind: "stop" }
-  | { readonly kind: "autoStart"; readonly value: boolean };
+  | { readonly kind: "autoStart"; readonly value: boolean }
+  | { readonly kind: "runAtLogin"; readonly value: boolean }
+  | { readonly kind: "startMinimized"; readonly value: boolean }
+  | { readonly kind: "quit" };
 
 /**
  * Everything the app is configured by.
@@ -146,6 +151,24 @@ export interface Settings {
    * answer at Spa.
    */
   readonly noteSetByTrack: Readonly<Record<string, string>>;
+  /**
+   * Launch with Windows.
+   *
+   * Stored here so the window has something to render, but the setting of record
+   * is the OS login-item list — main writes to that and reads it back, because a
+   * checkbox that disagrees with what Windows actually does is worse than no
+   * checkbox.
+   */
+  readonly runAtLogin: boolean;
+  /**
+   * Start with the control window hidden in the tray.
+   *
+   * The overlays still open and a session still starts: minimised means "do not
+   * put a window in front of me", not "do nothing". Pointless without runAtLogin
+   * today, but the two are separate settings because "launch on login" and "get
+   * out of the way" are separate wishes.
+   */
+  readonly startMinimized: boolean;
   readonly debug: DebugSettings;
 }
 
@@ -185,6 +208,8 @@ export const DEFAULT_SETTINGS: Settings = {
   piperModel: null,
   autoStart: true,
   noteSetByTrack: {},
+  runAtLogin: false,
+  startMinimized: false,
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -228,6 +253,12 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
     piperModel: s.piperModel ?? DEFAULT_SETTINGS.piperModel,
     autoStart:
       typeof s.autoStart === "boolean" ? s.autoStart : DEFAULT_SETTINGS.autoStart,
+    runAtLogin:
+      typeof s.runAtLogin === "boolean" ? s.runAtLogin : DEFAULT_SETTINGS.runAtLogin,
+    startMinimized:
+      typeof s.startMinimized === "boolean"
+        ? s.startMinimized
+        : DEFAULT_SETTINGS.startMinimized,
     noteSetByTrack:
       typeof s.noteSetByTrack === "object" && s.noteSetByTrack !== null
         ? Object.fromEntries(
@@ -288,6 +319,8 @@ export function withEnvOverrides(
     piperModel: get("EXXEED_PIPER_MODEL") ?? settings.piperModel,
     autoStart: get("EXXEED_AUTOSTART") !== undefined || settings.autoStart,
     noteSetByTrack: settings.noteSetByTrack,
+    runAtLogin: settings.runAtLogin,
+    startMinimized: settings.startMinimized,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
