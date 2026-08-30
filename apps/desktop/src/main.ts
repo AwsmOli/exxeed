@@ -613,8 +613,18 @@ function openControlWindow(): void {
   });
 
   controlWindow = window;
+
+  // Closing this quits the app, because otherwise nothing can.
+  //
+  // The overlays are frameless (no close button), skipTaskbar (no taskbar entry)
+  // and always-on-top, and the application menu hangs off this window. Close it
+  // and the app is still running, still holding the SDK, still recording, with
+  // no surface left to stop it from — Task Manager was the only way out. Treating
+  // it as the main window is both what it looks like and the only way to leave.
   window.once("closed", () => {
     controlWindow = null;
+    stopSession();
+    app.quit();
   });
   void window.loadFile(CONTROL_PAGE);
   window.webContents.once("did-finish-load", () => broadcastStatus({}));
@@ -767,6 +777,11 @@ void app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) start();
   });
 });
+
+// Whichever way the app is being shut down — the control window, File > Quit,
+// Alt+F4 — stop the loop first so the recorder stops taking writes it will not
+// get to flush.
+app.on("before-quit", () => stopSession());
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
