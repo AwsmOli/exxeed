@@ -15,7 +15,12 @@ if (panel !== null) {
   }
 }
 
-let editing = false;
+// Grabbable from the moment the window opens, matching main: overlays are not
+// click-through unless asked to be. Starting this false meant a fresh overlay
+// ignored every drag until the shortcut had been pressed once, which is the
+// behaviour this replaced.
+let editing = true;
+document.body.classList.add("editing");
 
 window.exxeed?.onEditMode((on) => {
   editing = on === true;

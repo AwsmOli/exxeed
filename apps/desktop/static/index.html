@@ -107,17 +107,18 @@
       body.overlay .src,
       body.overlay .note { display: none; }
       body.overlay h2 { display: block; font-size: 9.5px; opacity: 0.5; margin: 0 0 5px; }
-      /* Except while arranging, when knowing which panel is which is the point. */
-      body.overlay.editing h2 { opacity: 0.9; color: #58a6ff; }
+      /* Except while dragging, when knowing which panel is which is the point. */
+      body.overlay.dragging h2 { opacity: 0.9; color: #58a6ff; }
       body.overlay .cols { display: block; }
       body.overlay table { min-width: 0; width: 100%; }
       body.overlay td:first-child { width: auto; padding-right: 14px; }
       body.overlay #log { margin-top: 7px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 5px; }
       body.overlay #log:empty { display: none; }
 
-      /* Layout-edit mode: the only time the window is not click-through, so it
-         has to look obviously different or you will not know it is unlocked. */
-      body.overlay.editing .panel {
+      /* Grabbable is now the resting state, so it gets no decoration — an
+         overlay that permanently announced "you can move me" would just be
+         permanent noise. Only the act of dragging is worth showing. */
+      body.overlay.dragging .panel {
         background: rgba(10, 12, 15, 0.97);
         border-color: #58a6ff;
       }
@@ -126,14 +127,6 @@
       body.overlay.editing { cursor: grab; user-select: none; }
       body.overlay.editing.dragging { cursor: grabbing; }
       .edit-hint { display: none; }
-      body.overlay.editing .edit-hint {
-        display: block;
-        margin-top: 7px;
-        padding-top: 5px;
-        border-top: 1px solid rgba(88, 166, 255, 0.35);
-        color: #58a6ff;
-        font-size: 11px;
-      }
     </style>
   </head>
   <body>
@@ -188,7 +181,6 @@
       </section>
     </div>
 
-    <div class="edit-hint">unlocked — drag to move, press the shortcut again to lock</div>
     </div>
 
     <p class="note">

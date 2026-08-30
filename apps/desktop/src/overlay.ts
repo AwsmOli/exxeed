@@ -1,11 +1,16 @@
 /**
  * Overlay windows — SPEC.md §7.
  *
- * One transparent, frameless, click-through window per panel. The flags come
+ * One transparent, frameless, always-on-top window per panel. The flags come
  * straight from the spec: `transparent`, `frame: false`, `alwaysOnTop`,
  * `skipTaskbar`, `resizable: false`, plus `setAlwaysOnTop(true, "screen-saver")`
- * to clear the sim and `setIgnoreMouseEvents(true, { forward: true })` so clicks
- * reach the game.
+ * to clear the sim.
+ *
+ * §7 also specifies `setIgnoreMouseEvents(true, { forward: true })` so clicks
+ * reach the game, and that is available — but not the default. Click-through and
+ * draggable are mutually exclusive, and an overlay nobody can grab is one nobody
+ * can arrange; making the arranging case the one that needs a shortcut got it the
+ * wrong way round. Grabbable by default, click-through on request.
  *
  * ## Why several windows rather than one
  *
@@ -15,11 +20,11 @@
  * position, and they all render the same document with the panel chosen by query
  * string.
  *
- * ## Layout-edit mode is global
+ * ## Click-through is global
  *
- * Click-through windows cannot be dragged, so one shortcut unlocks all of them at
- * once. Per-window unlocking would mean finding and unlocking each one before
- * moving it, which is the opposite of arranging a layout.
+ * One shortcut switches all of them at once. Per-window switching would mean
+ * finding and unlocking each one before moving it, which is the opposite of
+ * arranging a layout.
  *
  * ## The thing that will generate every support question
  *
@@ -47,7 +52,8 @@ export const EDIT_MODE_SHORTCUT = "CommandOrControl+Shift+E";
 export const FULLSCREEN_WARNING =
   "Overlay mode: run the sim in BORDERLESS WINDOWED, not exclusive fullscreen —\n" +
   "  transparent overlays are not supported over exclusive fullscreen.\n" +
-  `  Press ${EDIT_MODE_SHORTCUT} to unlock every overlay and drag it, again to lock.\n`;
+  `  Drag any overlay to move it. ${EDIT_MODE_SHORTCUT} makes them click-through so\n` +
+  "  clicks reach the sim instead; press it again to grab them.\n";
 
 /**
  * Windows that have begun closing.
@@ -144,7 +150,18 @@ function defaultPosition(panels: readonly PanelId[], index: number): Bounds {
 export class OverlayLayout {
   #layout: SavedLayout = loadLayout();
   #windows = new Map<PanelId, BrowserWindow>();
-  #editing = false;
+  /**
+   * Whether clicks pass straight through to the sim.
+   *
+   * False by default, which is the inversion that matters: overlays are
+   * grabbable unless asked otherwise. The toggle is still worth keeping — an
+   * overlay sitting where you want to click is a real nuisance mid-race — but
+   * arranging the layout is what people do first, and it should not require
+   * knowing about a shortcut.
+   */
+  #clickThrough = false;
+  /** Per-panel debounce, so a drag writes the layout once and not per pixel. */
+  #rememberTimers = new Map<PanelId, NodeJS.Timeout>();
   #shortcutRegistered = false;
   #moveHandlerInstalled = false;
 
@@ -202,14 +219,19 @@ export class OverlayLayout {
     // plain alwaysOnTop is not enough.
     window.setAlwaysOnTop(true, "screen-saver");
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    window.setIgnoreMouseEvents(true, { forward: true });
+    // Deliberately NOT click-through by default. An overlay you cannot grab is
+    // an overlay you cannot arrange, and making "move it" a two-step ritual
+    // behind a shortcut turned the common case into the awkward one. The
+    // shortcut still exists, but it now goes the other way: it makes them
+    // click-through for driving, rather than grabbable for arranging.
+    window.setIgnoreMouseEvents(this.#clickThrough, { forward: true });
 
     void window.loadFile(page, { search: `overlay=1&panel=${panel}` });
 
     window.on("close", () => markClosing(window));
-    window.on("moved", () => {
-      if (this.#editing) this.#remember(panel, window);
-    });
+    // Persisting on every "moved" would write the settings file continuously
+    // for the length of a drag, so it settles first.
+    window.on("moved", () => this.#rememberSoon(panel, window));
     window.once("closed", () => {
       this.#windows.delete(panel);
       if (this.#windows.size === 0) this.#releaseShortcut();
@@ -249,7 +271,7 @@ export class OverlayLayout {
     this.#moveHandlerInstalled = true;
 
     ipcMain.on(MOVE_WINDOW_CHANNEL, (event, request: MoveWindowRequest) => {
-      if (!this.#editing) return;
+      if (this.#clickThrough) return;
 
       const window = BrowserWindow.fromWebContents(event.sender);
       if (window === null || window.isDestroyed()) return;
@@ -296,22 +318,42 @@ export class OverlayLayout {
    * anywhere would drift the first time the other one was used.
    */
   toggleEditing(): void {
-    this.setEditing(!this.#editing);
+    this.setEditing(this.#clickThrough);
   }
 
-  setEditing(editing: boolean): void {
-    this.#editing = editing;
+  /** `grabbable` false makes the overlays click-through, so clicks reach the sim. */
+  setEditing(grabbable: boolean): void {
+    this.#clickThrough = !grabbable;
     process.stdout.write(
-      editing
-        ? `overlays unlocked — drag to arrange, ${EDIT_MODE_SHORTCUT} to lock\n`
-        : "overlays locked, layout saved\n",
+      grabbable
+        ? `overlays grabbable — drag to arrange, ${EDIT_MODE_SHORTCUT} for click-through\n`
+        : `overlays click-through — clicks reach the sim, ${EDIT_MODE_SHORTCUT} to grab them\n`,
     );
 
     for (const [panel, window] of this.#windows) {
       if (window.isDestroyed()) continue;
-      window.setIgnoreMouseEvents(!editing, { forward: true });
-      sendTo(window, "exxeed:edit-mode", editing);
-      if (!editing) this.#remember(panel, window);
+      window.setIgnoreMouseEvents(this.#clickThrough, { forward: true });
+      sendTo(window, "exxeed:edit-mode", grabbable);
+      if (!grabbable) this.#remember(panel, window);
     }
+  }
+
+  /**
+   * Save this window's position once it has stopped moving.
+   *
+   * "moved" fires continuously through a drag, and #remember writes a file, so
+   * persisting on every one of them would rewrite the layout a hundred times to
+   * record one move.
+   */
+  #rememberSoon(panel: PanelId, window: BrowserWindow): void {
+    const pending = this.#rememberTimers.get(panel);
+    if (pending !== undefined) clearTimeout(pending);
+    this.#rememberTimers.set(
+      panel,
+      setTimeout(() => {
+        this.#rememberTimers.delete(panel);
+        if (!window.isDestroyed()) this.#remember(panel, window);
+      }, 400),
+    );
   }
 }

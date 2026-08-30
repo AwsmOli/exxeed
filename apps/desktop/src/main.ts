@@ -512,7 +512,14 @@ function chosenPanels(): PanelId[] {
     }
   }
   const panels = settings().get().panels;
-  return panels.length === 0 ? [...PANELS] : [...panels];
+  const chosen = panels.length === 0 ? [...PANELS] : [...panels];
+
+  // The telemetry panel is the raw channel dump — lapDistPct to five places,
+  // gear, the suppression flags. That is a debugging instrument, not something
+  // to read at 200 km/h, and it is the one panel that tells a driver nothing
+  // they cannot see on the car's own dash. Keep it for development, hide it
+  // otherwise, and leave it in PANELS so nobody's saved layout loses its place.
+  return debugEnabled() ? chosen : chosen.filter((p) => p !== "telemetry");
 }
 
 /**
