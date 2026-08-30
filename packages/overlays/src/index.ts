@@ -79,6 +79,20 @@ export const SESSION_COMMAND_CHANNEL = "exxeed:session-command";
  */
 export type SessionPhase = "stopped" | "waiting" | "running";
 
+/** One callout pack, as the control window lists it. */
+export interface NoteSetPack {
+  /** Empty for a track that has a map but no notes written for it yet. */
+  readonly id: string;
+  readonly trackName: string;
+  readonly carClass: string;
+  readonly noteCount: number;
+  readonly status: string;
+  readonly trackId: number;
+  readonly configId: string;
+  /** Set while this is the pack a running session actually loaded. */
+  readonly active: boolean;
+}
+
 export interface SessionStatus {
   readonly phase: SessionPhase;
   readonly autoStart: boolean;
@@ -92,6 +106,16 @@ export interface SessionStatus {
   readonly detail: string | null;
   /** Whether this session is writing a recording, and where. */
   readonly recordingTo: string | null;
+  /** Every pack on disk, for the picker. */
+  readonly packs: readonly NoteSetPack[];
+  /**
+   * The pack pinned by hand, or null to follow whatever track the sim loads.
+   *
+   * Distinct from `noteSetId`, which is what a session ended up using: pinning
+   * Spa's notes while sitting at Daytona is a choice the app should keep and
+   * show, not silently correct.
+   */
+  readonly pinnedNoteSetId: string | null;
 }
 
 export type SessionCommand =
@@ -100,7 +124,8 @@ export type SessionCommand =
   | { readonly kind: "autoStart"; readonly value: boolean }
   | { readonly kind: "runAtLogin"; readonly value: boolean }
   | { readonly kind: "startMinimized"; readonly value: boolean }
-  | { readonly kind: "quit" };
+  | { readonly kind: "selectNoteSet"; readonly id: string | null }
+  | { readonly kind: "editNoteSet"; readonly id: string };
 
 /**
  * Everything the app is configured by.

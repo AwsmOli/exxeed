@@ -38,6 +38,7 @@ import type {
   Repositories,
   ReferenceLapRepository,
   TrackMapRepository,
+  TrackSummary,
 } from "./interfaces.js";
 
 const readJson = async (path: string): Promise<unknown | null> => {
@@ -52,6 +53,23 @@ const readJson = async (path: string): Promise<unknown | null> => {
 const writeJson = async (path: string, value: unknown): Promise<void> => {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+};
+
+/**
+ * Subdirectory names only.
+ *
+ * Walking a tree with plain readdir and recursing into every entry falls over on
+ * the first stray file — `data/tracks/.gitkeep` is committed, so that is not a
+ * hypothetical — and ENOTDIR is not something the ENOENT guard below catches.
+ */
+const listDirs = async (path: string): Promise<string[]> => {
+  try {
+    const entries = await readdir(path, { withFileTypes: true });
+    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw err;
+  }
 };
 
 const listDir = async (path: string): Promise<string[]> => {
@@ -84,6 +102,41 @@ export class LocalFileTrackMapRepository implements TrackMapRepository {
       .filter((name) => /^v\d+$/.test(name))
       .map((name) => Number(name.slice(1)));
     return versions.length === 0 ? null : Math.max(...versions);
+  }
+
+  /**
+   * Walk data/tracks/{sim}/{trackId}/{configId}/v{n}/ and read the newest map in
+   * each layout. Small and rare enough to do plainly: a handful of tracks, read
+   * only when the picker is refreshed.
+   */
+  async listTracks(): Promise<TrackSummary[]> {
+    const root = join(this.root, "tracks");
+    const out: TrackSummary[] = [];
+
+    for (const sim of await listDirs(root)) {
+      for (const trackId of await listDirs(join(root, sim))) {
+        for (const configId of await listDirs(join(root, sim, trackId))) {
+          const key: TrackKey = { sim: "iracing", trackId: Number(trackId), configId };
+          if (!Number.isFinite(key.trackId)) continue;
+
+          const version = await this.latestVersion(key);
+          if (version === null) continue;
+
+          const map = await this.get({ ...key, mapVersion: version });
+          if (map === null) continue;
+
+          out.push({
+            key,
+            mapVersion: version,
+            trackName: map.trackName,
+            configName: map.configName,
+            cornerCount: map.corners.length,
+          });
+        }
+      }
+    }
+
+    return out.sort((a, b) => a.trackName.localeCompare(b.trackName));
   }
 
   async put(map: TrackMap): Promise<void> {

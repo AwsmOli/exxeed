@@ -31,6 +31,7 @@ import {
   type AudioClip,
   type AudioPlayCommand,
   type EngineEventView,
+  type NoteSetPack,
   type SessionCommand,
   type SessionStatus,
   type StateFrame,
@@ -152,6 +153,14 @@ async function noteSetForTrack(
   identity: SessionIdentity | null,
   dataDir: string,
 ): Promise<{ id: string | null; detail: string | null }> {
+  // A hand-picked pack wins. Someone who chose one meant it — including the
+  // case of choosing a pack for a track they are not on, which is how you audit
+  // a set without driving to it.
+  const pinned = settings().get().noteSetId;
+  if (pinned !== null) {
+    return { id: pinned, detail: `using ${pinned} — picked by hand` };
+  }
+
   if (identity?.trackKey == null) {
     return { id: null, detail: "the sim did not report which track this is" };
   }
@@ -336,16 +345,85 @@ let sessionStatus: SessionStatus = {
   noteSetId: null,
   detail: null,
   recordingTo: null,
+  packs: [],
+  pinnedNoteSetId: null,
+};
+
+/**
+ * Every pack on disk, refreshed rather than re-read on every status broadcast.
+ *
+ * The list changes when someone adds or renders a note set, which is rare; the
+ * status broadcasts on every phase change, which is not.
+ */
+let packs: NoteSetPack[] = [];
+
+async function refreshPacks(): Promise<void> {
+  try {
+    const dataDir = resolveDataDir(settings().get());
+    const repos = localRepositories(dataDir);
+    const [summaries, tracks] = await Promise.all([
+      repos.noteSets.listAll(),
+      repos.trackMaps.listTracks(),
+    ]);
+
+    const written = summaries.map((p) => ({
+      id: p.id,
+      trackName: trackNameFor(tracks, p.trackKey.trackId, p.trackKey.configId),
+      carClass: p.carClass,
+      noteCount: p.noteCount,
+      status: p.status,
+      trackId: p.trackKey.trackId,
+      configId: p.trackKey.configId,
+      active: false,
+    }));
+
+    // Tracks that have been mapped but have nothing to say yet. Listing them
+    // beside the real packs is the point: "I have driven here and there are no
+    // notes" is the moment authoring starts, and it is otherwise invisible —
+    // you would have to know the track was missing to go looking for it.
+    const authored = new Set(written.map((p) => `${p.trackId}:${p.configId}`));
+    const empty = tracks
+      .filter((t) => !authored.has(`${t.key.trackId}:${t.key.configId}`))
+      .map((t) => ({
+        id: "",
+        trackName: `${t.trackName}${t.configName === "" ? "" : ` — ${t.configName}`}`,
+        carClass: "",
+        noteCount: 0,
+        status: "no notes yet",
+        trackId: t.key.trackId,
+        configId: t.key.configId,
+        active: false,
+      }));
+
+    packs = [...written, ...empty];
+  } catch (err) {
+    process.stderr.write(`could not list note sets: ${String(err)}
+`);
+    packs = [];
+  }
+  broadcastStatus({});
+}
+
+const trackNameFor = (
+  tracks: readonly { key: { trackId: number; configId: string }; trackName: string; configName: string }[],
+  trackId: number,
+  configId: string,
+): string => {
+  const found = tracks.find((t) => t.key.trackId === trackId && t.key.configId === configId);
+  if (found === undefined) return `track ${trackId}`;
+  return `${found.trackName}${found.configName === "" ? "" : ` — ${found.configName}`}`;
 };
 
 function broadcastStatus(patch: Partial<SessionStatus>): void {
   const current = settings().get();
+  const next = { ...sessionStatus, ...patch };
   sessionStatus = {
-    ...sessionStatus,
-    ...patch,
+    ...next,
     autoStart: current.autoStart,
     runAtLogin: current.runAtLogin,
     startMinimized: current.startMinimized,
+    pinnedNoteSetId: current.noteSetId,
+    packs: packs.map((p) => ({ ...p, active: p.id === next.noteSetId })),
   };
   currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
   controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
@@ -606,6 +684,36 @@ function startOverlays(): void {
     // hide the overlays a beat after the session had shown them.
     layout.setVisible(wantRunning);
     broadcastStatus({});
+  });
+}
+
+/**
+ * Rebuild the application menu.
+ *
+ * Electron menu checkboxes hold their own state, so the menu has to be rebuilt
+ * whenever a toggle changes elsewhere — from the tray, or from another window —
+ * or the tick and the setting drift apart.
+ */
+function rebuildMenu(): void {
+  const current = settings().get();
+  buildApplicationMenu({
+    openPreferences: () => openPreferences(PRELOAD),
+    openEditor: () => openEditor(PRELOAD),
+    renderAudio: () => requestRender(PRELOAD),
+    toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
+    overlayMode: true,
+    toggles: {
+      autoStart: current.autoStart,
+      runAtLogin: current.runAtLogin,
+      startMinimized: current.startMinimized,
+    },
+    setToggle: (name, value) => {
+      settings().updateQuietly(
+        name === "runAtLogin" ? { runAtLogin: applyLoginItem(value) } : { [name]: value },
+      );
+      broadcastStatus({});
+      rebuildMenu();
+    },
   });
 }
 
@@ -888,19 +996,19 @@ void app.whenReady().then(() => {
       // checkbox reflects Windows rather than our intent.
       settings().updateQuietly({ runAtLogin: applyLoginItem(command.value) });
       broadcastStatus({});
-    } else if (command.kind === "quit") {
-      quitting = true;
-      app.quit();
+    } else if (command.kind === "selectNoteSet") {
+      // Through update(), not updateQuietly: this is a person changing what the
+      // app should be doing, so the session listener SHOULD rebuild on it.
+      settings().update({ noteSetId: command.id });
+      broadcastStatus({});
+    } else if (command.kind === "editNoteSet") {
+      // The editor edits whatever is selected, so selecting is how you aim it.
+      settings().update({ noteSetId: command.id });
+      openEditor(PRELOAD);
     }
   });
 
-  buildApplicationMenu({
-    openPreferences: () => openPreferences(PRELOAD),
-    openEditor: () => openEditor(PRELOAD),
-    renderAudio: () => requestRender(PRELOAD),
-    toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
-    overlayMode: true,
-  });
+  rebuildMenu();
 
   process.stdout.write(
     debugEnabled()
@@ -908,6 +1016,9 @@ void app.whenReady().then(() => {
       : "debug off — EXXEED_DEBUG=1 to enable\n",
   );
   process.stdout.write(`preferences: ${PREFERENCES_SHORTCUT}\n`);
+
+  // The picker's contents, in the background — nothing waits on them.
+  void refreshPacks();
 
   // Nothing to configure up front any more: the note set follows the track the
   // sim reports, so there is no longer a question to answer before starting.
