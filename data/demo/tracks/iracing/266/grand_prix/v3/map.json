@@ -11,7 +11,7 @@
   "lengthM": 7004,
   "generatedFrom": {
     "source": "telemetry",
-    "baselineCarId": 173,
+    "baselineCarId": "gt3-fixture",
     "lapHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   },
   "corners": [
