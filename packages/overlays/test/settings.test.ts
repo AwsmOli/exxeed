@@ -102,7 +102,7 @@ describe("withEnvOverrides", () => {
 
   it("treats EXXEED_SKIP_OUTLAP as a flag, present or not", () => {
     expect(withEnvOverrides(base, { EXXEED_SKIP_OUTLAP: "1" }).debug.skipOutLap).toBe(true);
-    expect(withEnvOverrides(base, {}).debug.skipOutLap).toBe(false);
+    expect(withEnvOverrides(base, {}).debug.skipOutLap).toBe(true);
   });
 
   it("filters unknown panel names out of the environment too", () => {

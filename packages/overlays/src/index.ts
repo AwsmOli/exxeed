@@ -65,6 +65,68 @@ export const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
  */
 export const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
 
+/** Whether the app is running, and what it is connected to. main → renderer. */
+export const SESSION_STATUS_CHANNEL = "exxeed:session-status";
+
+/** Renderer → main: start, stop, or set autostart. */
+export const SESSION_COMMAND_CHANNEL = "exxeed:session-command";
+
+/**
+ * What the app is doing, for the control window.
+ *
+ * "waiting" is a normal resting state, not a failure: the app is meant to be
+ * left running while the sim comes and goes underneath it.
+ */
+export type SessionPhase = "stopped" | "waiting" | "running";
+
+/** One callout pack, as the control window lists it. */
+export interface NoteSetPack {
+  /** Empty for a track that has a map but no notes written for it yet. */
+  readonly id: string;
+  readonly trackName: string;
+  readonly carClass: string;
+  readonly noteCount: number;
+  readonly status: string;
+  readonly trackId: number;
+  readonly configId: string;
+  /** Set while this is the pack a running session actually loaded. */
+  readonly active: boolean;
+}
+
+export interface SessionStatus {
+  readonly phase: SessionPhase;
+  readonly autoStart: boolean;
+  readonly runAtLogin: boolean;
+  readonly startMinimized: boolean;
+  /** Track and car the sim reported, once connected. */
+  readonly trackName: string | null;
+  readonly carName: string | null;
+  /** Note set actually loaded, and why there is none when there is none. */
+  readonly noteSetId: string | null;
+  readonly detail: string | null;
+  /** Whether this session is writing a recording, and where. */
+  readonly recordingTo: string | null;
+  /** Every pack on disk, for the picker. */
+  readonly packs: readonly NoteSetPack[];
+  /**
+   * The pack pinned by hand, or null to follow whatever track the sim loads.
+   *
+   * Distinct from `noteSetId`, which is what a session ended up using: pinning
+   * Spa's notes while sitting at Daytona is a choice the app should keep and
+   * show, not silently correct.
+   */
+  readonly pinnedNoteSetId: string | null;
+}
+
+export type SessionCommand =
+  | { readonly kind: "start" }
+  | { readonly kind: "stop" }
+  | { readonly kind: "autoStart"; readonly value: boolean }
+  | { readonly kind: "runAtLogin"; readonly value: boolean }
+  | { readonly kind: "startMinimized"; readonly value: boolean }
+  | { readonly kind: "selectNoteSet"; readonly id: string | null }
+  | { readonly kind: "editNoteSet"; readonly id: string };
+
 /**
  * Everything the app is configured by.
  *
@@ -103,6 +165,41 @@ export interface Settings {
    * downloaded exactly one voice needs no choice made at all.
    */
   readonly renderVoiceId: string | null;
+  /**
+   * Connect to the sim as soon as it appears, without being asked.
+   *
+   * The app outlives any one session: it is started once and left running, and
+   * the sim comes and goes underneath it. Waiting for the sim is the normal
+   * state, not an error.
+   */
+  readonly autoStart: boolean;
+  /**
+   * Which note set was last used at each track, keyed by `sim:trackId:configId`.
+   *
+   * A track can have several sets — different coaches, different car classes —
+   * and the useful default is the one that was driven last rather than whichever
+   * sorts first. Per track, because the answer at Daytona says nothing about the
+   * answer at Spa.
+   */
+  readonly noteSetByTrack: Readonly<Record<string, string>>;
+  /**
+   * Launch with Windows.
+   *
+   * Stored here so the window has something to render, but the setting of record
+   * is the OS login-item list — main writes to that and reads it back, because a
+   * checkbox that disagrees with what Windows actually does is worse than no
+   * checkbox.
+   */
+  readonly runAtLogin: boolean;
+  /**
+   * Start with the control window hidden in the tray.
+   *
+   * The overlays still open and a session still starts: minimised means "do not
+   * put a window in front of me", not "do nothing". Pointless without runAtLogin
+   * today, but the two are separate settings because "launch on login" and "get
+   * out of the way" are separate wishes.
+   */
+  readonly startMinimized: boolean;
   readonly debug: DebugSettings;
 }
 
@@ -120,7 +217,22 @@ export interface DebugSettings {
   /** Replay rate. 1 is real time. */
   readonly replaySpeed: number;
   readonly loopReplay: boolean;
-  /** Speak from the first frame. Replay only — refused for a live source. */
+  /**
+   * Speak from the first corner instead of waiting out §6.4's out-lap gate.
+   *
+   * On by default, which is a deliberate departure from §6.4. The gate exists so
+   * a callout cannot fire while the driver is still leaving the pits — but every
+   * one of those states is *already* suppressed on its own: OnPitRoad, IsInGarage,
+   * PlayerCarTowTime and the 30 km/h crawl threshold all hold independently. The
+   * gate is a second layer over cases the first layer covers.
+   *
+   * What it costs is not one lap but nearly two. §6.2 starts every note SPENT,
+   * and a note only re-arms once its point is more than half a lap away, so
+   * opening the gate at the line still leaves only the back half of the lap
+   * armed — measured on Daytona, one callout out of six on the first flying lap
+   * and a full set only on the second. Someone joining a session already on
+   * track waits that long for nothing.
+   */
   readonly skipOutLap: boolean;
 }
 
@@ -133,11 +245,15 @@ export const DEFAULT_SETTINGS: Settings = {
   panels: [...PANELS],
   piperBinary: null,
   renderVoiceId: null,
+  autoStart: true,
+  noteSetByTrack: {},
+  runAtLogin: false,
+  startMinimized: false,
   debug: {
     replayPath: null,
     replaySpeed: 1,
     loopReplay: true,
-    skipOutLap: false,
+    skipOutLap: true,
   },
 };
 
@@ -174,6 +290,20 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
     panels: panels.length === 0 ? DEFAULT_SETTINGS.panels : panels,
     piperBinary: s.piperBinary ?? DEFAULT_SETTINGS.piperBinary,
     renderVoiceId: s.renderVoiceId ?? DEFAULT_SETTINGS.renderVoiceId,
+    autoStart:
+      typeof s.autoStart === "boolean" ? s.autoStart : DEFAULT_SETTINGS.autoStart,
+    runAtLogin:
+      typeof s.runAtLogin === "boolean" ? s.runAtLogin : DEFAULT_SETTINGS.runAtLogin,
+    startMinimized:
+      typeof s.startMinimized === "boolean"
+        ? s.startMinimized
+        : DEFAULT_SETTINGS.startMinimized,
+    noteSetByTrack:
+      typeof s.noteSetByTrack === "object" && s.noteSetByTrack !== null
+        ? Object.fromEntries(
+            Object.entries(s.noteSetByTrack).filter(([, v]) => typeof v === "string"),
+          )
+        : DEFAULT_SETTINGS.noteSetByTrack,
     debug: {
       replayPath: storedDebug.replayPath ?? DEFAULT_SETTINGS.debug.replayPath,
       replaySpeed: number(storedDebug.replaySpeed, DEFAULT_SETTINGS.debug.replaySpeed),
@@ -226,6 +356,10 @@ export function withEnvOverrides(
     panels: panels.length === 0 ? settings.panels : panels,
     piperBinary: get("EXXEED_PIPER") ?? settings.piperBinary,
     renderVoiceId: get("EXXEED_VOICE_MODEL") ?? settings.renderVoiceId,
+    autoStart: get("EXXEED_AUTOSTART") !== undefined || settings.autoStart,
+    noteSetByTrack: settings.noteSetByTrack,
+    runAtLogin: settings.runAtLogin,
+    startMinimized: settings.startMinimized,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,

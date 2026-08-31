@@ -20,8 +20,9 @@
  *   exxeed-ingest render <noteSetId> [options]
  *
  *   --data <dir>      artefact root, default ./data
- *   --model <path>    piper .onnx voice model (or EXXEED_PIPER_MODEL)
- *   --piper <path>    piper executable (or EXXEED_PIPER, default ./.venv/bin/piper)
+ *   --model <path>    piper .onnx voice model; default: data/voices/
+ *   --piper <path>    piper executable (or EXXEED_PIPER; defaults to the venv:
+ *                     .venv/Scripts/piper.exe on Windows, .venv/bin/piper elsewhere)
  *   --length-scale N  speaking rate; below 1 is faster, default 1
  *   --voice <id>      override the voiceId recorded in the pack
  */
@@ -32,7 +33,7 @@ import { resolve } from "node:path";
 import { ImportProfileSchema, resolveProfile, type NoteSet } from "@exxeed/core";
 import { localRepositories } from "@exxeed/repo";
 
-import { PiperEngine, renderNoteSet } from "@exxeed/tts";
+import { listInstalledVoices, PiperEngine, renderNoteSet } from "@exxeed/tts";
 
 const STAGES = [
   "0 normalise", "1 metadata", "2 triage", "3 extract",
@@ -58,11 +59,19 @@ function usage(): number {
   return 1;
 }
 
+/** Where `python -m venv .venv` puts the piper executable on this platform. */
+const defaultPiperPath = (): string =>
+  process.platform === "win32" ? ".venv/Scripts/piper.exe" : ".venv/bin/piper";
+
 async function render(argv: readonly string[]): Promise<number> {
   const positional: string[] = [];
   let dataDir = "data";
   let model = env("EXXEED_PIPER_MODEL");
-  let binary = env("EXXEED_PIPER") ?? ".venv/bin/piper";
+  // A venv puts its executables in Scripts\ on Windows and bin/ everywhere else.
+  // Defaulting to the POSIX layout made the one platform this app actually runs
+  // on — iRacing is Windows only (§3) — the one platform where rendering failed
+  // out of the box, with an ENOENT naming a path that was never going to exist.
+  let binary = env("EXXEED_PIPER") ?? defaultPiperPath();
   let lengthScale = 1;
   let voiceId: string | undefined;
 
@@ -79,12 +88,31 @@ async function render(argv: readonly string[]): Promise<number> {
   const noteSetId = positional[0];
   if (noteSetId === undefined) return usage();
 
+  // No --model: take whatever is in the voices folder, which is where the
+  // preferences window downloads to. The CLI and the app should not disagree
+  // about where voices live, and only one of them can offer a picker.
   if (model === undefined) {
-    process.stderr.write(
-      "no voice model. Pass --model or set EXXEED_PIPER_MODEL to a piper .onnx file.\n" +
-        "Voices: https://huggingface.co/rhasspy/piper-voices\n",
-    );
-    return 1;
+    const voicesDir = fromInvocationDir("data/voices");
+    const installed = await listInstalledVoices(voicesDir);
+    const chosen =
+      voiceId === undefined ? installed[0] : installed.find((v) => v.id === voiceId);
+    if (chosen === undefined) {
+      process.stderr.write(
+        installed.length === 0
+          ? `no voice in ${voicesDir}. Download one from preferences, or pass --model.\n` +
+              `Only some Piper voices may be redistributed — see README.\n`
+          : `no voice "${String(voiceId)}" in ${voicesDir}. Installed: ` +
+              `${installed.map((v) => v.id).join(", ")}\n`,
+      );
+      return 1;
+    }
+    model = chosen.model;
+    if (chosen.catalogue === null) {
+      process.stderr.write(
+        `warning: "${chosen.id}" is not one of the licence-checked voices — ` +
+          `confirm its terms before distributing audio made with it\n`,
+      );
+    }
   }
 
   const repos = localRepositories(fromInvocationDir(dataDir));

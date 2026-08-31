@@ -117,7 +117,18 @@ async function readHeaderIdentity(path: string): Promise<SessionIdentity | null>
       const trackId = str("trackId");
       if (trackId === null) return null;
 
+      // Recordings made before the header carried §4.0's key have no way to
+      // produce one — the slug is not reversible into a TrackID. A zeroed key
+      // matches nothing, which is the honest answer: replaying such a lap still
+      // works, it just cannot look artefacts up by track.
+      const stored = r["trackKey"];
+      const trackKey =
+        typeof stored === "object" && stored !== null
+          ? (stored as SessionIdentity["trackKey"])
+          : { sim: "iracing" as const, trackId: 0, configId: "" };
+
       return {
+        trackKey,
         trackId,
         trackName: str("trackName") ?? trackId,
         trackConfig: str("trackConfig") ?? "",

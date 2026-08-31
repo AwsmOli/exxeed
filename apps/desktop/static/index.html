@@ -40,10 +40,23 @@
          arrives — without one there is no ghost to draw against. */
       #trace { display: none; width: 280px; height: 120px; }
       #trace.ready { display: block; }
+      /* The one panel that keeps a background. Throttle and brake are read as
+         "how full is the lane", and a lane with no visible top or bottom has no
+         fullness — 100% and 60% look the same against the sim. */
+      body.overlay #trace {
+        background: rgba(10, 12, 15, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
       #ref-name { margin-top: 14px; }
       .trace-key { max-width: 280px; color: #6f7885; font-size: 10.5px; margin-top: 3px; }
 
       #delta { max-width: 280px; margin-top: 10px; }
+      /* Hidden until a delta exists. A bar pinned at zero next to the words
+         "waiting for a lap" is a panel spending its whole area saying nothing. */
+      body.overlay #delta { display: none; }
+      body.overlay #delta.ready { display: block; }
       #delta-track {
         position: relative; height: 8px; border-radius: 4px;
         background: rgba(255,255,255,0.07);
@@ -60,7 +73,16 @@
       #delta-text.down { color: #f87171; }
 
       /* An overlay window holds exactly one panel, so the panel fills it. */
-      body.overlay .panel { margin: 0; height: 100vh; box-sizing: border-box; }
+      /* The panel is inset from the window edge, so its height has to be the
+         viewport MINUS both insets. It used to be a flat 100vh next to an 8px
+         margin, which made it 16px taller than the window it lives in — and
+         since the body clips, what got cut was precisely the bottom border and
+         its rounded corners. Derived from the same variable so the two cannot
+         drift apart again. */
+      body.overlay .panel {
+        height: calc(100vh - var(--overlay-inset) * 2);
+        box-sizing: border-box;
+      }
       body.overlay .cols { display: block; height: 100%; }
       body.overlay section { height: 100%; }
       body.overlay #map { width: 100%; height: calc(100% - 22px); }
@@ -85,19 +107,27 @@
         bright, changing, and not under our control.
       */
       body.overlay {
+        /* One source of truth for the gap between the window edge and the panel.
+           Both the margin and the panel's height are derived from it. */
+        --overlay-inset: 8px;
         background: transparent;
         padding: 0;
         overflow: hidden;
         user-select: none;
         cursor: default;
       }
+      /* No panel background. An overlay should cost only the pixels its content
+         actually occupies — a filled box the size of the window blocks the view
+         even where it has nothing to say. Legibility over a bright, moving image
+         comes from the text shadow instead, which costs nothing where there is
+         no text. Only the trace gets a background, because a chart you cannot
+         see the extent of cannot tell you whether you are at 100%. */
       body.overlay .panel {
-        background: rgba(10, 12, 15, 0.82);
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        border-radius: 8px;
-        padding: 10px 13px;
-        margin: 8px;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+        background: transparent;
+        border: 0;
+        padding: 0;
+        margin: var(--overlay-inset);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.7);
         font-size: 12px;
         line-height: 1.45;
       }
@@ -106,34 +136,40 @@
       body.overlay h1,
       body.overlay .src,
       body.overlay .note { display: none; }
-      body.overlay h2 { display: block; font-size: 9.5px; opacity: 0.5; margin: 0 0 5px; }
-      /* Except while arranging, when knowing which panel is which is the point. */
-      body.overlay.editing h2 { opacity: 0.9; color: #58a6ff; }
+      /* No titles. A label naming what you are already looking at is a line of
+         text over the track for no information — the map is a map, the bar is a
+         delta. The one exception is the map's own line, and only while there is
+         no map: then it is not a title, it is the panel's entire content. */
+      body.overlay h2 { display: none; }
+      /* An explicit hide rather than leaning on the h2 rule above: there is a
+         `body.overlay #map-name` further up carrying an id, which outranks it
+         and would keep the line on screen forever. */
+      body.overlay.has-map #map-name { display: none; }
+      body.overlay:not(.has-map) #map-name {
+        display: block;
+        font-size: 10.5px;
+        opacity: 0.75;
+        margin: 0;
+      }
       body.overlay .cols { display: block; }
       body.overlay table { min-width: 0; width: 100%; }
       body.overlay td:first-child { width: auto; padding-right: 14px; }
       body.overlay #log { margin-top: 7px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 5px; }
       body.overlay #log:empty { display: none; }
 
-      /* Layout-edit mode: the only time the window is not click-through, so it
-         has to look obviously different or you will not know it is unlocked. */
-      body.overlay.editing .panel {
-        background: rgba(10, 12, 15, 0.97);
-        border-color: #58a6ff;
+      /* Grabbable is now the resting state, so it gets no decoration — an
+         overlay that permanently announced "you can move me" would just be
+         permanent noise. Only the act of dragging is worth showing. */
+      body.overlay.dragging .panel {
+        background: rgba(10, 12, 15, 0.9);
+        border-radius: 6px;
+        outline: 1px solid #58a6ff;
       }
       /* The whole panel is the handle, so the cursor belongs on the body — the
          pointer is over a canvas or a table cell most of the time. */
       body.overlay.editing { cursor: grab; user-select: none; }
       body.overlay.editing.dragging { cursor: grabbing; }
       .edit-hint { display: none; }
-      body.overlay.editing .edit-hint {
-        display: block;
-        margin-top: 7px;
-        padding-top: 5px;
-        border-top: 1px solid rgba(88, 166, 255, 0.35);
-        color: #58a6ff;
-        font-size: 11px;
-      }
     </style>
   </head>
   <body>
@@ -178,7 +214,7 @@
         <h2>Delta</h2>
         <div id="delta">
           <div id="delta-track"><div id="delta-fill"></div></div>
-          <div id="delta-text">waiting for a lap</div>
+          <div id="delta-text"></div>
         </div>
       </section>
 
@@ -188,7 +224,6 @@
       </section>
     </div>
 
-    <div class="edit-hint">unlocked — drag to move, press the shortcut again to lock</div>
     </div>
 
     <p class="note">

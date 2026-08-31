@@ -7,6 +7,8 @@
  * from here and knows nothing about iRacing.
  */
 
+import type { TrackKey } from "@exxeed/core";
+
 import type { TelemetryFrame } from "./frame.js";
 
 /**
@@ -18,6 +20,15 @@ import type { TelemetryFrame } from "./frame.js";
  * re-branded between seasons and these do not.
  */
 export interface SessionIdentity {
+  /**
+   * The key every artefact for this track is addressed by (§4.0).
+   *
+   * Distinct from `trackId` below, which is a slug for a directory name. This is
+   * what a note set, a track map or a reference lap is actually filed under, and
+   * without it the app knows what the sim loaded but cannot look anything up for
+   * it — which is the whole point of asking.
+   */
+  readonly trackKey: TrackKey;
   /** Filesystem-safe, stable, e.g. "daytona-2011-road". */
   readonly trackId: string;
   /** Human-facing, e.g. "Daytona International Speedway". */

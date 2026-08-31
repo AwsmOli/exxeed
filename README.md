@@ -63,15 +63,36 @@ callout is one fixed sentence rendered whole.
 
 To write notes, open **Preferences → Voice rendering**. It lists the voices it
 can fetch, downloads the one you pick into `data/voices/`, and finds Piper
-itself. On Windows and Linux it can install Piper too; on macOS there is no
+itself. On Windows and Linux it can install Piper for you; on macOS there is no
 working standalone build, so use a venv:
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install piper-tts
 ```
 
-`data/voices/` and `data/piper/` are gitignored — a voice model is ~60 MB of
-someone else's weights, not source.
+The same venv is what the ingest CLI uses when rendering a pack away from the sim
+machine:
+
+```powershell
+# Windows
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install piper-tts
+pnpm --filter @exxeed/ingest start render daytona-mx5-draft --data data
+```
+
+A venv puts its executables in `Scripts\` on Windows and `bin/` elsewhere, and
+`--piper` defaults to whichever matches the platform it is running on. Override
+it with `--piper` or `EXXEED_PIPER` if piper lives somewhere else.
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install piper-tts
+```
+
+`data/voices/` and `data/piper/` are gitignored, as is the venv — a voice model
+is ~60 MB of someone else's weights, not source. So is `data/audio/`: **an audio
+pack is a build artefact, not source.** A fresh clone has note sets but no sound,
+and rendering is what produces it — if callouts are silent, or beep, that is the
+step that has not been run.
 
 ### Voice licences, which are not a formality
 

@@ -29,7 +29,23 @@ export interface TrackMapRepository {
   get(ref: TrackRef): Promise<TrackMap | null>;
   /** Latest map version for a physical track, or null if none is cut yet. */
   latestVersion(key: TrackKey): Promise<number | null>;
+  /**
+   * Every track that has a map cut, newest version each.
+   *
+   * For answering "what could I write notes for?" — a map means a lap has been
+   * recorded and cut, which is exactly the point at which a track becomes
+   * authorable.
+   */
+  listTracks(): Promise<TrackSummary[]>;
   put(map: TrackMap): Promise<void>;
+}
+
+export interface TrackSummary {
+  readonly key: TrackKey;
+  readonly mapVersion: number;
+  readonly trackName: string;
+  readonly configName: string;
+  readonly cornerCount: number;
 }
 
 export interface LandmarkRepository {

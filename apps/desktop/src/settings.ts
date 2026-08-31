@@ -34,10 +34,26 @@ export const debugEnabled = (): boolean =>
   resolveDebugEnabled(app.isPackaged, process.env["EXXEED_DEBUG"]);
 
 function readStored(): Partial<Settings> {
+  let text: string;
   try {
-    const raw: unknown = JSON.parse(readFileSync(settingsPath(), "utf8"));
-    return typeof raw === "object" && raw !== null ? (raw as Partial<Settings>) : {};
+    text = readFileSync(settingsPath(), "utf8");
   } catch {
+    // No settings yet. Defaults are the answer and there is nothing to say.
+    return {};
+  }
+
+  try {
+    // Strip a byte-order mark first. Notepad and PowerShell's Set-Content both
+    // write one by default, JSON.parse throws on it, and the old catch-all
+    // turned that into "every setting silently back to default" — which looks
+    // like the app forgetting rather than a file it could not read.
+    const raw: unknown = JSON.parse(text.replace(/^\uFEFF/, ""));
+    return typeof raw === "object" && raw !== null ? (raw as Partial<Settings>) : {};
+  } catch (err) {
+    process.stderr.write(
+      `could not read ${settingsPath()}: ${err instanceof Error ? err.message : String(err)}\n` +
+        `falling back to defaults — the file is not being overwritten, so fix it and restart\n`,
+    );
     return {};
   }
 }
@@ -62,8 +78,24 @@ export class SettingsStore {
     this.#listeners.push(listener);
   }
 
+  /**
+   * Persist a patch WITHOUT telling anyone.
+   *
+   * For state the app writes about itself rather than state a person changed —
+   * which note set was used at which track, say. Those listeners rebuild the
+   * session, so a session that records its own choice through `update` would
+   * rebuild itself, record the choice again, and never stop.
+   */
+  updateQuietly(patch: Partial<Settings>): Settings {
+    return this.#apply(patch, false);
+  }
+
   /** Merge a patch, persist it, and tell everyone. Returns the new settings. */
   update(patch: Partial<Settings>): Settings {
+    return this.#apply(patch, true);
+  }
+
+  #apply(patch: Partial<Settings>, notify: boolean): Settings {
     this.#stored = {
       ...this.#stored,
       ...patch,
@@ -81,7 +113,7 @@ export class SettingsStore {
     // Overrides still win after an edit, so what the app is actually doing and
     // what the window shows cannot drift apart.
     this.#current = withEnvOverrides(withDefaults(this.#stored), overrides());
-    for (const listener of this.#listeners) listener(this.#current);
+    if (notify) for (const listener of this.#listeners) listener(this.#current);
     return this.#current;
   }
 }

@@ -39,6 +39,13 @@ const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
 const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
 
 contextBridge.exposeInMainWorld("exxeed", {
+  /** The control window: start, stop, autostart, and what the app is doing. */
+  onSessionStatus: (cb: (payload: unknown) => void) =>
+    subscribe("exxeed:session-status", cb),
+  sendSessionCommand: (command: unknown): void => {
+    ipcRenderer.send("exxeed:session-command", command);
+  },
+
   /** Preferences. The only request/response pair — everything else is one-way. */
   getSettings: (): Promise<unknown> => ipcRenderer.invoke(SETTINGS_GET_CHANNEL),
   setSettings: (patch: unknown): Promise<unknown> =>

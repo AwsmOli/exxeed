@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   ImportProfileSchema,
-  NoteSetSchema,
   ReferenceLapSchema,
   TrackMapSchema,
   resolveProfile,
@@ -16,7 +15,6 @@ const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 const MAP = "data/tracks/iracing/192/road_course/v1/map.json";
 const LAP = "data/reflaps/iracing/192/road_course/mx5-mx52016.json";
-const AUTHORED = "data/notesets/daytona-mx5-draft.json";
 
 const readJson = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(`${REPO_ROOT}${path}`, "utf8"));
@@ -34,83 +32,75 @@ const readJson = async (path: string): Promise<unknown> =>
  *   pnpm --filter @exxeed/trackmap exec exxeed-trackmap \
  *     data/reference/daytona-2011-road-mx5-lap.ndjson --track-id 192 --config road_course
  */
-const present = [MAP, LAP, AUTHORED].every((p) => existsSync(`${REPO_ROOT}${p}`));
+const present = [MAP, LAP].every((p) => existsSync(`${REPO_ROOT}${p}`));
 const describeWithData = present ? describe : describe.skip;
 
 /**
  * The resolver, against real data.
  *
  * `import.test.ts` checks the resolver's rules on synthetic maps. This checks the
- * one thing that cannot be checked synthetically: whether turn numbers alone put a
- * callout where a person would have put it. The hand-authored Daytona MX-5 set was
- * written by reading a track guide and placing five notes by eye; the profile below
- * is those same five callouts stripped back to what stage 3 actually emits — a turn
- * number and a sentence. If the resolver reproduces the hand-placed positions from
- * that much, the import path works. If it does not, the failure is the interesting
- * result, not the test.
+ * thing that cannot be checked synthetically: that a turn number and a sentence —
+ * all stage 3 emits — land on the moment the sentence is *about*.
+ *
+ * For "brake at the black seam" that moment is when braking starts, which the
+ * reference lap measured. It is not corner entry: at Daytona those are 20 to 57
+ * metres apart, and the trigger works backwards from the event so that speech
+ * *finishes* there (§6.1). Anchor a braking callout at entry and it finishes
+ * after the braking point has gone by, which is the one place it must not.
  *
  * The comparison is in metres, because that is the unit the error matters in. A
  * quarter of a percent of Daytona is fourteen metres, which is most of a braking
  * zone; the same number at a kart track is nothing.
  */
 describeWithData("import round-trip against the hand-authored Daytona set", () => {
-  it("places imported callouts within a few metres of where a person placed them", async () => {
-    const map = TrackMapSchema.parse(
-      await readJson(MAP),
-    );
-    const lap = ReferenceLapSchema.parse(
-      await readJson(LAP),
-    );
-    const authored = NoteSetSchema.parse(await readJson(AUTHORED));
+  it("puts a braking callout on the measured braking point", async () => {
+    const map = TrackMapSchema.parse(await readJson(MAP));
+    const lap = ReferenceLapSchema.parse(await readJson(LAP));
 
-    // Stage 3's output for this video, had it existed: the sentences a person
-    // wrote, and the turn each one is about. No positions.
+    // Stage 3's output: a turn number and a sentence. Nothing about position.
     const profile = ImportProfileSchema.parse({
       schema: 1,
-      source: authored.source,
+      source: { type: "manual", title: "Samba Racing MX-5 guide" },
       carClass: "mx5",
       callouts: [
-        {
-          turn: 1,
-          text: authored.notes[0]!.text,
-          textShort: authored.notes[0]!.textShort,
-        },
-        { turn: 4, text: authored.notes[1]!.text, textShort: authored.notes[1]!.textShort },
-        { turn: 6, text: authored.notes[2]!.text, textShort: authored.notes[2]!.textShort },
-        { turn: 7, text: authored.notes[3]!.text, textShort: authored.notes[3]!.textShort },
-        // The bus stop is one callout over three corners, so it exercises the
-        // range path — and the three share a braking zone, so anchoring at the
-        // first is what makes that correct rather than merely tidy.
-        {
-          turn: 9,
-          throughTurn: 11,
-          text: authored.notes[4]!.text,
-          textShort: authored.notes[4]!.textShort,
-        },
+        { turn: 1, text: "Brake at the black seam, seventy percent, second gear", textShort: "Black seam" },
+        { turn: 4, text: "Brake as the second to last lamp post disappears", textShort: "Lamp post" },
+        { turn: 6, text: "Brake at the end of the road on the left", textShort: "Left slip road" },
+        { turn: 7, text: "Brake at the end of the road on the right", textShort: "Right slip road" },
+        { turn: 9, throughTurn: 11, text: "Chicane, brake at the one marker", textShort: "One marker" },
       ],
     });
 
     const resolved = resolveProfile(profile, map, lap);
 
     expect(resolved.unresolved).toEqual([]);
-    expect(resolved.notes).toHaveLength(5);
-    // Every short form was supplied, and every turn had a measured onset, so
-    // there is nothing for the resolver to guess about and nothing to warn about.
     expect(resolved.warnings).toEqual([]);
+    expect(resolved.notes).toHaveLength(5);
 
-    const errorsM = resolved.notes.map((note, i) => {
-      const authoredPct = authored.notes[i]!.pct;
-      return (note.pct - authoredPct) * map.lengthM;
-    });
+    for (const [i, turn] of [1, 4, 6, 7, 9].entries()) {
+      const onset = lap.perCorner[String(turn)]?.brakeOnsetPct;
+      expect(onset).not.toBeUndefined();
+      const errorM = (resolved.notes[i]!.pct - onset!) * map.lengthM;
+      expect(Math.abs(errorM)).toBeLessThan(1);
+    }
+  });
 
-    for (const error of errorsM) {
-      // Within a car length and a half of the hand-placed point.
-      expect(Math.abs(error)).toBeLessThan(5);
-      // And consistently *later*: a person placing a note by eye leaves themselves
-      // a margin before the measured onset, which the resolver does not. That is a
-      // real difference in intent, not noise — the sign is the evidence for it, so
-      // if it ever flips, the resolver has started doing something else.
-      expect(error).toBeGreaterThan(0);
+  /**
+   * The distinction the test above is really about, stated as a number.
+   *
+   * If these two ever coincide the resolver has stopped choosing and the first
+   * test would pass for the wrong reason — so this asserts they are genuinely
+   * far apart at this track, which is what makes anchoring a decision at all.
+   */
+  it("does not merely land on corner entry, which is tens of metres later", async () => {
+    const map = TrackMapSchema.parse(await readJson(MAP));
+    const lap = ReferenceLapSchema.parse(await readJson(LAP));
+
+    for (const turn of [1, 4, 6, 7, 9]) {
+      const onset = lap.perCorner[String(turn)]!.brakeOnsetPct!;
+      const entry = map.corners.find((c) => c.index === turn)!.entryPct;
+      const gapM = (entry - onset) * map.lengthM;
+      expect(gapM).toBeGreaterThan(15);
     }
   });
 

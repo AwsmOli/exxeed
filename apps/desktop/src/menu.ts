@@ -29,6 +29,23 @@ export interface MenuActions {
   readonly renderAudio: () => void;
   readonly toggleOverlayEdit: () => void;
   readonly overlayMode: boolean;
+  /**
+   * The three app-level toggles, as menu checkboxes.
+   *
+   * They live here rather than in the window because they are settings, not
+   * controls: you change them once and forget them. Keeping them out of the
+   * window leaves it free for the thing you actually look at, which is the pack
+   * list and what the app is doing right now.
+   */
+  readonly toggles: {
+    readonly autoStart: boolean;
+    readonly runAtLogin: boolean;
+    readonly startMinimized: boolean;
+  };
+  readonly setToggle: (
+    name: "autoStart" | "runAtLogin" | "startMinimized",
+    value: boolean,
+  ) => void;
 }
 
 export function buildApplicationMenu(actions: MenuActions): void {
@@ -61,6 +78,27 @@ export function buildApplicationMenu(actions: MenuActions): void {
     click: () => actions.toggleOverlayEdit(),
   };
 
+  const toggles: MenuItemConstructorOptions[] = [
+    {
+      label: "Start Automatically With The Sim",
+      type: "checkbox",
+      checked: actions.toggles.autoStart,
+      click: (item) => actions.setToggle("autoStart", item.checked),
+    },
+    {
+      label: "Run When Windows Starts",
+      type: "checkbox",
+      checked: actions.toggles.runAtLogin,
+      click: (item) => actions.setToggle("runAtLogin", item.checked),
+    },
+    {
+      label: "Start Minimized To Tray",
+      type: "checkbox",
+      checked: actions.toggles.startMinimized,
+      click: (item) => actions.setToggle("startMinimized", item.checked),
+    },
+  ];
+
   const appMenu: MenuItemConstructorOptions[] = isMac
     ? [
         {
@@ -85,7 +123,14 @@ export function buildApplicationMenu(actions: MenuActions): void {
   const fileMenu: MenuItemConstructorOptions = isMac
     ? {
         label: "File",
-        submenu: [editNotes, renderAudio, { type: "separator" }, { role: "close" }],
+        submenu: [
+          editNotes,
+          renderAudio,
+          { type: "separator" },
+          ...toggles,
+          { type: "separator" },
+          { role: "close" },
+        ],
       }
     : {
         label: "File",
@@ -93,6 +138,8 @@ export function buildApplicationMenu(actions: MenuActions): void {
           editNotes,
           renderAudio,
           preferences,
+          { type: "separator" },
+          ...toggles,
           { type: "separator" },
           { role: "quit" },
         ],
