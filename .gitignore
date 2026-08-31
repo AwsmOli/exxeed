@@ -55,7 +55,12 @@ data/profile/*
 .venv/
 
 # Voice models are ~60 MB each and are downloaded, not authored.
-voices/
+#
+# Anchored to the repo root. Unanchored, this matched `data/voices/` too, and
+# being the later rule it beat that section's `!data/voices/.gitkeep` — so the
+# folder the app downloads into did not exist on a fresh clone. A top-level
+# voices/ is still ignored: the old README told people to make one.
+/voices/
 
 # Third-party video transcripts. Ingest input (§10), not our content — §10's
 # provenance rule is to record the source, not to redistribute the material.
