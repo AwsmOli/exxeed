@@ -14,6 +14,7 @@
  * the decision path never leaves this process.
  */
 
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow } from "electron";
@@ -57,7 +58,7 @@ import {
   registerPreferencesShortcut,
 } from "./preferences.js";
 import { debugEnabled, SettingsStore } from "./settings.js";
-import { loadSession, type LoadedSession } from "./session.js";
+import { carWarnings, loadSession, type LoadedSession } from "./session.js";
 
 // Before any getPath call: without it userData lands under "@exxeed", taken from
 // the package name, which is where the overlay's remembered position lives.
@@ -68,6 +69,21 @@ app.setName("Exxeed");
 // get printed.
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url)).replace(/[\\/]+$/, "");
 const FIXTURE = `${REPO_ROOT}/packages/telemetry/test/fixtures/synthetic-3laps.ndjson`;
+
+/**
+ * The one recordings folder. Deliberately not under the chosen data folder:
+ * a recording is what this machine drove, not part of a note set's data, and
+ * pointing the data folder at data/demo must not hide the laps.
+ */
+const RECORDINGS_DIR = `${REPO_ROOT}/data/recordings`;
+
+/**
+ * A replay setting names a file inside the recordings folder. An absolute path
+ * still works and is used as-is — that is what EXXEED_REPLAY and the replay
+ * harness pass, and neither of them goes through the picker.
+ */
+const resolveReplayPath = (value: string): string =>
+  isAbsolute(value) ? value : join(RECORDINGS_DIR, value);
 
 const env = (name: string): string | undefined => {
   const value = process.env[name];
@@ -118,7 +134,7 @@ function createSource(): TelemetrySource {
   }
 
   if (debug.replayPath !== null) {
-    return new ReplayAdapter(debug.replayPath, {
+    return new ReplayAdapter(resolveReplayPath(debug.replayPath), {
       speed: debug.replaySpeed,
       loop: debug.loopReplay,
     });
@@ -222,7 +238,7 @@ function recordingPath(identity: SessionIdentity | null): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dir =
     identity === null ? "unknown" : `${identity.trackId}/${identity.carId}`;
-  return `${REPO_ROOT}/data/recordings/${dir}/${stamp}.ndjson`;
+  return `${RECORDINGS_DIR}/${dir}/${stamp}.ndjson`;
 }
 
 const describeIdentity = (identity: SessionIdentity | null): string =>
@@ -302,6 +318,20 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   process.stdout.write(
     `recording ${describeIdentity(source.identity)} -> ${recorder.path}\n`,
   );
+
+  // Only now is the car known (§13 Q2). Loading pinned a note set and a
+  // reference lap without one, so this is the first moment either can be checked
+  // against what is actually being driven.
+  if (session !== null) {
+    for (const warning of await carWarnings(
+      resolveDataDir(settings().get()),
+      session.noteSet,
+      session.reference,
+      source.identity,
+    )) {
+      process.stderr.write(`warning: ${warning}\n`);
+    }
+  }
 
   const lapTimer = new LapTimer();
 
@@ -505,7 +535,7 @@ function startDesktop(): void {
 
 void app.whenReady().then(() => {
   store = new SettingsStore();
-  installSettingsIpc(settings(), resolveDataDir);
+  installSettingsIpc(settings(), resolveDataDir, RECORDINGS_DIR);
   installEditorIpc(() => settings().get(), resolveDataDir);
   registerPreferencesShortcut(PRELOAD);
 

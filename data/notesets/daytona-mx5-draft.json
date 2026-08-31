@@ -8,118 +8,95 @@
   "lengthM": 5687.290045843393,
   "carClass": "mx5",
   "source": {
-    "type": "manual",
-    "title": "Draft cut from the reference lap — text not yet written",
-    "channel": "—"
+    "type": "youtube",
+    "title": "Daytona Road Course — Global Mazda MX-5 track guide (production car challenge)",
+    "channel": "Samba Racing"
   },
   "status": "draft",
   "createdAt": "2026-08-27T00:00:00Z",
   "notes": [
     {
       "id": "t1",
-      "pct": 0.06125000000000003,
-      "text": "Brake, turn 1, left, second out",
-      "textShort": "Left",
+      "pct": 0.051,
+      "text": "Turn one, brake at the black seam, aim for the lamp post, gas at the red and white billboard",
+      "textShort": "Black seam",
       "priority": 1,
-      "leadAdjustS": 0,
-      "fadeable": true,
+      "leadAdjustS": 0.05,
       "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t1.wav",
-        "durationMs": 2554
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t1.wav",
+        "durationMs": 5921
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t1_short.wav",
-        "durationMs": 546
-      },
-      "dirty": false
-    },
-    {
-      "id": "t2",
-      "pct": 0.11299999999999999,
-      "text": "Brake, turn 2, left, third out",
-      "textShort": "Left",
-      "priority": 1,
-      "leadAdjustS": 0,
-      "fadeable": true,
-      "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t2.wav",
-        "durationMs": 2496
-      },
-      "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t2_short.wav",
-        "durationMs": 546
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t1_short.wav",
+        "durationMs": 906
       },
       "dirty": false
     },
     {
       "id": "t4",
-      "pct": 0.15274999999999994,
-      "text": "Brake, turn 4, right, first out",
-      "textShort": "Right",
+      "pct": 0.1478,
+      "text": "Turn four, brake as the second-last lamp post goes, gas at the Ferris wheel",
+      "textShort": "Lamp post",
       "priority": 1,
-      "leadAdjustS": 0,
-      "fadeable": true,
+      "leadAdjustS": 0.7,
       "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t4.wav",
-        "durationMs": 2496
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t4.wav",
+        "durationMs": 5433
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t4_short.wav",
-        "durationMs": 499
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t4_short.wav",
+        "durationMs": 975
       },
       "dirty": false
     },
     {
       "id": "t6",
-      "pct": 0.28475000000000006,
-      "text": "Brake, turn 6, right, first out",
-      "textShort": "Right",
+      "pct": 0.2808,
+      "text": "Turn six, brake at the left slip road, aim for the apex",
+      "textShort": "Left slip road",
       "priority": 1,
-      "leadAdjustS": 0,
-      "fadeable": true,
+      "leadAdjustS": 0.2,
       "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t6.wav",
-        "durationMs": 2705
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t6.wav",
+        "durationMs": 3878
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t6_short.wav",
-        "durationMs": 499
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t6_short.wav",
+        "durationMs": 1242
       },
       "dirty": false
     },
     {
       "id": "t7",
-      "pct": 0.36675000000000013,
-      "text": "Brake, turn 7, left, second out",
-      "textShort": "Left",
+      "pct": 0.361,
+      "text": "Turn seven, brake at the right slip road, aim for the tyre wall",
+      "textShort": "Right slip road",
       "priority": 1,
-      "leadAdjustS": 0,
-      "fadeable": true,
+      "leadAdjustS": 0.65,
       "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t7.wav",
-        "durationMs": 2589
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t7.wav",
+        "durationMs": 4458
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t7_short.wav",
-        "durationMs": 546
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t7_short.wav",
+        "durationMs": 1149
       },
       "dirty": false
     },
     {
       "id": "t9",
-      "pct": 0.65625,
-      "text": "Brake, turns 9 to 11, left right left, third out",
-      "textShort": "Left",
+      "pct": 0.6489,
+      "text": "Chicane, brake at the one marker, gas between the second and third kerbs",
+      "textShort": "One marker",
       "priority": 1,
-      "leadAdjustS": 0,
-      "fadeable": true,
+      "leadAdjustS": 0.1,
       "audio": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t9.wav",
-        "durationMs": 3355
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t9.wav",
+        "durationMs": 4528
       },
       "audioShort": {
-        "file": "daytona-mx5-draft/en_US-lessac-medium/t9_short.wav",
-        "durationMs": 546
+        "file": "daytona-mx5-draft/en_US-ljspeech-medium/t9_short.wav",
+        "durationMs": 801
       },
       "dirty": false
     }

@@ -15,6 +15,7 @@
  *   --notes <id>     note set to load from --data (otherwise: frames only)
  *   --data <dir>     artefact root, default ./data
  *   --lead-adjust N  driver profile lead adjustment, seconds
+ *   --skip-outlap    speak from the first frame; for single-lap recordings
  */
 
 import { resolve } from "node:path";
@@ -27,6 +28,7 @@ interface Args {
   readonly notesId: string | null;
   readonly dataDir: string;
   readonly leadAdjustS: number;
+  readonly skipOutLap: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args | null {
@@ -35,6 +37,7 @@ function parseArgs(argv: readonly string[]): Args | null {
   let notesId: string | null = null;
   let dataDir = "data";
   let leadAdjustS = 0;
+  let skipOutLap = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -42,12 +45,13 @@ function parseArgs(argv: readonly string[]): Args | null {
     else if (arg === "--notes") notesId = argv[++i] ?? null;
     else if (arg === "--data") dataDir = argv[++i] ?? "data";
     else if (arg === "--lead-adjust") leadAdjustS = Number(argv[++i] ?? "0");
+    else if (arg === "--skip-outlap") skipOutLap = true;
     else positional.push(arg);
   }
 
   const path = positional[0];
   if (path === undefined) return null;
-  return { path, speed, notesId, dataDir, leadAdjustS };
+  return { path, speed, notesId, dataDir, leadAdjustS, skipOutLap };
 }
 
 /**
@@ -63,7 +67,7 @@ async function main(): Promise<number> {
   if (args === null) {
     process.stderr.write(
       "usage: exxeed-replay <recording.ndjson> [--speed N] [--notes ID] [--data DIR]\n" +
-        "                     [--lead-adjust S]\n",
+        "                     [--lead-adjust S] [--skip-outlap]\n",
     );
     return 1;
   }
@@ -75,6 +79,7 @@ async function main(): Promise<number> {
     noteSetId: args.notesId,
     dataDir: fromInvocationDir(args.dataDir),
     leadAdjustS: args.leadAdjustS,
+    skipOutLap: args.skipOutLap,
     onLine: (line) => process.stdout.write(`${line}\n`),
   });
 

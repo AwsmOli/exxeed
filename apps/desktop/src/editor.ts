@@ -29,6 +29,8 @@ import {
   EDITOR_SAVE_CHANNEL,
 } from "@exxeed/overlays";
 import { PiperEngine, renderNoteSet } from "@exxeed/tts";
+
+import { resolveRenderSetup } from "./voices.js";
 import type { Note, NoteSet, ReferenceLap, TrackMap } from "@exxeed/core";
 import { aheadM, metres, nearestBrakeOnset, pct, triggerWindow } from "@exxeed/core";
 import { localRepositories } from "@exxeed/repo";
@@ -152,8 +154,14 @@ async function buildPayload(
   };
 }
 
-const canRender = (settings: Settings): boolean =>
-  settings.piperModel !== null && settings.piperModel !== "";
+/**
+ * Whether the render button can do anything. Async because it is a question
+ * about the filesystem — is Piper there, is a voice there — not about the
+ * settings object, which is the whole point of the change: an author no longer
+ * declares where those are, so the app has to look.
+ */
+const canRender = async (settings: Settings): Promise<boolean> =>
+  (await resolveRenderSetup(settings)).problem === null;
 
 export function installEditorIpc(
   getSettings: () => Settings,
@@ -166,7 +174,7 @@ export function installEditorIpc(
       resolveDataDir(settings),
       settings.noteSetId,
       settings.leadAdjustS,
-      canRender(settings),
+      await canRender(settings),
     );
   });
 
@@ -184,12 +192,9 @@ export function installEditorIpc(
     if (settings.noteSetId === null) {
       return { ok: false, message: "no note set selected", payload: null };
     }
-    if (settings.piperModel === null || settings.piperModel === "") {
-      return {
-        ok: false,
-        message: "no voice model set — add one in preferences",
-        payload: null,
-      };
+    const resolved = await resolveRenderSetup(settings);
+    if (resolved.problem !== null) {
+      return { ok: false, message: resolved.problem, payload: null };
     }
 
     const dataDir = resolveDataDir(settings);
@@ -200,8 +205,8 @@ export function installEditorIpc(
     }
 
     const engine = new PiperEngine({
-      binary: settings.piperBinary ?? "piper",
-      model: settings.piperModel,
+      binary: resolved.setup.binary,
+      model: resolved.setup.model,
       voiceId: settings.voiceId,
     });
 
@@ -219,7 +224,7 @@ export function installEditorIpc(
           dataDir,
           settings.noteSetId,
           settings.leadAdjustS,
-          canRender(settings),
+          await canRender(settings),
         ),
       };
     } catch (err) {
@@ -271,7 +276,7 @@ export function installEditorIpc(
       dataDir,
       settings.noteSetId,
       settings.leadAdjustS,
-      canRender(settings),
+      await canRender(settings),
     );
   });
 }

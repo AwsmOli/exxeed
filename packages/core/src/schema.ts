@@ -68,8 +68,9 @@ export const TrackMapSchema = z.object({
   lengthM: z.number().positive(),
   generatedFrom: z.object({
     source: z.enum(["telemetry", "ibt", "manual"]),
-    /** apexPct is mildly car-dependent, so record which car it came from (§4.1). */
-    baselineCarId: z.number().int().nonnegative(),
+    /** apexPct is mildly car-dependent, so record which car it came from (§4.1).
+     *  The sim's slug, for the same reason as `ReferenceLap.carId`. */
+    baselineCarId: z.string().min(1),
     lapHash: z.string(),
   }),
   corners: z.array(CornerSchema),
@@ -126,7 +127,16 @@ export const PerCornerSchema = z.object({
 export const ReferenceLapSchema = z.object({
   /** TrackKey, NOT TrackRef — re-cutting the map must not invalidate this (§4.0). */
   trackKey: TrackKeySchema,
-  carId: z.number().int().nonnegative(),
+  /**
+   * The sim's own car identifier, e.g. "mx5-mx52016".
+   *
+   * A string slug rather than a number because that is what the sim actually
+   * reports (`SessionIdentity.carId`, from `CarPath`), so the car being driven
+   * resolves to its reference lap directly. The previous integer was typed by
+   * hand at recording time and had no authority behind it, which made a third
+   * car identifier nobody could derive from the other two.
+   */
+  carId: z.string().min(1),
   lapTimeS: z.number().positive(),
   /** Samples evenly spaced in pct, so comparison is array indexing with no time
    *  alignment. The single most useful decision in the data model (§4.3). */

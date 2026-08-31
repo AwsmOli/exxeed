@@ -54,19 +54,40 @@ Callouts are rendered offline, once per note set, by [Piper](https://github.com/
 — local, free, and native 16-bit WAV, so nothing calls a TTS API at runtime and
 there is no `ffprobe` dependency: duration is read straight out of the header.
 
+**Only authors need any of this.** A note set carries its own audio — ten files
+and about 1.2 MB for a five-callout set — so driving one someone else wrote needs
+no Piper, no voice model and no setup. That is the whole reason §10 renders
+offline: CrewChief needs a several-hundred-megabyte sound pack because it
+assembles sentences from fragments at runtime, and Exxeed does not, because each
+callout is one fixed sentence rendered whole.
+
+To write notes, open **Preferences → Voice rendering**. It lists the voices it
+can fetch, downloads the one you pick into `data/voices/`, and finds Piper
+itself. On Windows and Linux it can install Piper too; on macOS there is no
+working standalone build, so use a venv:
+
 ```sh
 python3 -m venv .venv && .venv/bin/pip install piper-tts
-
-mkdir -p voices && cd voices
-BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium
-curl -sSLO $BASE.onnx && curl -sSLO $BASE.onnx.json && cd ..
-
-pnpm --filter @exxeed/ingest start render daytona-mx5-draft \
-  --data data --model voices/en_US-lessac-medium.onnx
 ```
 
-The venv and `voices/` are gitignored — piper is kept out of any system Python,
-and a voice model is ~60 MB of downloaded weights rather than source.
+`data/voices/` and `data/piper/` are gitignored — a voice model is ~60 MB of
+someone else's weights, not source.
+
+### Voice licences, which are not a formality
+
+Most Piper voices cannot be shipped in a product, and the popular ones are the
+worst offenders. `en_US-lessac-medium` — the obvious default, and what this
+project rendered with first — is trained on the Blizzard 2013 Lessac corpus,
+whose licence forbids "the development, marketing, commercialisation, sale or
+licencing of voice synthesis products", and that reaches the *synthesised audio*,
+not just the model. `hfc_male` is CC BY-NC-SA. Both are fine to experiment with
+and impossible to distribute.
+
+The picker therefore offers a short list whose model **and dataset** licences
+were both read: `en_US-ljspeech` (public-domain dataset, MIT model) and
+`en_US-libritts_r` (CC BY 4.0, so credit it). Adding to that list means reading a
+MODEL_CARD — rhasspy/piper-voices is MIT as a repository while containing voices
+nobody may ship, so the repository licence proves nothing.
 
 > **Piper is not deterministic by default.** It samples noise during inference,
 > so the same sentence rendered twice differs by ~240 ms. That matters more here
@@ -85,8 +106,8 @@ one's speaking window shaded back from its point. Double-click a label to edit
 it, drag a point to move it, or snap it to the measured braking point.
 
 **Render Audio** (`Cmd/Ctrl+Shift+R`) re-renders the set through Piper and
-redraws the windows from the new durations. Set the voice model in preferences
-first — without it the button is disabled rather than failing when pressed.
+redraws the windows from the new durations. Download a voice in preferences
+first — without one the button is disabled rather than failing when pressed.
 
 ## Testing on Windows
 
@@ -208,14 +229,35 @@ edit look like it did nothing.
 `EXXEED_NOTES`, `EXXEED_DATA`, `EXXEED_VOICE`, `EXXEED_CAR`, `EXXEED_LEAD_ADJUST`,
 `EXXEED_PANELS`, `EXXEED_REPLAY`, `EXXEED_SPEED`, `EXXEED_SKIP_OUTLAP`,
 `EXXEED_OVERLAY`, `EXXEED_DEBUG`. Two more belong to the ingest CLI:
-`EXXEED_PIPER` and `EXXEED_PIPER_MODEL`.
+`EXXEED_PIPER` and `EXXEED_VOICE_MODEL` (a voice id in `data/voices/`, not a path).
+
+`EXXEED_REPLAY` takes a full path, and should — it is passed by scripts that
+never see the picker. The saved setting behind it names a file inside the
+recordings folder instead; see below.
+
+#### Recordings
+
+`data/recordings/` is the one place replays come from. A session's own recording
+lands there grouped `<trackId>/<carId>/<stamp>.ndjson`, the preferences window
+lists whatever is in it newest first, and **Import…** checks a file will actually
+replay before copying it in — that it has frames, that they parse, and that the
+car moves. A file that merely parses but was recorded parked replays as a session
+where nothing happens, which is indistinguishable from a broken engine, so that
+is checked rather than assumed.
+
+**Open folder** shows it in the file manager, so a pile of laps can be dropped in
+at once; the list refreshes when the preferences window comes back into focus.
+Nothing about a recording being picked up depends on how it got there — the
+import button only adds the check and the `<trackId>/<carId>/` grouping.
 
 ### Command-line tools
 
 ```
 exxeed-replay   <recording.ndjson> [--speed N] [--notes ID] [--data DIR] [--lead-adjust S]
+                [--skip-outlap]
 exxeed-trackmap <lap.ndjson> --track-id N --config ID [--overrides PATH] [--svg PATH] [--dry-run]
 exxeed-ingest   render <noteSetId> [--model PATH] [--length-scale N] [--voice ID]
+exxeed-ingest   import <profile.json> --id <noteSetId> --track-id N --config ID
 ```
 
 Each prints its full option list when run without arguments. Note that

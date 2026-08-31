@@ -1162,7 +1162,16 @@ or 2.
   onboard lap, video time maps monotonically to track position, so it can resolve
   *"brake here"* to a corner from elapsed position. Not exact, but enough to pick
   between candidates.
-- Cap `text` at 8 words. Require `textShort` at 3 or fewer.
+- **Do not cap `text` at a word count.** An earlier draft said eight words; the
+  only hand-authored set in the project runs 11 to 19, because a useful callout
+  carries a braking landmark *and* an aim point *and* a throttle reference, and
+  dropping any of the three loses the thing that makes it worth saying. The real
+  constraint is time and it is already enforced twice — §6.3 refuses to speak a
+  callout that will not finish before its point, and §7.4 draws the arc so an
+  author can see the cost of another word. A word count is a guess at that;
+  neither of those is.
+  `textShort` still has to be genuinely short, because it exists to fit where the
+  full form no longer does — three or four words.
 - Require `confidence` per note.
 - **Rewrite, don't echo.** Instruct the model to normalise into your own short
   pacenote phrasing rather than reproducing transcript wording. Better callouts,
@@ -1301,9 +1310,29 @@ windowed warning, overlay layout editor, note-set picker UI.
 1. **Landmark inventory bootstrap.** Building the first inventory per track is
    manual — someone drives and marks where the boards are. Acceptable for the
    first two tracks, or worth building a marking tool in M1?
-2. **Car class taxonomy.** iRacing car IDs are fine-grained; note sets are per
-   *class*. Need a mapping table, and a decision on granularity (GT3 vs
-   GT3-by-manufacturer).
+2. ~~**Car class taxonomy.**~~ **Settled.** There were three car identifiers and
+   no mapping between any of them: the sim reports a slug (`SessionIdentity.carId`,
+   e.g. `"mx5-mx52016"`), a `ReferenceLap` was keyed by a hand-typed integer, and
+   a `NoteSet` names a free-text `carClass`.
+
+   **`ReferenceLap.carId` and `TrackMap.generatedFrom.baselineCarId` are now the
+   sim's slug**, so the car being driven finds its own reference lap with no
+   lookup. The integer came from `--car-id` at recording time and had no source of
+   truth behind it. What remains is one table, `data/cars/{sim}.json`, mapping
+   slug to class — the only part that genuinely needs a human, since nothing about
+   the strings decides whether a 296 GT3 and a 992 GT3 R are one class.
+
+   **Granularity is therefore data, not code.** Splitting `"gt3"` per manufacturer
+   is an edit to that file and nothing recompiles.
+
+   **The check runs after connect, not at load.** The session is pinned up front
+   (§4.5, §8.1) but the sim only hands over the track and car on connect, so
+   `carWarnings` is a second pass. A class mismatch warns and still runs — §1's
+   "a GT3 brakes at the 100 board where an MX-5 brakes at the 150" makes it wrong
+   braking points rather than a cosmetic complaint, but refusing would also refuse
+   every car not yet in the table. An unknown car is reported as unknown, never as
+   a mismatch: a warning that fires whenever someone drives something new stops
+   being read.
 3. **Reference lap source.** Three candidates, in ascending order of risk:
 
    | Source | Channels | Format risk | Notes |
@@ -1350,8 +1379,31 @@ windowed warning, overlay layout editor, note-set picker UI.
    you know. Look for that time as a float, and check whether file size scales with
    track length in a way that implies per-sample records. An hour of work tells you
    whether this is tractable at all.
-4. **Voice.** One voice for v1 — which provider? Affects only stage 6 and is
-   swappable, but pick before M2 so durations are real.
+4. ~~**Voice.** One voice for v1 — which provider?~~ **Settled: Piper**, local and
+   free, `en_US-ljspeech-medium`. Native 16-bit WAV, so duration is read from the
+   header and there is no `ffprobe` dependency. Noise scales must be pinned to
+   zero on every invocation or the same sentence renders at a different length
+   each time, which would silently retime every callout. Still swappable — the
+   engine is an interface — but the durations are real now.
+
+   **The voice is a licensing decision, not a taste one.** The first choice here
+   was `en_US-lessac-medium`, which cannot be shipped: the Blizzard 2013 Lessac
+   licence forbids commercialising voice-synthesis products and that reaches the
+   synthesised audio, not just the model. `hfc_male` is CC BY-NC-SA. Both are
+   popular, both are dead ends. A voice qualifies only when its **dataset** and
+   its model both permit redistribution of the output — `ljspeech` is
+   public-domain data with an MIT model, `libritts_r` is CC BY 4.0 and needs
+   credit. rhasspy/piper-voices is MIT as a repository while containing voices
+   nobody may ship, so the repository licence proves nothing; read the MODEL_CARD.
+
+   **Piper itself is GPL-3.0** — it embeds espeak-ng. Spawning it as a separate
+   process (which is what §10 stage 6 does) leaves this project's own licence
+   alone; bundling the binary into an installer would take on GPLv3 obligations
+   for that component, which is why the app downloads it on request instead. The
+   last release with standalone binaries is 2023.11.14-2; everything since is a
+   Python wheel. That release's **macOS tarball is broken** — it ships
+   `libonnxruntime.dylib.dSYM` without the `.dylib` — so macOS renders through a
+   pip-installed Piper and only Windows and Linux can self-install.
 5. **CrewChief landmark corpus.** Worth an email to Jim Britton about reuse. A
    shortcut, not a dependency — do not block on it.
 

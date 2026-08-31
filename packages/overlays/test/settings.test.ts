@@ -40,7 +40,9 @@ describe("withDefaults", () => {
     const merged = withDefaults({
       leadAdjustS: "0.4" as never,
       voiceId: "" as never,
-      carId: "67" as never,
+      // A number, now that carId is the sim's slug — this used to be the case
+      // the other way round, when a hand-typed integer was the car identity.
+      carId: 67 as never,
     });
     expect(merged.leadAdjustS).toBe(0);
     expect(merged.voiceId).toBe(DEFAULT_SETTINGS.voiceId);
@@ -48,9 +50,11 @@ describe("withDefaults", () => {
   });
 
   it("keeps a legitimate zero rather than treating it as absent", () => {
-    // ?? not ||: 0 is a real lead adjustment and carId 0 is a real car.
+    // ?? not ||: 0 is a real lead adjustment and must survive.
     expect(withDefaults({ leadAdjustS: 0 }).leadAdjustS).toBe(0);
-    expect(withDefaults({ carId: 0 }).carId).toBe(0);
+    // An empty slug is not a car, though, so it falls back rather than being kept.
+    expect(withDefaults({ carId: "" }).carId).toBe(DEFAULT_SETTINGS.carId);
+    expect(withDefaults({ carId: "mx5-mx52016" }).carId).toBe("mx5-mx52016");
   });
 });
 
@@ -61,13 +65,15 @@ describe("withEnvOverrides", () => {
     expect(withEnvOverrides(base, {})).toEqual(base);
   });
 
-  it("carries the piper paths, and lets the environment override them", () => {
-    const stored = withDefaults({ piperModel: "/voices/stored.onnx" });
-    expect(stored.piperModel).toBe("/voices/stored.onnx");
+  it("carries the render voice, and lets the environment override it", () => {
+    // A voice id in the voices folder, not a path: the app finds the file, so
+    // the setting survives the folder moving and can be offered as a picker.
+    const stored = withDefaults({ renderVoiceId: "en_US-ljspeech-medium" });
+    expect(stored.renderVoiceId).toBe("en_US-ljspeech-medium");
     expect(stored.piperBinary).toBeNull();
 
-    const overridden = withEnvOverrides(stored, { EXXEED_PIPER_MODEL: "/voices/env.onnx" });
-    expect(overridden.piperModel).toBe("/voices/env.onnx");
+    const overridden = withEnvOverrides(stored, { EXXEED_VOICE_MODEL: "en_US-libritts_r-medium" });
+    expect(overridden.renderVoiceId).toBe("en_US-libritts_r-medium");
   });
 
   it("lets the environment win", () => {

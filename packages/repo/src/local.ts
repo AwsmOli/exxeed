@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 
 import type {
   AudioPack,
+  CarRegistry,
   LandmarkInventory,
   NoteSet,
   NoteSetSummary,
@@ -23,6 +24,7 @@ import type {
 } from "@exxeed/core";
 import {
   AudioPackSchema,
+  CarRegistrySchema,
   LandmarkInventorySchema,
   NoteSetSchema,
   ReferenceLapSchema,
@@ -33,6 +35,7 @@ import {
 
 import type {
   AudioRepository,
+  CarRegistryRepository,
   LandmarkRepository,
   NoteSetRepository,
   Repositories,
@@ -112,21 +115,21 @@ export class LocalFileReferenceLapRepository implements ReferenceLapRepository {
 
   /** data/reflaps/{sim}/{trackId}/{configId}/{carId}.json — no version segment,
    *  deliberately. A recorded lap survives every re-cut of the track map. */
-  #path(key: TrackKey, carId: number): string {
+  #path(key: TrackKey, carId: string): string {
     return join(this.root, "reflaps", key.sim, String(key.trackId), key.configId, `${carId}.json`);
   }
 
-  async get(key: TrackKey, carId: number): Promise<ReferenceLap | null> {
+  async get(key: TrackKey, carId: string): Promise<ReferenceLap | null> {
     const raw = await readJson(this.#path(key, carId));
     return raw === null ? null : ReferenceLapSchema.parse(raw);
   }
 
-  async listCars(key: TrackKey): Promise<number[]> {
+  async listCars(key: TrackKey): Promise<string[]> {
     const dir = join(this.root, "reflaps", key.sim, String(key.trackId), key.configId);
     return (await listDir(dir))
-      .filter((name) => /^\d+\.json$/.test(name))
-      .map((name) => Number(name.replace(/\.json$/, "")))
-      .sort((a, b) => a - b);
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => name.replace(/\.json$/, ""))
+      .sort((a, b) => a.localeCompare(b));
   }
 
   async put(lap: ReferenceLap): Promise<void> {
@@ -232,10 +235,21 @@ export class LocalFileAudioRepository implements AudioRepository {
 }
 
 /** Wire the whole local set at once. `root` is the /data directory. */
+export class LocalFileCarRegistryRepository implements CarRegistryRepository {
+  constructor(private readonly root: string) {}
+
+  /** data/cars/{sim}.json */
+  async get(sim: string): Promise<CarRegistry | null> {
+    const raw = await readJson(join(this.root, "cars", `${sim}.json`));
+    return raw === null ? null : CarRegistrySchema.parse(raw);
+  }
+}
+
 export const localRepositories = (root: string): Repositories => ({
   trackMaps: new LocalFileTrackMapRepository(root),
   landmarks: new LocalFileLandmarkRepository(root),
   referenceLaps: new LocalFileReferenceLapRepository(root),
   noteSets: new LocalFileNoteSetRepository(root),
   audio: new LocalFileAudioRepository(root),
+  cars: new LocalFileCarRegistryRepository(root),
 });

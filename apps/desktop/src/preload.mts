@@ -28,6 +28,11 @@ const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
 const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
 const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
 const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
+const RECORDING_IMPORT_CHANNEL = "exxeed:recording-import";
+const RECORDING_REVEAL_CHANNEL = "exxeed:recording-reveal";
+const VOICE_DOWNLOAD_CHANNEL = "exxeed:voice-download";
+const PIPER_INSTALL_CHANNEL = "exxeed:piper-install";
+const INSTALL_PROGRESS_CHANNEL = "exxeed:install-progress";
 const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
 const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
 const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
@@ -40,6 +45,22 @@ contextBridge.exposeInMainWorld("exxeed", {
     ipcRenderer.invoke(SETTINGS_SET_CHANNEL, patch),
   onSettingsChanged: (cb: (payload: unknown) => void) =>
     subscribe(SETTINGS_CHANGED_CHANNEL, cb),
+
+  /** Pick a recording, check it replays, copy it into the recordings folder. */
+  importRecording: (): Promise<unknown> => ipcRenderer.invoke(RECORDING_IMPORT_CHANNEL),
+
+  /** Show the recordings folder, for dropping laps in by hand. */
+  revealRecordings: (): Promise<string> => ipcRenderer.invoke(RECORDING_REVEAL_CHANNEL),
+
+  /** Authoring setup: fetch a voice, install Piper, watch either arrive. */
+  downloadVoice: (id: string): Promise<unknown> =>
+    ipcRenderer.invoke(VOICE_DOWNLOAD_CHANNEL, id),
+  installPiper: (): Promise<unknown> => ipcRenderer.invoke(PIPER_INSTALL_CHANNEL),
+  onInstallProgress: (fn: (p: unknown) => void): void => {
+    ipcRenderer.on(INSTALL_PROGRESS_CHANNEL, (_event, payload) => {
+      fn(payload);
+    });
+  },
 
   /** The note editor (§7.4). */
   loadNotes: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_LOAD_CHANNEL),

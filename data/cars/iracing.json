@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "sim": "iracing",
+  "cars": {
+    "mx5-mx52016": { "class": "mx5", "name": "Mazda MX-5 Cup" }
+  }
+}

@@ -24,7 +24,7 @@ export const spaMap: TrackMap = {
   lengthM: SPA_LENGTH_M,
   generatedFrom: {
     source: "telemetry",
-    baselineCarId: 173,
+    baselineCarId: "ferrari296gt3",
     lapHash: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
   },
   corners: [

@@ -36,6 +36,14 @@ data/reflaps/*
 !data/reflaps/.gitkeep
 data/audio/*
 !data/audio/.gitkeep
+
+# Voices and Piper are fetched, not authored — tens of megabytes of somebody
+# else's release artefacts. data/voices/ holds the .onnx models the preferences
+# window downloads; data/piper/ the standalone build it installs.
+data/voices/*
+!data/voices/.gitkeep
+data/piper/*
+!data/piper/.gitkeep
 data/profile/*
 !data/profile/.gitkeep
 

@@ -19,7 +19,7 @@ function flatLap(speedMps: number): ReferenceLap {
   const fill = (v: number) => new Array<number>(GRID).fill(v);
   return {
     trackKey: { sim: "iracing", trackId: 266, configId: "grand_prix" },
-    carId: 1,
+    carId: "ferrari296gt3",
     lapTimeS: SPA_LENGTH_M / speedMps,
     gridSize: GRID,
     channels: {

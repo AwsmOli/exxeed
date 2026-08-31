@@ -35,6 +35,15 @@
       input[type="number"] { min-width: 90px; }
       input:focus, select:focus { outline: none; border-color: #58a6ff; }
       .hint { color: #6f7885; font-size: 11.5px; margin: -5px 0 12px 146px; max-width: 380px; }
+      button {
+        background: #21262d; color: #e6e9ee; font: inherit; cursor: pointer;
+        border: 1px solid rgba(255,255,255,0.14); border-radius: 5px; padding: 4px 11px;
+      }
+      button:hover { background: #2b323b; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .path { display: block; margin: 3px 0; color: #566072; word-break: break-all; }
+      #importResult.bad, #voiceProgress.bad { color: #d8a06a; }
+      #importResult.ok, #voiceProgress.ok { color: #7ee787; }
       .panels { display: flex; flex-wrap: wrap; gap: 12px; }
       .panels label { display: flex; align-items: center; gap: 5px; color: #e6e9ee; }
       .note {
@@ -81,18 +90,30 @@
     <div class="hint">Which recorded lap the input trace and delta bar compare against.</div>
 
     <h2>Voice rendering</h2>
-    <div class="row">
-      <label class="name" for="piperModel">Voice model</label>
-      <input type="text" id="piperModel" placeholder="voices/en_US-lessac-medium.onnx" />
+    <div class="hint" style="margin-left:0">
+      Only needed to <em>write</em> notes. A note set carries its own audio, so
+      driving one someone else made needs none of this.
     </div>
+
     <div class="row">
-      <label class="name" for="piperBinary">Piper</label>
-      <input type="text" id="piperBinary" placeholder=".venv/bin/piper" />
+      <label class="name" for="renderVoice">Voice</label>
+      <select id="renderVoice"></select>
+      <button type="button" id="getVoice">Download…</button>
     </div>
+    <div class="hint" id="voiceLicence"></div>
+
+    <div class="row">
+      <label class="name">Piper</label>
+      <span id="piperStatus">—</span>
+      <button type="button" id="getPiper" hidden>Install</button>
+    </div>
+    <div class="hint" id="piperHint"></div>
+
+    <div class="hint" id="voiceProgress" style="display:none"></div>
+
     <div class="hint">
-      Where Piper and its <code>.onnx</code> voice live. Without them the note
-      editor cannot re-render a callout after you change its words — and until it
-      is re-rendered the note is mistimed, not just mispronounced, because the
+      Re-rendering matters more than it sounds: until a changed callout is
+      re-rendered it is <em>mistimed</em>, not just mispronounced, because the
       audio's length is what sets its lead.
     </div>
 
@@ -113,9 +134,18 @@
 
       <div class="row">
         <label class="name" for="replayPath">Replay file</label>
-        <input type="text" id="replayPath" placeholder="(none — connect to iRacing)" />
+        <select id="replayPath"></select>
+        <button type="button" id="importRecording">Import…</button>
+        <button type="button" id="revealRecordings">Open folder</button>
       </div>
-      <div class="hint">An .ndjson recording. Leave empty to use the sim.</div>
+      <div class="hint">
+        Everything in the recordings folder, newest first — laps this app recorded
+        are already here. <span id="recordingsDir" class="path"></span>
+        <b>Open folder</b> to drop files in yourself; the list picks them up when
+        you come back to this window. <b>Import…</b> does the same for one file,
+        and checks it will actually replay first. Choose “none” to use the sim.
+      </div>
+      <div class="hint" id="importResult" style="display:none"></div>
 
       <div class="row">
         <label class="name" for="replaySpeed">Replay speed</label>

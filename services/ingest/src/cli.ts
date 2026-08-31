@@ -16,6 +16,7 @@
  *   6  Render      TTS both variants -> measure -> AudioPack            local
  *
  * Usage:
+ *   exxeed-ingest import <profile.json> --id <noteSetId> --track-id N --config <id>
  *   exxeed-ingest render <noteSetId> [options]
  *
  *   --data <dir>      artefact root, default ./data
@@ -25,8 +26,10 @@
  *   --voice <id>      override the voiceId recorded in the pack
  */
 
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { ImportProfileSchema, resolveProfile, type NoteSet } from "@exxeed/core";
 import { localRepositories } from "@exxeed/repo";
 
 import { PiperEngine, renderNoteSet } from "@exxeed/tts";
@@ -117,9 +120,101 @@ async function render(argv: readonly string[]): Promise<number> {
   return 0;
 }
 
+/**
+ * Stage 3's output, in — `{ turn, text }` and nothing else.
+ *
+ * The video half of the pipeline is a separate tool (§10), so this is the seam.
+ * It never sees a transcript and the helper never sees telemetry: turning a turn
+ * number into a lap position needs the corner list and the reference lap's
+ * measured braking points, both of which live here.
+ */
+async function importProfile(argv: readonly string[]): Promise<number> {
+  const positional: string[] = [];
+  let dataDir = "data";
+  let id: string | undefined;
+  let trackId: number | undefined;
+  let configId: string | undefined;
+  let carId: string | undefined;
+  let voiceDir: string | undefined;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--data") dataDir = argv[++i] ?? "data";
+    else if (arg === "--id") id = argv[++i];
+    else if (arg === "--track-id") trackId = Number(argv[++i]);
+    else if (arg === "--config") configId = argv[++i];
+    else if (arg === "--car-id") carId = argv[++i];
+    else if (arg === "--voice-dir") voiceDir = argv[++i];
+    else positional.push(arg);
+  }
+
+  const path = positional[0];
+  if (path === undefined || id === undefined || trackId === undefined || configId === undefined) {
+    process.stderr.write(
+      "usage: exxeed-ingest import <profile.json> --id <noteSetId> " +
+        "--track-id N --config <id> [--car-id <id>] [--data DIR]\n",
+    );
+    return 1;
+  }
+
+  const raw: unknown = JSON.parse(await readFile(fromInvocationDir(path), "utf8"));
+  const profile = ImportProfileSchema.parse(raw);
+
+  const repos = localRepositories(fromInvocationDir(dataDir));
+  const trackKey = { sim: "iracing", trackId, configId } as const;
+
+  const mapVersion = await repos.trackMaps.latestVersion(trackKey);
+  if (mapVersion === null) throw new Error(`no track map for ${trackId}/${configId}`);
+  const map = await repos.trackMaps.get({ ...trackKey, mapVersion });
+  if (map === null) throw new Error(`no track map v${String(mapVersion)}`);
+
+  const cars = await repos.referenceLaps.listCars(trackKey);
+  const chosenCar = carId ?? cars[0];
+  const lap = chosenCar === undefined ? null : await repos.referenceLaps.get(trackKey, chosenCar);
+
+  const resolved = resolveProfile(profile, map, lap, {
+    ...(voiceDir === undefined ? {} : { voiceDir }),
+  });
+
+  for (const warning of resolved.warnings) process.stderr.write(`warning: ${warning}\n`);
+  for (const u of resolved.unresolved) {
+    process.stderr.write(`unresolved: turn ${String(u.callout.turn)} — ${u.reason}\n`);
+  }
+
+  if (resolved.notes.length === 0) {
+    process.stderr.write("nothing resolved; writing nothing\n");
+    return 1;
+  }
+
+  const noteSet: NoteSet = {
+    id,
+    trackKey,
+    lengthM: map.lengthM,
+    carClass: profile.carClass,
+    source: profile.source,
+    // Imported, unheard, and every note stale until rendered. §7.4 will not let a
+    // set with a dirty note be published, which is the right place for that gate.
+    status: "draft",
+    createdAt: new Date().toISOString(),
+    notes: [...resolved.notes],
+  };
+  await repos.noteSets.put(noteSet);
+
+  process.stdout.write(`\nimported ${resolved.notes.length} callouts as "${id}"\n`);
+  for (const note of resolved.notes) {
+    process.stdout.write(`  ${note.id.padEnd(6)} pct ${note.pct.toFixed(4)}  "${note.text}"\n`);
+  }
+  process.stdout.write(
+    `\nEvery note is dirty — the durations above are placeholders, not measurements.\n` +
+      `Render before driving:  exxeed-ingest render ${id} --data ${dataDir} --model <voice.onnx>\n`,
+  );
+  return 0;
+}
+
 async function main(): Promise<number> {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "render") return render(rest);
+  if (command === "import") return importProfile(rest);
   return usage();
 }
 

@@ -37,7 +37,7 @@ interface Args {
   readonly trackId: number;
   readonly configId: string;
   readonly mapVersion: number;
-  readonly carId: number;
+  readonly carId: string;
   readonly name: string | null;
   readonly configName: string | null;
   readonly lengthM: number | null;
@@ -69,7 +69,7 @@ function parseArgs(argv: readonly string[]): Args | null {
   let trackId: number | null = null;
   let configId: string | null = null;
   let mapVersion = 1;
-  let carId = 0;
+  let carId = "";
   let name: string | null = null;
   let configName: string | null = null;
   let lengthM: number | null = null;
@@ -91,7 +91,7 @@ function parseArgs(argv: readonly string[]): Args | null {
       case "--track-id": trackId = Number(next()); break;
       case "--config": configId = next(); break;
       case "--map-version": mapVersion = Number(next()); break;
-      case "--car-id": carId = Number(next()); break;
+      case "--car-id": carId = next(); break;
       case "--name": name = next(); break;
       case "--config-name": configName = next(); break;
       case "--length": lengthM = Number(next()); break;

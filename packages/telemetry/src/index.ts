@@ -10,5 +10,6 @@ export * from "./engine-input.js";
 export * from "./source.js";
 export * from "./steering.js";
 export * from "./recorder.js";
+export * from "./recordings.js";
 export * from "./replay.js";
 export * from "./iracing.js";

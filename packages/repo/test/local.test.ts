@@ -22,7 +22,7 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const refLap = (carId: number): ReferenceLap => ({
+const refLap = (carId: string): ReferenceLap => ({
   trackKey: trackKeyOf(spaMap.trackRef),
   carId,
   lapTimeS: 138.42,
@@ -52,7 +52,7 @@ describe("round-tripping artefacts", () => {
     expect(await repos.trackMaps.get(spaMap.trackRef)).toBeNull();
     expect(await repos.landmarks.get(spaMap.trackRef)).toBeNull();
     expect(await repos.noteSets.get("nope")).toBeNull();
-    expect(await repos.referenceLaps.get(trackKeyOf(spaMap.trackRef), 173)).toBeNull();
+    expect(await repos.referenceLaps.get(trackKeyOf(spaMap.trackRef), "ferrari296gt3")).toBeNull();
   });
 
   it("validates on read, so a corrupted file fails at the boundary not at 60 Hz", async () => {
@@ -82,11 +82,11 @@ describe("map versioning", () => {
     // SPEC.md §4.0: ReferenceLap is keyed by TrackKey, NOT TrackRef. Re-cutting
     // the map must not orphan laps you already drove.
     const key = trackKeyOf(spaMap.trackRef);
-    await repos.referenceLaps.put(refLap(173));
+    await repos.referenceLaps.put(refLap("ferrari296gt3"));
 
     await repos.trackMaps.put({ ...spaMap, trackRef: { ...spaMap.trackRef, mapVersion: 9 } });
 
-    const stillThere = await repos.referenceLaps.get(key, 173);
+    const stillThere = await repos.referenceLaps.get(key, "ferrari296gt3");
     expect(stillThere?.lapTimeS).toBeCloseTo(138.42, 6);
     // The lap knows which numbering its perCorner was derived against, so callers
     // can tell it is stale and recompute rather than trusting it.
@@ -95,11 +95,11 @@ describe("map versioning", () => {
 
   it("separates reference laps by car", async () => {
     const key = trackKeyOf(spaMap.trackRef);
-    await repos.referenceLaps.put(refLap(173));
-    await repos.referenceLaps.put({ ...refLap(42), lapTimeS: 155.1 });
+    await repos.referenceLaps.put(refLap("ferrari296gt3"));
+    await repos.referenceLaps.put({ ...refLap("porsche992r"), lapTimeS: 155.1 });
 
-    expect((await repos.referenceLaps.get(key, 173))?.lapTimeS).toBeCloseTo(138.42, 6);
-    expect((await repos.referenceLaps.get(key, 42))?.lapTimeS).toBeCloseTo(155.1, 6);
+    expect((await repos.referenceLaps.get(key, "ferrari296gt3"))?.lapTimeS).toBeCloseTo(138.42, 6);
+    expect((await repos.referenceLaps.get(key, "porsche992r"))?.lapTimeS).toBeCloseTo(155.1, 6);
   });
 });
 

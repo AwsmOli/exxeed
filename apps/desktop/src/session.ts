@@ -8,7 +8,8 @@
  */
 
 import type { DriverProfile, NoteSet } from "@exxeed/core";
-import { metres, NoteEngine } from "@exxeed/core";
+import { carEntry, matchesClass, metres, NoteEngine } from "@exxeed/core";
+import type { SessionIdentity } from "@exxeed/telemetry";
 import type { ReferenceView, TrackMapView } from "@exxeed/overlays";
 
 import { toMapView } from "./map-view.js";
@@ -27,8 +28,9 @@ export interface SessionConfig {
    * rule.
    */
   readonly assumeLapComplete?: boolean;
-  /** Which car's reference lap to draw against. Defaults to the only one there. */
-  readonly carId?: number;
+  /** Which car's reference lap to draw against, as the sim's slug. Defaults to
+   *  the car being driven, then to the only lap recorded for this track. */
+  readonly carId?: string;
 }
 
 export interface LoadedSession {
@@ -125,4 +127,60 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     reference,
     warnings,
   };
+}
+
+/**
+ * What the car actually being driven says about the session that was loaded.
+ *
+ * Separate from `loadSession` because of an ordering constraint, not taste: the
+ * session is pinned up front (§4.5, §8.1) but the sim only hands over the track
+ * and car on connect, so at load time there is nothing to check against. Hence a
+ * second pass, run once the identity is known.
+ *
+ * Both checks warn rather than refuse. §1 is blunt about the stakes — "a GT3
+ * brakes at the 100 board where an LMP2 brakes at the 50 and an MX-5 at the 150"
+ * — so a class mismatch is wrong braking points, not a cosmetic complaint. It
+ * still runs, because driving a GT3 set in an MX-5 deliberately, to hear how far
+ * off it is, is a reasonable thing to want, and because refusing would also
+ * refuse every car nobody has added to the registry yet.
+ */
+export async function carWarnings(
+  dataDir: string,
+  noteSet: NoteSet,
+  reference: ReferenceView | null,
+  identity: SessionIdentity | null,
+): Promise<string[]> {
+  if (identity === null) return [];
+
+  const repos = localRepositories(dataDir);
+  const registry = await repos.cars.get(noteSet.trackKey.sim);
+  const warnings: string[] = [];
+
+  const match = matchesClass(registry, identity.carId, noteSet.carClass);
+  if (match.kind === "mismatch") {
+    warnings.push(
+      `note set "${noteSet.id}" is for "${match.expected}" but you are driving ` +
+        `${identity.carName} ("${match.carClass}") — its braking points are for ` +
+        `another car`,
+    );
+  } else if (match.kind === "unknown" && carEntry(registry, identity.carId) === null) {
+    // Not an error, and said once: a new car simply has no class yet. Naming the
+    // slug makes adding it a copy-paste rather than a hunt.
+    warnings.push(
+      `"${identity.carId}" is not in data/cars/${noteSet.trackKey.sim}.json, so the ` +
+        `note set's class could not be checked`,
+    );
+  }
+
+  // The ghost trace and the delta bar are drawn against this lap. A lap from a
+  // different car is not a smaller version of the same thing — it brakes
+  // elsewhere — so comparing against one silently is the failure worth catching.
+  if (reference !== null && reference.carId !== identity.carId) {
+    warnings.push(
+      `the reference lap is ${reference.carId} but you are driving ${identity.carId} — ` +
+        `the ghost trace and delta bar compare against a different car`,
+    );
+  }
+
+  return warnings;
 }

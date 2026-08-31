@@ -84,8 +84,9 @@ export interface Settings {
   /** Null means the built-in demo data. */
   readonly dataDir: string | null;
   readonly voiceId: string;
-  /** Null means "the only reference lap recorded for this track". */
-  readonly carId: number | null;
+  /** The sim's car slug. Null means "the only reference lap recorded for this
+   *  track", or the car being driven once the sim reports one. */
+  readonly carId: string | null;
   /** Seconds added to every callout's lead. This driver's, not the note set's. */
   readonly leadAdjustS: number;
   readonly panels: readonly PanelId[];
@@ -96,12 +97,25 @@ export interface Settings {
    * moment someone presses the button.
    */
   readonly piperBinary: string | null;
-  readonly piperModel: string | null;
+  /**
+   * Which installed voice to render with — an id in the voices folder, not a
+   * path. Null means "the first one installed", so a fresh setup that has
+   * downloaded exactly one voice needs no choice made at all.
+   */
+  readonly renderVoiceId: string | null;
   readonly debug: DebugSettings;
 }
 
 export interface DebugSettings {
-  /** Replay this recording instead of connecting to the sim. */
+  /**
+   * Replay this recording instead of connecting to the sim.
+   *
+   * A path **inside the recordings folder** — `<trackId>/<carId>/<stamp>.ndjson`,
+   * exactly as the recorder wrote it — so the preferences picker can list the
+   * folder and select from it, and so a setting stays valid when the data folder
+   * moves. An absolute path is still honoured and used as-is, which is what
+   * `EXXEED_REPLAY` and the replay harness pass.
+   */
   readonly replayPath: string | null;
   /** Replay rate. 1 is real time. */
   readonly replaySpeed: number;
@@ -118,7 +132,7 @@ export const DEFAULT_SETTINGS: Settings = {
   leadAdjustS: 0,
   panels: [...PANELS],
   piperBinary: null,
-  piperModel: null,
+  renderVoiceId: null,
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -153,13 +167,13 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
     noteSetId: s.noteSetId ?? DEFAULT_SETTINGS.noteSetId,
     dataDir: s.dataDir ?? DEFAULT_SETTINGS.dataDir,
     voiceId: typeof s.voiceId === "string" && s.voiceId !== "" ? s.voiceId : DEFAULT_SETTINGS.voiceId,
-    carId: typeof s.carId === "number" ? s.carId : DEFAULT_SETTINGS.carId,
+    carId: typeof s.carId === "string" && s.carId !== "" ? s.carId : DEFAULT_SETTINGS.carId,
     leadAdjustS: number(s.leadAdjustS, DEFAULT_SETTINGS.leadAdjustS),
     // An empty list would open no windows at all, with no way back from inside
     // the app. Treat it as "not set".
     panels: panels.length === 0 ? DEFAULT_SETTINGS.panels : panels,
     piperBinary: s.piperBinary ?? DEFAULT_SETTINGS.piperBinary,
-    piperModel: s.piperModel ?? DEFAULT_SETTINGS.piperModel,
+    renderVoiceId: s.renderVoiceId ?? DEFAULT_SETTINGS.renderVoiceId,
     debug: {
       replayPath: storedDebug.replayPath ?? DEFAULT_SETTINGS.debug.replayPath,
       replaySpeed: number(storedDebug.replaySpeed, DEFAULT_SETTINGS.debug.replaySpeed),
@@ -207,11 +221,11 @@ export function withEnvOverrides(
     noteSetId: get("EXXEED_NOTES") ?? settings.noteSetId,
     dataDir: get("EXXEED_DATA") ?? settings.dataDir,
     voiceId: get("EXXEED_VOICE") ?? settings.voiceId,
-    carId: num("EXXEED_CAR") ?? settings.carId,
+    carId: get("EXXEED_CAR") ?? settings.carId,
     leadAdjustS: num("EXXEED_LEAD_ADJUST") ?? settings.leadAdjustS,
     panels: panels.length === 0 ? settings.panels : panels,
     piperBinary: get("EXXEED_PIPER") ?? settings.piperBinary,
-    piperModel: get("EXXEED_PIPER_MODEL") ?? settings.piperModel,
+    renderVoiceId: get("EXXEED_VOICE_MODEL") ?? settings.renderVoiceId,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
@@ -250,7 +264,16 @@ export function resolveDebugEnabled(
 export interface SettingsOptions {
   readonly noteSets: readonly { readonly id: string; readonly label: string }[];
   readonly voices: readonly string[];
-  readonly cars: readonly number[];
+  readonly cars: readonly string[];
+  /** What is in the recordings folder, newest first. Debug builds only. */
+  readonly recordings: readonly { readonly path: string; readonly label: string }[];
+  /** Shown so someone knows where to drop a file to have it picked up. */
+  readonly recordingsDir: string;
+  /**
+   * Authoring only — the runtime plays rendered WAVs and needs none of it.
+   * Distinct from `voices` above, which is the rendered packs available to play.
+   */
+  readonly rendering: VoiceSetup;
   /** True when the app was started with the debug flag. */
   readonly debugEnabled: boolean;
   readonly dataDir: string;
@@ -259,6 +282,71 @@ export interface SettingsOptions {
 export interface SettingsPayload {
   readonly settings: Settings;
   readonly options: SettingsOptions;
+}
+
+/**
+ * Renderer → main, invoke: check a file will replay and copy it into the
+ * recordings folder. Returns `RecordingImportView`.
+ */
+export const RECORDING_IMPORT_CHANNEL = "exxeed:recording-import";
+
+/**
+ * Renderer → main, invoke: show the recordings folder in the file manager.
+ *
+ * The import button checks a file; this is for the case where someone has ten of
+ * them, or already knows the file is good, and dragging them in is simply faster
+ * than ten dialogs. The folder is listed either way — nothing about a recording
+ * being picked up depends on how it got there.
+ */
+export const RECORDING_REVEAL_CHANNEL = "exxeed:recording-reveal";
+
+/** Renderer → main, invoke: fetch a catalogue voice. Returns `InstallView`. */
+export const VOICE_DOWNLOAD_CHANNEL = "exxeed:voice-download";
+/** Renderer → main, invoke: install the standalone Piper. Returns `InstallView`. */
+export const PIPER_INSTALL_CHANNEL = "exxeed:piper-install";
+/** Main → preferences: how a download is going. Voices are tens of megabytes. */
+export const INSTALL_PROGRESS_CHANNEL = "exxeed:install-progress";
+
+export interface InstallView {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
+export interface InstallProgress {
+  readonly id: string;
+  readonly received: number;
+  readonly total: number;
+}
+
+/** A voice offered for download, and whether it is already here. */
+export interface VoiceOption {
+  readonly id: string;
+  readonly label: string;
+  readonly licence: string;
+  readonly attribution: string | null;
+  readonly bytes: number;
+  readonly installed: boolean;
+}
+
+/** Where rendering stands: what is installed and what is missing. */
+export interface VoiceSetup {
+  readonly installed: readonly { readonly id: string; readonly licence: string | null }[];
+  readonly catalogue: readonly VoiceOption[];
+  /** Null when Piper was not found anywhere. */
+  readonly piperFrom: "setting" | "bundled" | "path" | "venv" | null;
+  /** Null when Piper is present, or when this platform can install it itself. */
+  readonly piperHint: string | null;
+  /** False on macOS, where no standalone build works. */
+  readonly piperInstallable: boolean;
+  readonly voicesDir: string;
+}
+
+export interface RecordingImportView {
+  readonly ok: boolean;
+  /** What happened, in a sentence the preferences window can show as-is. */
+  readonly message: string;
+  /** The imported recording's path inside the folder, when it worked. */
+  readonly path: string | null;
 }
 
 /** Renderer → main, invoke: everything the note editor draws (§7.4). */
@@ -469,7 +557,7 @@ export interface TrackMapView {
 export interface ReferenceView {
   readonly gridSize: number;
   readonly lapTimeS: number;
-  readonly carId: number;
+  readonly carId: string;
   /** 0..1. */
   readonly throttle: readonly number[];
   /** 0..1. */

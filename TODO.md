@@ -83,6 +83,29 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   `exxeed-ingest render <noteSetId>` does it, and it is stage 6 rather than a
   stand-in for it. Still needs the venv and a voice model, both gitignored — see
   README, "Rendering audio".
+- [x] One car identity (§13 Q2)
+  There were three and no mapping between any of them: the sim's slug
+  (`"mx5-mx52016"`), a hand-typed integer on `ReferenceLap`, and a free-text
+  `carClass` on `NoteSet`. Reference laps and `baselineCarId` now key by the sim's
+  slug, so the car being driven finds its own lap with no lookup; the integer came
+  from `--car-id` and had no authority behind it. `data/cars/{sim}.json` is all
+  that is left — slug to class — and it makes §13's granularity question data
+  rather than code.
+
+  **Two things this made possible that were not before.** `listForTrack`'s
+  `carClass` filter had no caller outside its own tests, so an MX-5 note set
+  loaded in a GT3 was silent; and `session.ts` picked the reference lap from a
+  preference or "whatever lap is first on disk", so with exactly one lap for the
+  wrong car the ghost trace and delta bar compared against it with no warning.
+
+  **The check had to move after connect.** The session is pinned up front (§4.5),
+  but the sim only reports the track and car on connect — so `carWarnings` runs as
+  a second pass in the telemetry loop rather than inside `loadSession`. It warns
+  and still runs, and reports an unknown car as unknown rather than as a mismatch,
+  because a warning that fires for every car nobody has added yet stops being read.
+
+  Migrated: `67.json` is now `mx5-mx52016.json`, and the map's `baselineCarId`
+  with it. The `carId` preference and `EXXEED_CAR` are strings now.
 - [x] `REACTION_BUFFER_S` raised from 0.5 s to 1.0 s
   The gap a driver actually hears is buffer-sized, not text-sized. Measured at
   Daytona: **halving every clip moved the gap by 0.02-0.08 s**, because the lead
@@ -104,10 +127,16 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   T1 complex, and the coach calls it as one corner (§4.4 "merge, do not split").
   T12 is deliberately silent: the transcript's line there is track limits, a
   condition over 700 m, not a point event. One line to add if that reads wrong.
-  **The two slip-road notes are the weak point.** T6 and T7 are "brake at the
-  left slip road" and "brake at the right slip road", and the road is on the
-  opposite side to the turn each time. Direction leads the phrasing so the short
-  form stays unambiguous, but this is the pair to listen to first on track.
+  **The two slip-road notes are the weak point, and the short forms are now
+  actively misleading.** T6 and T7 brake at a slip road that is on the *opposite*
+  side to the turn each time — T6 is a right taken off the left-hand road, T7 a
+  left off the right-hand one. The full text carries a turn number so it is clear,
+  but `textShort` is "Left slip road" and "Right slip road", which name a side
+  that contradicts the direction of travel. That fallback should probably be
+  "Turn six" / "Turn seven" — it identifies the corner and cannot be misread as a
+  direction. Low stakes at Daytona, where 11-33 s between callouts means the short
+  form realistically never fires, but wrong in a way that will not stay harmless
+  on a tighter track. This is the pair to listen to first on track.
 
 - [ ] Check in a multi-lap slice of the Daytona session as an engine fixture
   `data/reference/daytona-2011-road-mx5-lap.ndjson` is one extracted lap, so §6.4
@@ -431,51 +460,68 @@ learning state to persist.
 
 ## M5 — Ingest pipeline (parallel from the start, separate package)
 
-- [ ] Scan a playlist or channel to build a backlog of track/car combos
-  Run stages 0–3 over every video a channel has, and keep the output as a **pool
-  of ordered hints** rather than a note set per video. Resolution to `pct` happens
-  later, when there is a reference lap for that track and car — so the backlog is
-  a worklist of combos ready to refine, and ingest stops being blocked on having
-  driven the track first.
+- [ ] Move video ingest out into a **separate CLI tool, its own repo**
+  Stages 0–3 leave this project. The helper takes a video, playlist or channel
+  link and emits one or more importable profiles; Exxeed gains an import path and
+  never talks to YouTube. Scan a playlist and you get a backlog of track/car
+  combos to refine later, so ingest stops being blocked on having driven the track.
 
-  **Why a pool and not one note set per video.** Agreement across sources is the
-  quality signal the current one-video shape cannot express. The Daytona
-  transcript already showed it in miniature: its hot lap and breakdown lap agreed
-  on the brake percentage at T4, T6 and T7 and differed by 5% at T1. And its
-  chicane advice — "a little bit more brake to get through the second apex" — is
-  contradicted by the reference lap, which brakes once and never returns. With one
-  video there is no way to tell whether the coach or the reference driver is the
-  outlier. With five there is.
+  **The split is what makes it shippable.** Fetching third-party transcripts is
+  the sticking point: `captions.download` only works for videos you own, and
+  auto-generated captions are not exposed through the Data API at all, so every
+  working tool (`yt-dlp --write-auto-subs`, `youtube-transcript-api`) uses the
+  internal `timedtext` endpoint, against YouTube's ToS. As a separate, optional
+  developer tool that is a property of the helper, not of the product — the app
+  imports a file and has no opinion about where it came from. The metadata half is
+  clean and free regardless: `playlistItems.list` is one quota unit per fifty
+  videos against 10,000 a day, and at §10's numbers a 500-video channel costs
+  under a dollar to extract.
 
-  **Store the ordinal, not just the words.** A guide narrates corners in lap
-  order, so the third braking instruction in a video is the third braking event on
-  track — and braking events fall out of a reference lap with a threshold and a
-  loop (six at Daytona). Aligning those two sequences assigns corners with no
+  **The contract is `{ turn, text }`, and that is the whole of it.** The helper
+  never resolves a position and never needs telemetry — it maps each callout to a
+  turn number, which is a thing a transcript can actually support. Exxeed already
+  knows how to turn that into a `pct`: it has the corner list and the reference
+  lap's measured brake onsets, which is exactly how the Daytona notes were
+  anchored. A callout may cover a *range* — the Daytona set is five notes over
+  twelve turns, so "turns 9 to 11" and "turns 1 to 2" both have to be expressible.
+
+  **This only works if our corner numbering matches the convention coaches use.**
+  A guide says "turn four" meaning the conventional fourth, and if detection emits
+  only the corners it found, our indices mean something else and every mapping is
+  silently off by however many corners were missed. `corners.override.json` is
+  what keeps them aligned — Daytona is done and verified against this transcript
+  (T4, T5 and T6 all land where the coach says), but it is a per-track
+  prerequisite for import, not a one-off.
+
+  **Ordering is the fallback when the words are not explicit.** This guide names
+  turns out loud on the breakdown lap, so the mapping is read straight off the
+  text; the hot lap is pure deixis and would need ordering instead. A guide
+  narrates corners in lap order, so the third braking instruction is the third
+  braking event — and braking events fall out of a reference lap with a threshold
+  and a loop (six at Daytona). Aligning those two sequences assigns corners with no
   landmark understanding at all. It is the cheapest and strongest signal available,
   it is free at extraction time, and it cannot be recovered afterwards.
 
-  **The artefact is new** — track and car-class guess, ordinal, the landmark
-  phrase verbatim, a normalised action, `videoId`, `sourceTs`, channel, confidence
-  — plus a resolve step taking pool + reference lap + corner list → NoteSet. That
-  is a §10 rewrite, not a task inside the existing stages.
+  **Emit a pool, not a note set per video.** Agreement across sources is the
+  quality signal one video cannot give. The Daytona transcript showed it in
+  miniature: its hot lap and breakdown lap agreed on the brake percentage at T4,
+  T6 and T7 and differed by 5% at T1. Its chicane advice — "a little bit more
+  brake to get through the second apex" — is contradicted by the reference lap,
+  which brakes once and never returns. With one video there is no telling whether
+  the coach or the reference driver is the outlier. With five there is.
 
-  **Two things to settle first.** Fetching third-party transcripts is the sticking
-  point: `captions.download` only works for videos you own, and auto-generated
-  captions are not exposed through the Data API at all, so every working tool
-  (`yt-dlp --write-auto-subs`, `youtube-transcript-api`) uses the internal
-  `timedtext` endpoint, against YouTube's ToS. That reads differently for a
-  personal tool than for something shipped, and it is a decision, not an oversight.
-  The metadata half is clean and free — `playlistItems.list` is one quota unit per
-  fifty videos against 10,000 a day. Cost is not a constraint either: at §10's
-  numbers a 500-video channel comes in under a dollar.
-- [ ] §10's "cap `text` at 8 words" no longer matches the note sets we want
-  The Daytona set runs 11-19 words and 3.4-5.0 s a callout, because the transcript
-  carries a braking landmark *and* an aim point *and* a throttle reference per
-  corner, and the timing has room for all three — 11-33 s between callouts, and
-  nothing drops. The cap was never the binding constraint; it is a cognitive-load
-  judgement, and it currently disagrees with the only hand-authored set we have.
-  Settle it before stage 3 is prompted against it, or the pipeline will generate
-  notes unlike the ones actually chosen.
+  Stage 6 (render) stays here: it needs Piper and it serves hand-authored sets
+  too. Stages 4 and 5 — telemetry cross-check and the note editor — are already
+  Exxeed's, and they become the import review step.
+- [x] ~~§10's "cap `text` at 8 words"~~ — **removed**
+  The only hand-authored set runs 11-19 words and 3.4-5.0 s a callout, because
+  the transcript carries a braking landmark *and* an aim point *and* a throttle
+  reference per corner, and the timing has room for all three: 11-33 s between
+  callouts and nothing drops. The cap was never the binding constraint. Time is,
+  and it is enforced twice already — §6.3 refuses a callout that will not finish
+  before its point, and §7.4 draws the arc so the cost of another word is visible.
+  A word count is a guess at that; neither of those is.
+
 - [ ] Stages 0–2: normalise, metadata, triage funnel
 - [ ] Stage 3: extraction with the corner list passed **as enums**
   §12: never let the LLM free-text a corner reference. Enum or null.

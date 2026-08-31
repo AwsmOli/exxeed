@@ -15,6 +15,7 @@
 
 import type {
   AudioPack,
+  CarRegistry,
   LandmarkInventory,
   NoteSet,
   NoteSetSummary,
@@ -37,15 +38,16 @@ export interface LandmarkRepository {
 }
 
 export interface ReferenceLapRepository {
-  /** Keyed by TrackKey + carId. No mapVersion — see the note above. */
-  get(key: TrackKey, carId: number): Promise<ReferenceLap | null>;
+  /** Keyed by TrackKey + the sim's car slug. No mapVersion — see the note above. */
+  get(key: TrackKey, carId: string): Promise<ReferenceLap | null>;
   /**
-   * Which cars have a reference lap for this track.
+   * Which cars have a reference lap for this track, as the sim's own slugs.
    *
-   * A NoteSet names a track and a car *class*, not a car id (§4.4), so something
-   * has to bridge the two before the overlays can draw a reference trace.
+   * A NoteSet names a track and a car *class*, not a car id (§4.4). The car
+   * registry bridges the two: slug to class, so a note set can be checked
+   * against the car actually being driven.
    */
-  listCars(key: TrackKey): Promise<number[]>;
+  listCars(key: TrackKey): Promise<string[]>;
   put(lap: ReferenceLap): Promise<void>;
 }
 
@@ -77,10 +79,21 @@ export interface AudioRepository {
 }
 
 /** Everything the runtime needs, in one place, so wiring is a single object. */
+/**
+ * The slug-to-class table (§13 Q2). One per sim, and small — it is read once at
+ * session start alongside everything else, never on the trigger path.
+ */
+export interface CarRegistryRepository {
+  /** Null when no registry exists for this sim yet. Not an error: an unknown car
+   *  loses the class check and nothing more. */
+  get(sim: string): Promise<CarRegistry | null>;
+}
+
 export interface Repositories {
   readonly trackMaps: TrackMapRepository;
   readonly landmarks: LandmarkRepository;
   readonly referenceLaps: ReferenceLapRepository;
   readonly noteSets: NoteSetRepository;
   readonly audio: AudioRepository;
+  readonly cars: CarRegistryRepository;
 }

@@ -38,7 +38,7 @@ export interface BuildOptions {
   readonly trackRef: TrackRef;
   readonly trackName: string;
   readonly configName: string;
-  readonly carId: number;
+  readonly carId: string;
   /** Track length. Taken from the lap's own `lapDistM` channel when omitted. */
   readonly lengthM?: number;
   readonly gridSize?: number;

@@ -82,7 +82,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ["packages/core/**/*.ts"],
+    // src/ only, not test/. The rule exists so core's *shipped* code stays pure —
+    // that is what makes it runnable in a renderer, a worker or a bare Node script.
+    // A test is not shipped, and reading a real data file off disk is exactly how
+    // import.test.ts checks the resolver against the hand-authored Daytona set.
+    files: ["packages/core/src/**/*.ts"],
     rules: {
       "no-restricted-imports": "off",
       "@typescript-eslint/no-restricted-imports": [

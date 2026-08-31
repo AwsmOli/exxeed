@@ -21,6 +21,15 @@ export interface RunOptions {
   readonly noteSetId?: string | null;
   readonly dataDir?: string;
   readonly leadAdjustS?: number;
+  /**
+   * Speak from the first frame instead of waiting out an out-lap.
+   *
+   * A recording of one extracted lap starts mid-session, so §6.4's out-lap gate
+   * suppresses the whole thing and the replay prints "0 spoken" — correct, and
+   * indistinguishable from a broken engine. This is what makes a single-lap
+   * reference recording usable as a test case at all.
+   */
+  readonly skipOutLap?: boolean;
   /** Called for every timeline line, in order. */
   readonly onLine?: (line: string) => void;
 }
@@ -38,6 +47,7 @@ export async function loadEngine(
   dataDir: string,
   noteSetId: string,
   profile: DriverProfile,
+  skipOutLap = false,
 ): Promise<{ engine: NoteEngine; warnings: string[] }> {
   const repos = localRepositories(dataDir);
 
@@ -47,7 +57,9 @@ export async function loadEngine(
   // No TrackMap, no LandmarkInventory: a note is a point and a message (§4.4),
   // and the note set carries the one bit of geometry the engine needs.
   return {
-    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), profile),
+    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), profile, {
+      assumeLapComplete: skipOutLap,
+    }),
     warnings: [],
   };
 }
@@ -62,6 +74,7 @@ export async function run(options: RunOptions): Promise<RunSummary> {
       resolve(options.dataDir ?? "data"),
       options.noteSetId,
       { leadAdjustS: options.leadAdjustS ?? 0 },
+      options.skipOutLap ?? false,
     );
     engine = loaded.engine;
     warnings = loaded.warnings;
