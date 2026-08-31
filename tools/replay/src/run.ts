@@ -48,7 +48,7 @@ export async function loadEngine(
   noteSetId: string,
   profile: DriverProfile,
   skipOutLap = false,
-): Promise<{ engine: NoteEngine; warnings: string[] }> {
+): Promise<{ engine: NoteEngine; warnings: string[]; labels: Map<string, string> }> {
   const repos = localRepositories(dataDir);
 
   const noteSet: NoteSet | null = await repos.noteSets.get(noteSetId);
@@ -61,6 +61,9 @@ export async function loadEngine(
       assumeLapComplete: skipOutLap,
     }),
     warnings: [],
+    // For the timeline: an opaque id is the right thing to store and the wrong
+    // thing to read. The short form is what the column is for.
+    labels: new Map(noteSet.notes.map((n) => [n.id, n.textShort])),
   };
 }
 
@@ -68,6 +71,7 @@ export async function run(options: RunOptions): Promise<RunSummary> {
   const lines: string[] = [];
   let warnings: string[] = [];
   let engine: NoteEngine | null = null;
+  let labels = new Map<string, string>();
 
   if (options.noteSetId != null) {
     const loaded = await loadEngine(
@@ -78,6 +82,7 @@ export async function run(options: RunOptions): Promise<RunSummary> {
     );
     engine = loaded.engine;
     warnings = loaded.warnings;
+    labels = loaded.labels;
   }
 
   const source = new ReplayAdapter(options.recordingPath, { speed: options.speed ?? 0 });
@@ -105,7 +110,7 @@ export async function run(options: RunOptions): Promise<RunSummary> {
         if (event.kind === "play") played++;
         else dropped++;
 
-        const line = formatEvent(event, frame.lap);
+        const line = formatEvent(event, frame.lap, (id) => labels.get(id) ?? id);
         lines.push(line);
         options.onLine?.(line);
       }

@@ -39,6 +39,7 @@
 import { z } from "zod";
 
 import { cornerByIndex } from "./map.js";
+import { newNoteId } from "./note-id.js";
 import type { Note, TrackMap } from "./schema.js";
 
 export const ImportCalloutSchema = z.object({
@@ -48,9 +49,10 @@ export const ImportCalloutSchema = z.object({
    * Last turn of a range, for a callout covering a sequence.
    *
    * Corners close enough together get one callout, not one each (§4.4) — at
-   * Daytona the bus stop is "turns 9 to 11" as a single line. Those three share a
-   * braking zone and so report the same onset, which is why anchoring a range at
-   * its first turn is right rather than merely convenient.
+   * Daytona the bus stop is "turns 9 to 11" as a single line. Accepted because
+   * that is how a helper describes what it found, and because a range is a real
+   * thing in a track guide. It does not reach the note: placement is the first
+   * turn either way, and the note that comes out is a point like any other.
    */
   throughTurn: z.number().int().positive().optional(),
   text: z.string().min(1),
@@ -116,11 +118,6 @@ const deriveShort = (text: string): string => {
   return text.split(/\s+/).slice(0, 3).join(" ").replace(/[,.;:]$/, "");
 };
 
-const noteId = (callout: ImportCallout): string =>
-  callout.throughTurn === undefined
-    ? `t${callout.turn}`
-    : `t${callout.turn}_${callout.throughTurn}`;
-
 /** Where a callout about this turn starts out. The turn, and the author moves it. */
 function positionFor(turn: number, map: TrackMap): number | null {
   return cornerByIndex(map, turn)?.entryPct ?? null;
@@ -152,7 +149,7 @@ export function resolveProfile(
       continue;
     }
 
-    const id = noteId(callout);
+    const id = newNoteId(new Set(notes.map((n) => n.id)));
     const textShort = callout.textShort ?? deriveShort(callout.text);
     if (callout.textShort === undefined) {
       warnings.push(
@@ -178,12 +175,22 @@ export function resolveProfile(
     });
   }
 
-  // Two callouts about the same turn would sit on top of each other. Worth
-  // saying: it usually means the helper split a corner the coach treated as one.
-  const seen = new Map<string, number>();
-  for (const note of notes) seen.set(note.id, (seen.get(note.id) ?? 0) + 1);
-  for (const [id, count] of seen) {
-    if (count > 1) warnings.push(`${count} callouts resolved to "${id}" — they will collide`);
+  // Two callouts about the same turn land on the same point and would sit on
+  // top of each other. Worth saying: it usually means the helper split a corner
+  // the coach treated as one.
+  //
+  // Counted by position, not by id. Ids used to be derived from the turn, so
+  // duplicates showed up as duplicate ids; they are opaque handles now and are
+  // unique by construction, which would have made this check silently useless.
+  const atPct = new Map<number, string[]>();
+  for (const note of notes) atPct.set(note.pct, [...(atPct.get(note.pct) ?? []), note.textShort]);
+  for (const [, texts] of atPct) {
+    if (texts.length > 1) {
+      warnings.push(
+        `${texts.length} callouts resolved to the same point — they will collide: ` +
+          texts.map((t) => `"${t}"`).join(", "),
+      );
+    }
   }
 
   notes.sort((a, b) => a.pct - b.pct);

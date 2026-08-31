@@ -10,13 +10,13 @@
   "source": {
     "type": "manual",
     "title": "Fixture",
-    "channel": "—"
+    "channel": "\u2014"
   },
   "status": "draft",
   "createdAt": "2026-08-27T00:00:00Z",
   "notes": [
     {
-      "id": "t1_brake",
+      "id": "qv2m8d",
       "pct": 0.99781,
       "text": "Brake at the hundred board",
       "textShort": "Hundred board",
@@ -26,30 +26,30 @@
       "sourceTs": "01:23",
       "fadeable": true,
       "audio": {
-        "file": "gt3/en_amy/t1_brake.wav",
+        "file": "gt3/en_amy/qv2m8d.wav",
         "durationMs": 1240
       },
       "audioShort": {
-        "file": "gt3/en_amy/t1_brake_short.wav",
+        "file": "gt3/en_amy/qv2m8d_short.wav",
         "durationMs": 720
       },
       "dirty": false
     },
     {
-      "id": "t1_throttle",
+      "id": "hs7p1w",
       "pct": 0.018,
-      "text": "Kerb — throttle",
+      "text": "Kerb \u2014 throttle",
       "textShort": "Throttle",
       "priority": 2,
       "leadAdjustS": 0,
       "confidence": 0.74,
       "fadeable": true,
       "audio": {
-        "file": "gt3/en_amy/t1_throttle.wav",
+        "file": "gt3/en_amy/hs7p1w.wav",
         "durationMs": 900
       },
       "audioShort": {
-        "file": "gt3/en_amy/t1_throttle_short.wav",
+        "file": "gt3/en_amy/hs7p1w_short.wav",
         "durationMs": 540
       },
       "dirty": false

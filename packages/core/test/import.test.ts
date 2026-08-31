@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ImportProfile, TrackMap } from "@exxeed/core";
-import { ImportProfileSchema, resolveProfile } from "@exxeed/core";
+import { ImportProfileSchema, NOTE_ID_PATTERN, resolveProfile } from "@exxeed/core";
 
 import { spaMap } from "./fixtures.js";
 
@@ -37,7 +37,9 @@ describe("resolveProfile", () => {
 
     expect(notes).toHaveLength(1);
     expect(notes[0]!.pct).toBeCloseTo(0.14, 6);
-    expect(notes[0]!.id).toBe("t2");
+    // The id is a handle, not a description. Nothing about the turn reaches it.
+    expect(notes[0]!.id).toMatch(NOTE_ID_PATTERN);
+    expect(notes[0]!.id).not.toMatch(/2/);
   });
 
   it("anchors a range at its first turn", () => {
@@ -48,7 +50,6 @@ describe("resolveProfile", () => {
       map,
     );
 
-    expect(notes[0]!.id).toBe("t4_4");
     expect(notes[0]!.pct).toBeCloseTo(0.64, 6);
   });
 
@@ -135,7 +136,7 @@ describe("resolveProfile", () => {
       ]),
       map,
     );
-    expect(notes.map((n) => n.id)).toEqual(["t1", "t2", "t4"]);
+    expect(notes.map((n) => n.text)).toEqual(["First", "Middle", "Last"]);
   });
 });
 

@@ -19,6 +19,7 @@ export * from "./centreline.js";
 export * from "./onsets.js";
 export * from "./overrides.js";
 export * from "./map.js";
+export * from "./note-id.js";
 export * from "./import.js";
 export * from "./profile.js";
 export * from "./trigger.js";

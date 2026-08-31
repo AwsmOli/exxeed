@@ -193,6 +193,11 @@ export const AudioVariantSchema = z.object({
  *    thing is what would be fragile.
  */
 export const NoteSchema = z.object({
+  /**
+   * An opaque handle. It names the audio file and nothing else — see note-id.ts
+   * for why it says nothing about turn, position or purpose. What a note is for
+   * is `text`; that is the only place that can say it and stay true.
+   */
   id: z.string().min(1),
   /** Where on the lap this is relevant, 0..1. The event the callout aims at. */
   pct: z.number().min(0).max(1),
