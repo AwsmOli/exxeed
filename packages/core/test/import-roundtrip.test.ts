@@ -4,17 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  ImportProfileSchema,
-  ReferenceLapSchema,
-  TrackMapSchema,
-  resolveProfile,
-} from "../src/index.js";
+import { ImportProfileSchema, TrackMapSchema, resolveProfile } from "../src/index.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 const MAP = "data/tracks/iracing/192/road_course/v1/map.json";
-const LAP = "data/reflaps/iracing/192/road_course/mx5-mx52016.json";
 
 const readJson = async (path: string): Promise<unknown> =>
   JSON.parse(await readFile(`${REPO_ROOT}${path}`, "utf8"));
@@ -32,7 +26,7 @@ const readJson = async (path: string): Promise<unknown> =>
  *   pnpm --filter @exxeed/trackmap exec exxeed-trackmap \
  *     data/reference/daytona-2011-road-mx5-lap.ndjson --track-id 192 --config road_course
  */
-const present = [MAP, LAP].every((p) => existsSync(`${REPO_ROOT}${p}`));
+const present = [MAP].every((p) => existsSync(`${REPO_ROOT}${p}`));
 const describeWithData = present ? describe : describe.skip;
 
 /**
@@ -42,22 +36,28 @@ const describeWithData = present ? describe : describe.skip;
  * thing that cannot be checked synthetically: that a turn number and a sentence —
  * all stage 3 emits — land on the moment the sentence is *about*.
  *
- * For "brake at the black seam" that moment is when braking starts, which the
- * reference lap measured. It is not corner entry: at Daytona those are 20 to 57
- * metres apart, and the trigger works backwards from the event so that speech
- * *finishes* there (§6.1). Anchor a braking callout at entry and it finishes
- * after the braking point has gone by, which is the one place it must not.
+ * That moment is the corner, and the resolver says so by placing the note at the
+ * corner's entry. It does not read the words and it does not consult a braking
+ * point: a note is a point and a message, so there is nothing in it that says
+ * whether it is about braking, an overtaking spot or which gear to hold. The
+ * author moves it afterwards, and that is what `leadAdjustS` and the editor are
+ * for.
+ *
+ * What is worth checking against real data, then, is that the corner numbers
+ * line up — that turn four in a track guide is turn four in our map. That is the
+ * prerequisite §10 warns about, it is per-track, and it fails silently.
  *
  * The comparison is in metres, because that is the unit the error matters in. A
- * quarter of a percent of Daytona is fourteen metres, which is most of a braking
- * zone; the same number at a kart track is nothing.
+ * quarter of a percent of Daytona is fourteen metres; the same number at a kart
+ * track is nothing.
  */
 describeWithData("import round-trip against the hand-authored Daytona set", () => {
-  it("puts a braking callout on the measured braking point", async () => {
+  it("lands every named turn on that turn in the real map", async () => {
     const map = TrackMapSchema.parse(await readJson(MAP));
-    const lap = ReferenceLapSchema.parse(await readJson(LAP));
 
-    // Stage 3's output: a turn number and a sentence. Nothing about position.
+    // Stage 3's output: a turn number and a sentence. Nothing about position,
+    // and nothing about what kind of note it is — two of these are not about
+    // braking at all, and the resolver treats all five identically.
     const profile = ImportProfileSchema.parse({
       schema: 1,
       source: { type: "manual", title: "Samba Racing MX-5 guide" },
@@ -65,52 +65,45 @@ describeWithData("import round-trip against the hand-authored Daytona set", () =
       callouts: [
         { turn: 1, text: "Brake at the black seam, seventy percent, second gear", textShort: "Black seam" },
         { turn: 4, text: "Brake as the second to last lamp post disappears", textShort: "Lamp post" },
-        { turn: 6, text: "Brake at the end of the road on the left", textShort: "Left slip road" },
+        { turn: 6, text: "Good place to have a look down the inside", textShort: "Look inside" },
         { turn: 7, text: "Brake at the end of the road on the right", textShort: "Right slip road" },
-        { turn: 9, throughTurn: 11, text: "Chicane, brake at the one marker", textShort: "One marker" },
+        { turn: 9, throughTurn: 11, text: "Chicane, stay in third through here", textShort: "Stay third" },
       ],
     });
 
-    const resolved = resolveProfile(profile, map, lap);
+    const resolved = resolveProfile(profile, map);
 
     expect(resolved.unresolved).toEqual([]);
     expect(resolved.warnings).toEqual([]);
     expect(resolved.notes).toHaveLength(5);
 
     for (const [i, turn] of [1, 4, 6, 7, 9].entries()) {
-      const onset = lap.perCorner[String(turn)]?.brakeOnsetPct;
-      expect(onset).not.toBeUndefined();
-      const errorM = (resolved.notes[i]!.pct - onset!) * map.lengthM;
+      const entry = map.corners.find((c) => c.index === turn)!.entryPct;
+      const errorM = (resolved.notes[i]!.pct - entry) * map.lengthM;
       expect(Math.abs(errorM)).toBeLessThan(1);
     }
   });
 
   /**
-   * The distinction the test above is really about, stated as a number.
+   * The prerequisite that fails silently.
    *
-   * If these two ever coincide the resolver has stopped choosing and the first
-   * test would pass for the wrong reason — so this asserts they are genuinely
-   * far apart at this track, which is what makes anchoring a decision at all.
+   * Daytona's twelve corners are numbered the way a coach numbers them, because
+   * corners.override.json was written to make that true (§5.2). If detection
+   * ever emitted only the corners it happened to find, "turn four" would resolve
+   * to whatever was fourth in the list and every import would be quietly wrong.
    */
-  it("does not merely land on corner entry, which is tens of metres later", async () => {
+  it("has a corner list numbered the way a track guide numbers it", async () => {
     const map = TrackMapSchema.parse(await readJson(MAP));
-    const lap = ReferenceLapSchema.parse(await readJson(LAP));
 
-    for (const turn of [1, 4, 6, 7, 9]) {
-      const onset = lap.perCorner[String(turn)]!.brakeOnsetPct!;
-      const entry = map.corners.find((c) => c.index === turn)!.entryPct;
-      const gapM = (entry - onset) * map.lengthM;
-      expect(gapM).toBeGreaterThan(15);
-    }
+    expect(map.corners.map((c) => c.index)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
+    // In lap order, so turn n is genuinely the nth corner encountered.
+    const pcts = map.corners.map((c) => c.entryPct);
+    expect(pcts).toEqual([...pcts].sort((a, b) => a - b));
   });
 
   it("keeps every imported note dirty, so nothing plays a placeholder duration", async () => {
-    const map = TrackMapSchema.parse(
-      await readJson(MAP),
-    );
-    const lap = ReferenceLapSchema.parse(
-      await readJson(LAP),
-    );
+    const map = TrackMapSchema.parse(await readJson(MAP));
 
     const resolved = resolveProfile(
       ImportProfileSchema.parse({
@@ -120,7 +113,6 @@ describeWithData("import round-trip against the hand-authored Daytona set", () =
         callouts: [{ turn: 1, text: "Turn one, brake at the black seam", textShort: "Black seam" }],
       }),
       map,
-      lap,
     );
 
     expect(resolved.notes.every((n) => n.dirty)).toBe(true);

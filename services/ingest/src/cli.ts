@@ -17,6 +17,8 @@
  *
  * Usage:
  *   exxeed-ingest import <profile.json> --id <noteSetId> --track-id N --config <id>
+ *     Places one note per named turn at that corner's entry; move them in the
+ *     editor. Needs only a track map — no reference lap, no car.
  *   exxeed-ingest render <noteSetId> [options]
  *
  *   --data <dir>      artefact root, default ./data
@@ -162,7 +164,6 @@ async function importProfile(argv: readonly string[]): Promise<number> {
   let id: string | undefined;
   let trackId: number | undefined;
   let configId: string | undefined;
-  let carId: string | undefined;
   let voiceDir: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
@@ -171,7 +172,6 @@ async function importProfile(argv: readonly string[]): Promise<number> {
     else if (arg === "--id") id = argv[++i];
     else if (arg === "--track-id") trackId = Number(argv[++i]);
     else if (arg === "--config") configId = argv[++i];
-    else if (arg === "--car-id") carId = argv[++i];
     else if (arg === "--voice-dir") voiceDir = argv[++i];
     else positional.push(arg);
   }
@@ -180,7 +180,7 @@ async function importProfile(argv: readonly string[]): Promise<number> {
   if (path === undefined || id === undefined || trackId === undefined || configId === undefined) {
     process.stderr.write(
       "usage: exxeed-ingest import <profile.json> --id <noteSetId> " +
-        "--track-id N --config <id> [--car-id <id>] [--data DIR]\n",
+        "--track-id N --config <id> [--data DIR]\n",
     );
     return 1;
   }
@@ -196,11 +196,7 @@ async function importProfile(argv: readonly string[]): Promise<number> {
   const map = await repos.trackMaps.get({ ...trackKey, mapVersion });
   if (map === null) throw new Error(`no track map v${String(mapVersion)}`);
 
-  const cars = await repos.referenceLaps.listCars(trackKey);
-  const chosenCar = carId ?? cars[0];
-  const lap = chosenCar === undefined ? null : await repos.referenceLaps.get(trackKey, chosenCar);
-
-  const resolved = resolveProfile(profile, map, lap, {
+  const resolved = resolveProfile(profile, map, {
     ...(voiceDir === undefined ? {} : { voiceDir }),
   });
 
@@ -234,7 +230,7 @@ async function importProfile(argv: readonly string[]): Promise<number> {
   }
   process.stdout.write(
     `\nEvery note is dirty — the durations above are placeholders, not measurements.\n` +
-      `Render before driving:  exxeed-ingest render ${id} --data ${dataDir} --model <voice.onnx>\n`,
+      `Render before driving:  exxeed-ingest render ${id} --data ${dataDir}\n`,
   );
   return 0;
 }

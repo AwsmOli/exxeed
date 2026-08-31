@@ -7,11 +7,23 @@
  * "pct 0.1482" — and it means the helper never needs telemetry and this project
  * never needs to talk to YouTube.
  *
- * Turning a turn number into a lap position is this side's job, and it is not a
- * guess: the corner list says which corner, and the reference lap says where the
- * braking for it actually starts. That is exactly how the hand-authored Daytona
- * notes were placed, which is the argument that it is the right resolver rather
- * than a plausible one.
+ * Turning a turn number into a lap position is this side's job, and it lands the
+ * note at the corner's entry — nothing cleverer.
+ *
+ * An earlier version reached for the reference lap's measured `brakeOnsetPct`
+ * instead, on the reasoning that a callout saying "brake" is about the moment
+ * braking starts. That reasoning is the thing this data model deliberately does
+ * not have. **A note is a point and a message.** It is not a brake note or a
+ * throttle note; it can be a line about an overtaking spot coming up, or about
+ * staying in fourth on the limiter up the hill because shifting to fifth is
+ * slower. Anchoring on a braking point silently asserts a category the note does
+ * not carry, and gets it wrong for every note that is not about braking.
+ *
+ * So the import places one note per named turn, at the turn, and the author
+ * moves it — which is the editor's job (§7.4) and takes a person about a second.
+ * A predictable starting point beats a clever one that is right two thirds of
+ * the time and wrong without saying so. It also means import needs only a track
+ * map: notes can be imported for a track nobody has driven in that car yet.
  *
  * ## The prerequisite that will bite
  *
@@ -27,7 +39,7 @@
 import { z } from "zod";
 
 import { cornerByIndex } from "./map.js";
-import type { Note, ReferenceLap, TrackMap } from "./schema.js";
+import type { Note, TrackMap } from "./schema.js";
 
 export const ImportCalloutSchema = z.object({
   /** Conventional turn number, as a coach would say it. */
@@ -109,42 +121,19 @@ const noteId = (callout: ImportCallout): string =>
     ? `t${callout.turn}`
     : `t${callout.turn}_${callout.throughTurn}`;
 
-/**
- * Where a callout about this turn belongs.
- *
- * The measured braking point when there is one — the words say "brake", so that
- * is the moment they are about, and it is what §10 stage 4 validates against.
- * A corner taken flat has no onset, so its entry is the only honest answer.
- */
-function positionFor(
-  turn: number,
-  map: TrackMap,
-  lap: ReferenceLap | null,
-): { pct: number; from: "onset" | "entry" } | null {
-  const corner = cornerByIndex(map, turn);
-  if (corner === undefined) return null;
-
-  const onset = lap?.perCorner[String(turn)]?.brakeOnsetPct;
-  if (onset !== undefined && onset !== null) return { pct: onset, from: "onset" };
-  return { pct: corner.entryPct, from: "entry" };
+/** Where a callout about this turn starts out. The turn, and the author moves it. */
+function positionFor(turn: number, map: TrackMap): number | null {
+  return cornerByIndex(map, turn)?.entryPct ?? null;
 }
 
 export function resolveProfile(
   profile: ImportProfile,
   map: TrackMap,
-  lap: ReferenceLap | null,
   options: { readonly voiceDir?: string } = {},
 ): ResolvedProfile {
   const notes: Note[] = [];
   const unresolved: UnresolvedCallout[] = [];
   const warnings: string[] = [];
-
-  if (lap === null) {
-    warnings.push(
-      "no reference lap for this track and car, so every callout falls back to " +
-        "corner entry rather than where braking actually starts",
-    );
-  }
 
   for (const callout of profile.callouts) {
     if (callout.throughTurn !== undefined && callout.throughTurn < callout.turn) {
@@ -152,7 +141,7 @@ export function resolveProfile(
       continue;
     }
 
-    const placed = positionFor(callout.turn, map, lap);
+    const placed = positionFor(callout.turn, map);
     if (placed === null) {
       unresolved.push({
         callout,
@@ -161,13 +150,6 @@ export function resolveProfile(
           `numbers the track the way a coach would`,
       });
       continue;
-    }
-
-    if (placed.from === "entry" && lap !== null) {
-      warnings.push(
-        `turn ${callout.turn} has no measured braking point, so its callout sits ` +
-          `at corner entry — check it if the words say "brake"`,
-      );
     }
 
     const id = noteId(callout);
@@ -182,7 +164,7 @@ export function resolveProfile(
     const dir = options.voiceDir ?? "imported";
     notes.push({
       id,
-      pct: placed.pct,
+      pct: placed,
       text: callout.text,
       textShort,
       priority: callout.priority,

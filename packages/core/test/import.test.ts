@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ImportProfile, ReferenceLap, TrackMap } from "@exxeed/core";
+import type { ImportProfile, TrackMap } from "@exxeed/core";
 import { ImportProfileSchema, resolveProfile } from "@exxeed/core";
 
 import { spaMap } from "./fixtures.js";
@@ -17,26 +17,6 @@ const map: TrackMap = {
   ],
 };
 
-const lap: ReferenceLap = {
-  trackKey: { sim: "iracing", trackId: 192, configId: "road_course" },
-  carId: "mx5-mx52016",
-  lapTimeS: 135.4,
-  gridSize: 4,
-  channels: {
-    speedMps: [50, 50, 50, 50], throttle: [1, 1, 1, 1], brake: [0, 0, 0, 0],
-    gear: [4, 4, 4, 4], steerRad: [0, 0, 0, 0], elapsedS: [0, 33, 66, 99],
-  },
-  derivedForMapVersion: 1,
-  perCorner: {
-    "1": { brakeOnsetPct: 0.0513, throttleOnPct: 0.058, minSpeedMps: 24 },
-    "2": { brakeOnsetPct: 0.1482, throttleOnPct: 0.152, minSpeedMps: 20 },
-    // Turn 3 is taken flat — no braking to point at.
-    "3": { brakeOnsetPct: null, throttleOnPct: 0.30, minSpeedMps: 45 },
-    "4": { brakeOnsetPct: 0.6492, throttleOnPct: 0.66, minSpeedMps: 30 },
-  },
-  brakeChannelInferred: false,
-};
-
 const profile = (callouts: ImportProfile["callouts"]): ImportProfile => ({
   schema: 1,
   source: { type: "youtube", videoId: "abc", channel: "Samba Racing" },
@@ -45,42 +25,43 @@ const profile = (callouts: ImportProfile["callouts"]): ImportProfile => ({
 });
 
 describe("resolveProfile", () => {
-  it("puts a callout where the braking actually starts", () => {
-    // The words say "brake", so that is the moment they are about — and it is
-    // what §10 stage 4 validates against.
+  it("puts a callout at the turn it names, and nothing cleverer", () => {
+    // Corner entry, not the reference lap's braking point. A note is a point and
+    // a message: it is not a brake note, and a resolver that anchors on braking
+    // is wrong for every note that is about something else — an overtaking spot,
+    // a gear to stay in. The author moves it in the editor; that is the offset.
     const { notes } = resolveProfile(
       profile([{ turn: 2, text: "Turn two, brake at the lamp post", priority: 1 }]),
       map,
-      lap,
     );
 
     expect(notes).toHaveLength(1);
-    expect(notes[0]!.pct).toBeCloseTo(0.1482, 6);
+    expect(notes[0]!.pct).toBeCloseTo(0.14, 6);
     expect(notes[0]!.id).toBe("t2");
   });
 
   it("anchors a range at its first turn", () => {
-    // Corners sharing a braking zone report the same onset, which is why a
-    // sequence gets one callout rather than one each (§4.4).
+    // Corners close enough together get one callout, not one each (§4.4), and
+    // the sequence starts where the first of them does.
     const { notes } = resolveProfile(
       profile([{ turn: 4, throughTurn: 4, text: "Chicane, brake at the one marker", priority: 1 }]),
       map,
-      lap,
     );
 
     expect(notes[0]!.id).toBe("t4_4");
-    expect(notes[0]!.pct).toBeCloseTo(0.6492, 6);
+    expect(notes[0]!.pct).toBeCloseTo(0.64, 6);
   });
 
-  it("falls back to corner entry where nothing brakes, and says so", () => {
+  it("places a note about nothing in particular exactly like any other", () => {
+    // The point of the model: this one is not about braking at all, and needs no
+    // special case, because the resolver never asked what it was about.
     const { notes, warnings } = resolveProfile(
-      profile([{ turn: 3, text: "Turn three, flat", priority: 2 }]),
+      profile([{ turn: 3, text: "Stay in fourth here, fifth is slower", priority: 2 }]),
       map,
-      lap,
     );
 
     expect(notes[0]!.pct).toBeCloseTo(0.3, 6);
-    expect(warnings.join(" ")).toMatch(/no measured braking point/);
+    expect(warnings.join(" ")).not.toMatch(/brak/i);
   });
 
   it("refuses a turn the map does not have, rather than guessing", () => {
@@ -89,7 +70,6 @@ describe("resolveProfile", () => {
     const { notes, unresolved } = resolveProfile(
       profile([{ turn: 9, text: "Turn nine", priority: 1 }]),
       map,
-      lap,
     );
 
     expect(notes).toHaveLength(0);
@@ -101,27 +81,26 @@ describe("resolveProfile", () => {
     const { unresolved } = resolveProfile(
       profile([{ turn: 4, throughTurn: 2, text: "Backwards", priority: 1 }]),
       map,
-      lap,
     );
     expect(unresolved[0]!.reason).toMatch(/ends before it begins/);
   });
 
-  it("works with no reference lap, and warns that every position is weaker", () => {
-    const { notes, warnings } = resolveProfile(
+  it("needs only a track map, so a track nobody has driven can still be imported", () => {
+    // resolveProfile takes no reference lap at all. Notes can be imported for a
+    // track that has a map but no recorded lap in that car — which is most of
+    // them, when a backlog of guides arrives before the driving does.
+    const { notes } = resolveProfile(
       profile([{ turn: 2, text: "Turn two, brake at the lamp post", priority: 1 }]),
       map,
-      null,
     );
 
-    expect(notes[0]!.pct).toBeCloseTo(0.14, 6); // corner entry, not the onset
-    expect(warnings.join(" ")).toMatch(/no reference lap/);
+    expect(notes[0]!.pct).toBeCloseTo(0.14, 6);
   });
 
   it("marks everything dirty — nothing has been spoken yet", () => {
     const { notes } = resolveProfile(
       profile([{ turn: 1, text: "Turn one", priority: 1 }]),
       map,
-      lap,
     );
     expect(notes[0]!.dirty).toBe(true);
   });
@@ -130,7 +109,6 @@ describe("resolveProfile", () => {
     const { notes, warnings } = resolveProfile(
       profile([{ turn: 1, text: "Turn one, brake at the black seam", priority: 1 }]),
       map,
-      lap,
     );
 
     expect(notes[0]!.textShort).toBe("Turn one");
@@ -144,7 +122,6 @@ describe("resolveProfile", () => {
         { turn: 1, text: "Second thing", priority: 1 },
       ]),
       map,
-      lap,
     );
     expect(warnings.join(" ")).toMatch(/will collide/);
   });
@@ -157,7 +134,6 @@ describe("resolveProfile", () => {
         { turn: 2, text: "Middle", priority: 1 },
       ]),
       map,
-      lap,
     );
     expect(notes.map((n) => n.id)).toEqual(["t1", "t2", "t4"]);
   });
