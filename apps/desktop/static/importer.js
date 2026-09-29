@@ -354,7 +354,11 @@ const updateButtons = () => {
 
 const showParsed = (parsed) => {
   state.callouts = parsed.callouts.map((c) => ({ ...c }));
-  el("problems").replaceChildren(...parsed.problems.map((p) => make("li", { textContent: p })));
+  state.layoutWarning = parsed.layoutWarning ?? null;
+  const layout = parsed.layoutWarning
+    ? [make("li", { textContent: `Different layout? ${parsed.layoutWarning}`, style: "color: var(--bad); font-weight: 600" })]
+    : [];
+  el("problems").replaceChildren(...layout, ...parsed.problems.map((p) => make("li", { textContent: p })));
   renderCallouts();
 };
 
@@ -443,7 +447,7 @@ const renderCallouts = () => {
       return make(
         "li",
         {},
-        make("div", { className: "head" }, make("span", { className: "small muted", textContent: "T" }), turn, make("span", { className: "small muted", textContent: "to" }), through, conf, make("span", { className: "grow" }), ts, jump, remove),
+        make("div", { className: "head" }, make("span", { className: "small muted", textContent: "Corner" }), turn, officialLabel(c), make("span", { className: "small muted", textContent: "to" }), through, conf, make("span", { className: "grow" }), ts, jump, remove),
         text,
         short,
       );
@@ -451,8 +455,20 @@ const renderCallouts = () => {
   );
 };
 
+/**
+ * "official T5" when the app has learned the numbering, "coach: T5" when only
+ * this guide says so — so a corner whose number looks off can be spotted before
+ * importing rather than after.
+ */
+const officialLabel = (c) => {
+  const known = state.trackInfo?.official?.[String(c.turn)];
+  if (known !== undefined) return make("span", { className: "small muted", textContent: `official T${known}` });
+  if (c.coachTurn !== null && c.coachTurn !== undefined) return make("span", { className: "small muted", textContent: `coach: T${c.coachTurn}` });
+  return null;
+};
+
 const addCallout = () => {
-  state.callouts.push({ turn: (state.callouts.at(-1)?.turn ?? 0) + 1, throughTurn: null, text: "", textShort: "", confidence: null, sourceMs: null });
+  state.callouts.push({ turn: (state.callouts.at(-1)?.turn ?? 0) + 1, throughTurn: null, coachTurn: null, text: "", textShort: "", confidence: null, sourceMs: null });
   renderCallouts();
   updateButtons();
   el("callouts").lastElementChild?.querySelector("textarea")?.focus();
@@ -461,11 +477,11 @@ const addCallout = () => {
 const doImport = async () => {
   const callouts = state.callouts.filter((c) => c.text.trim() !== "");
   if (callouts.length === 0) return;
-  setStatus("import-status", "Importing…", "busy");
+  setStatus("import-status", "Importing and rendering…", "busy");
   try {
     const result = await call({
       op: "import",
-      request: { track: trackRequest(), video: videoRequest(), carClass: el("car-class").value.trim(), callouts },
+      request: { track: trackRequest(), video: videoRequest(), carClass: el("car-class").value.trim(), callouts, layoutWarning: state.layoutWarning ?? null },
     });
     const extra = [...(result.warnings ?? []), ...(result.unresolved ?? [])];
     setStatus("import-status", result.message + (extra.length > 0 ? ` (${extra.length} warning${extra.length === 1 ? "" : "s"} — see the editor)` : ""), result.ok ? "good" : "bad");
@@ -582,7 +598,12 @@ const init = async () => {
     if (info.keyUrl) window.open(info.keyUrl);
   });
 
-  window.exxeed.onImporterProgress?.(({ received, total }) => {
+  const STAGES = { piper: "Installing Piper (first time only)", voice: "Downloading a voice (first time only)", render: "Rendering audio" };
+  window.exxeed.onImporterProgress?.(({ stage, received, total }) => {
+    if (stage === "render") return setStatus("import-status", `${STAGES.render} — ${received} of ${total} clips`, "busy");
+    if (stage in STAGES) {
+      return setStatus("import-status", `${STAGES[stage]}… ${total > 0 ? `${Math.round((received / total) * 100)}%` : ""}`, "busy");
+    }
     if (total > 0) setStatus("search-status", `Downloading yt-dlp… ${Math.round((received / total) * 100)}%`, "busy");
   });
 

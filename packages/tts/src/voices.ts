@@ -32,7 +32,7 @@
 import { createWriteStream } from "node:fs";
 import { chmod, mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 export interface CatalogueVoice {
@@ -138,17 +138,27 @@ async function download(url: string, target: string, onProgress?: Progress): Pro
   let received = 0;
 
   const body = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
-  if (onProgress !== undefined) {
-    body.on("data", (chunk: Buffer) => {
+
+  // Progress is counted by a step *inside* the pipeline. It used to be a
+  // separate "data" listener on the body, which puts the stream into flowing
+  // mode alongside the pipe, and the file that came out was the right size with
+  // the wrong bytes: Piper's zip arrived unreadable and every extractor refused
+  // it. A pass-through sees each chunk exactly once, in order, on its way to disk.
+  const count = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
       received += chunk.length;
-      onProgress(received, total);
-    });
-  }
+      onProgress?.(received, total);
+      callback(null, chunk);
+    },
+  });
 
   // Written to a partial name and renamed, so an interrupted download cannot
   // leave behind something that lists as an installed voice.
   const partial = `${target}.partial`;
-  await pipeline(body, createWriteStream(partial));
+  await pipeline(body, count, createWriteStream(partial));
+  if (total > 0 && received !== total) {
+    throw new Error(`${url} — got ${String(received)} of ${String(total)} bytes`);
+  }
   const { rename } = await import("node:fs/promises");
   await rename(partial, target);
 }
@@ -283,7 +293,14 @@ export async function installPiper(
 
     const { execFile } = await import("node:child_process");
     const { promisify } = await import("node:util");
-    await promisify(execFile)("tar", ["-xf", archive, "-C", dir]);
+    // Windows' own tar by full path, not whatever `tar` is first on PATH. Started
+    // from Git Bash, that is GNU tar, which reads "C:\..." as a remote host named
+    // C and fails with "Cannot connect to C: resolve failed".
+    const tar =
+      platform === "win32"
+        ? join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "tar.exe")
+        : "tar";
+    await promisify(execFile)(tar, ["-xf", archive, "-C", dir]);
 
     const binary = join(dir, "piper", platform === "win32" ? "piper.exe" : "piper");
     if (!(await isFile(binary))) {

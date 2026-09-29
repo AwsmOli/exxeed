@@ -600,10 +600,25 @@ learning state to persist.
   **Every step now exists** — search, transcript, convert, import, edit, render —
   and a Snetterton set has been imported through it. Not yet rendered or driven,
   so not ticked.
-- [ ] Snetterton's `corners.override.json`
-  The automatic map numbers its 11 corners in detection order. Snetterton 300's
-  official numbering has to be checked against it before a guide's "turn five" can
-  be trusted to land on our turn five — the same prerequisite Daytona needed.
+- [x] ~~Snetterton's `corners.override.json`~~ — **replaced: the app learns the numbering**
+  Nobody writes a numbering file any more. The prompt describes every corner the
+  way a driver meets it — position on the lap, direction, tightness, where the
+  reference lap brakes, minimum speed, gear — and says our numbers may not be the
+  official ones, so the model matches by description. It also returns the number
+  the coach said, and the app keeps the consistent ones in
+  `tracks/.../turn-numbers.json` (in lap order, one number per corner, earlier
+  knowledge wins); later prompts and the importer show "official T8". Not learned
+  from a guide the model flags as a different layout — the first Snetterton guide
+  tried was for the 200, and its numbers would have been wrong for the 300.
+  `corners.override.json` still exists for merging and splitting detected corners;
+  it is no longer how numbering gets fixed.
+- [x] Render on import
+  Import renders the set straight away, installing Piper and a voice first if
+  either is missing, so an imported set is ready to drive with no trip to
+  Preferences. Found two real bugs doing it: the downloader corrupted files at the
+  right size (a progress listener beside the pipe — Piper's zip was unreadable),
+  and Piper's unzip used whatever `tar` was on PATH, which from Git Bash is GNU
+  tar and cannot take a Windows drive path.
 
 ## M6 — Packaging
 

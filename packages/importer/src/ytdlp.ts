@@ -16,7 +16,7 @@ import { execFile } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { chmod, mkdir, rename, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 import { mergeLines, parseJson3, parseVtt, type TranscriptLine } from "./transcript.js";
@@ -63,14 +63,20 @@ export async function installYtDlp(
   const total = Number(response.headers.get("content-length") ?? 0);
   let received = 0;
   const body = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
-  body.on("data", (chunk: Buffer) => {
-    received += chunk.length;
-    onProgress?.(received, total);
+  // Counted inside the pipeline, never by a separate "data" listener — that
+  // corrupted Piper's zip at the right size (packages/tts/src/voices.ts).
+  const count = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      received += chunk.length;
+      onProgress?.(received, total);
+      callback(null, chunk);
+    },
   });
 
   const target = join(toolsDir, BINARY);
   const partial = `${target}.partial`;
-  await pipeline(body, createWriteStream(partial));
+  await pipeline(body, count, createWriteStream(partial));
+  if (total > 0 && received !== total) throw new Error(`${url} — got ${received} of ${total} bytes`);
   await rename(partial, target);
   if (process.platform !== "win32") await chmod(target, 0o755);
   return target;

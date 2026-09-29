@@ -145,9 +145,12 @@ turns it into callouts:
    OpenAI, Gemini, or any OpenAI-compatible server such as Ollama), on your own
    API key. Or **Copy prompt**, paste it into any AI chat, and paste the answer
    back. Either way you get one editable callout per turn.
-5. **Import** — a draft note set placed on the track map, opened in the editor.
-   Render its audio before driving. A track with no map yet keeps the callouts
-   under `<data>/imports/` until you have driven a lap there.
+5. **Import** — the callouts are placed on the track map and rendered, installing
+   Piper and a voice the first time, then opened in the editor: ready to drive.
+   Corners are matched by description, not by number, and the official turn
+   numbers the coach uses are learned and shown from then on. A guide for a
+   different layout is flagged. A track with no map yet keeps the callouts under
+   `<data>/imports/` until you have driven a lap there.
 
 API keys are stored encrypted with the OS keychain and never reach the window.
 This week's races need no account: they come from iRacing's public season

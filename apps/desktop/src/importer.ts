@@ -42,6 +42,7 @@ import {
   fetchSchedule,
   fetchTranscript,
   installYtDlp,
+  learnTurnNumbers,
   parseCalloutReply,
   raceWeekAt,
   PROVIDERS,
@@ -50,7 +51,6 @@ import {
   searchVideos,
   toImportProfile,
   type DraftCallout,
-  type PromptCorner,
   type ProviderId,
   type RaceWeekEntry,
   type ScheduledSeries,
@@ -60,7 +60,9 @@ import type { Settings } from "@exxeed/overlays";
 import { localRepositories } from "@exxeed/repo";
 import type { SessionIdentity } from "@exxeed/telemetry";
 
+import { renderImported } from "./auto-render.js";
 import { readSecrets, writeSecrets, type ImporterSecrets } from "./importer-secrets.js";
+import { describeCorners, readTurnNumbers, writeTurnNumbers } from "./track-knowledge.js";
 import { REPO_ROOT } from "./voices.js";
 
 const PAGE = fileURLToPath(new URL("../static/importer.html", import.meta.url));
@@ -200,14 +202,6 @@ async function mapFor(dataDir: string, key: TrackKey | null): Promise<TrackMap |
   }
 }
 
-const promptCorners = (map: TrackMap | null): PromptCorner[] | null =>
-  map?.corners.map((c) => ({
-    turn: c.index,
-    names: c.names,
-    direction: c.direction,
-    severity: c.severity,
-  })) ?? null;
-
 interface TrackRequest {
   /** The sim's track id, when it came from a session. Null from the schedule. */
   readonly trackId: number | null;
@@ -239,12 +233,14 @@ async function transcriptFor(videoId: string): Promise<Transcript> {
 
 async function promptFor(deps: ImporterDeps, track: TrackRequest, video: VideoRequest): Promise<string> {
   const dataDir = deps.resolveDataDir(deps.getSettings());
-  const map = await mapFor(dataDir, await keyOf(dataDir, track));
+  const key = await keyOf(dataDir, track);
+  const map = await mapFor(dataDir, key);
   return buildCalloutPrompt({
     trackName: track.trackName,
     configName: track.configName,
+    lengthM: map?.lengthM ?? null,
     carName: track.carName,
-    corners: promptCorners(map),
+    corners: key === null || map === null ? null : await describeCorners(dataDir, key, map, track.carId),
     video: { title: video.title, channel: video.channel },
     transcript: (await transcriptFor(video.id)).lines,
   });
@@ -259,9 +255,18 @@ interface ImportRequest {
   readonly video: VideoRequest;
   readonly carClass: string;
   readonly callouts: readonly DraftCallout[];
+  /**
+   * The model's "this guide is for a different layout", if it said so. The
+   * callouts may still be worth having for the corners the layouts share, but
+   * the coach's turn numbers belong to the other layout and must not be learned
+   * as this one's.
+   */
+  readonly layoutWarning?: string | null;
 }
 
-async function importCallouts(deps: ImporterDeps, request: ImportRequest): Promise<unknown> {
+type Progress = (payload: { stage: string; received: number; total: number }) => void;
+
+async function importCallouts(deps: ImporterDeps, request: ImportRequest, progress: Progress): Promise<unknown> {
   const dataDir = deps.resolveDataDir(deps.getSettings());
   const key = await keyOf(dataDir, request.track);
   const carClass = slug(request.carClass) || "unknown";
@@ -299,7 +304,10 @@ async function importCallouts(deps: ImporterDeps, request: ImportRequest): Promi
     };
   }
 
-  return placeProfile(deps, dataDir, key, map, profile);
+  return placeProfile(deps, dataDir, key, map, profile, progress, {
+    drafts: request.callouts,
+    otherLayout: request.layoutWarning != null,
+  });
 }
 
 async function placeProfile(
@@ -308,6 +316,8 @@ async function placeProfile(
   key: TrackKey,
   map: TrackMap,
   profile: ImportProfile,
+  progress: Progress,
+  learn: { readonly drafts: readonly DraftCallout[]; readonly otherLayout: boolean } = { drafts: [], otherLayout: false },
 ): Promise<unknown> {
   const resolved = resolveProfile(profile, map);
   if (resolved.notes.length === 0) {
@@ -334,14 +344,37 @@ async function placeProfile(
     notes: [...resolved.notes],
   };
   await localRepositories(dataDir).noteSets.put(noteSet);
+
+  // The official numbering, from what the coach said (track-knowledge.ts).
+  const numbering: string[] = [];
+  const said = learn.drafts.some((d) => d.coachTurn !== null);
+  if (said && learn.otherLayout) {
+    numbering.push("turn numbers not learned from this guide — it is for a different layout");
+  } else if (said) {
+    const known = await readTurnNumbers(dataDir, key);
+    const learned = learnTurnNumbers(learn.drafts, known.turns);
+    if (learned.added > 0) {
+      await writeTurnNumbers(dataDir, key, learned.turns, videoId);
+      numbering.push(`learned the official number for ${learned.added} corner${learned.added === 1 ? "" : "s"}`);
+    }
+    numbering.push(...learned.conflicts);
+  }
+
+  // Heard, not just imported: render now, installing Piper and a voice first if
+  // this is the first time (auto-render.ts).
+  const rendered = await renderImported(deps.getSettings(), dataDir, id, (stage, received, total) =>
+    progress({ stage, received, total }),
+  );
   deps.openImported(id);
 
   return {
     ok: true,
     placed: true,
     noteSetId: id,
-    message: `Imported ${resolved.notes.length} callouts as "${id}" — opened in the editor. Render the audio before driving.`,
-    warnings: resolved.warnings,
+    message: rendered.ok
+      ? `Imported and rendered ${resolved.notes.length} callouts as "${id}" — ready to drive.`
+      : `Imported ${resolved.notes.length} callouts as "${id}", but the audio could not be rendered: ${rendered.message}`,
+    warnings: [...resolved.warnings, ...numbering],
     unresolved: resolved.unresolved.map((u) => `turn ${u.callout.turn}: ${u.reason}`),
   };
 }
@@ -383,14 +416,14 @@ async function listSaved(dataDir: string): Promise<unknown[]> {
   return saved;
 }
 
-async function placeSaved(deps: ImporterDeps, file: string): Promise<unknown> {
+async function placeSaved(deps: ImporterDeps, file: string, progress: Progress): Promise<unknown> {
   if (!/^[\w.-]+\.json$/.test(file)) throw new Error("not a saved import");
   const dataDir = deps.resolveDataDir(deps.getSettings());
   const raw = JSON.parse(await readFile(join(dataDir, "imports", file), "utf8")) as SavedImport;
   const key = await savedKey(dataDir, raw);
   const map = await mapFor(dataDir, key);
   if (key === null || map === null) return { ok: false, placed: false, message: "still no track map for this track" };
-  return placeProfile(deps, dataDir, key, map, raw.profile);
+  return placeProfile(deps, dataDir, key, map, raw.profile, progress);
 }
 
 // ---------------------------------------------------------------------------
@@ -420,6 +453,9 @@ async function validTurns(deps: ImporterDeps, track: TrackRequest): Promise<numb
 }
 
 async function handle(deps: ImporterDeps, request: Request, sender: Electron.WebContents): Promise<unknown> {
+  const send: Progress = (payload) => {
+    if (!sender.isDestroyed()) sender.send(IMPORTER_PROGRESS_CHANNEL, payload);
+  };
   switch (request.op) {
     case "context": {
       const identity = deps.identity();
@@ -468,9 +504,7 @@ async function handle(deps: ImporterDeps, request: Request, sender: Electron.Web
       return raceWeek(request.refresh);
 
     case "installYtDlp":
-      return installYtDlp(TOOLS_DIR, (received, total) =>
-        sender.send(IMPORTER_PROGRESS_CHANNEL, { received, total }),
-      );
+      return installYtDlp(TOOLS_DIR, (received, total) => send({ stage: "yt-dlp", received, total }));
 
     case "search": {
       const yt = await resolveYtDlpSetup(TOOLS_DIR);
@@ -500,6 +534,7 @@ async function handle(deps: ImporterDeps, request: Request, sender: Electron.Web
       return {
         mapped: map !== null,
         turns: map?.corners.map((c) => c.index) ?? [],
+        official: key === null ? {} : (await readTurnNumbers(dataDir, key)).turns,
         carClass,
         noteSets:
           key === null ? [] : (await localRepositories(dataDir).noteSets.listForTrack(key)).map((s) => s.id),
@@ -527,13 +562,13 @@ async function handle(deps: ImporterDeps, request: Request, sender: Electron.Web
       return parseCalloutReply(request.reply, await validTurns(deps, request.track));
 
     case "import":
-      return importCallouts(deps, request.request);
+      return importCallouts(deps, request.request, send);
 
     case "saved":
       return listSaved(deps.resolveDataDir(deps.getSettings()));
 
     case "placeSaved":
-      return placeSaved(deps, request.file);
+      return placeSaved(deps, request.file, send);
 
     case "openVideo": {
       if (!/^[A-Za-z0-9_-]{11}$/.test(request.videoId)) throw new Error("not a video id");
