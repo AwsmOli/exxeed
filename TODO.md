@@ -144,13 +144,15 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   nothing: replaying it gives `0 spoken, 0 dropped`. Fine as a track-map source,
   useless as a callout timeline — which is why the golden file still runs on the
   synthetic 3-lap toy and the engine has no real-telemetry regression. Two or
-  three laps from `2026-08-27T20-43-48-649Z.ndjson` would close it; that file is
-  on the Windows machine.
+  three laps from `2026-08-27T20-43-48-649Z.ndjson` would close it. That file is
+  in `data/recordings/daytona-2011-road/` on this machine, and `splitLaps`
+  (packages/telemetry/src/laps.ts) now does the cutting — this is an hour, not a
+  project.
 - [ ] Recording rate is 32 Hz, not the 60 Hz the adapter asks for
   Median frame gap 31 ms against a requested 16.7 ms — 1.7 m between samples at
   56 m/s rather than 0.9 m. Harmless today (well inside §6.5's 15 m threshold, and
   the scheduler's fit tolerance scales with the tick) but the code says 60 and
-  reality says half that.
+  reality says half that. Seen again at Snetterton: ~4,400 frames for a 137 s lap.
 
 - [x] Replay CLI needs an absolute path
   Fixed: paths now resolve against `INIT_CWD`, the directory the command was invoked from.
@@ -272,9 +274,20 @@ Three things came out of doing this that were not visible from macOS:
   it happened.
   *Done when:* Daytona Road Course's corners come out right, with `corners.override.json` used only for the cases §5.2 already says are unsolvable.
 
+- [x] Cut the map automatically from the first clean lap
+  Recording was always on for an unmapped track, but nothing turned a recording
+  into a map — eleven laps at Snetterton and no map, and nothing said why. Now the
+  first clean lap (from the line, never on pit road, off track or towed; laps.ts)
+  becomes the map and reference lap mid-session, through the same builder, which
+  moved to `packages/telemetry/src/map-build.ts`. A faster clean lap in the same
+  session replaces the reference against the existing corners; a map is never
+  re-cut. The map and reference now reach the overlays without a note set.
+  Snetterton: 4 of 11 laps clean, 11 corners, 4,735 m.
+
 **M1 is done.** `pnpm --filter @exxeed/trackmap start data/reference/daytona-2011-road-mx5-lap.ndjson
---track-id 192 --config road_course --car-id 67 --overrides
-data/tracks/iracing/192/road_course/corners.override.json --svg map.svg` produces
+--track-id 192 --config road-course --car-id mx5-mx52016 --name "Daytona International Speedway"
+--config-name "Road Course" --overrides data/tracks/iracing/192/road-course/corners.override.json
+--svg map.svg` produces
 a 12-corner map matching iRacing's own turn count, a reference lap with all six
 channels and per-corner metrics, and a picture to check it against.
 
@@ -532,8 +545,12 @@ learning state to persist.
   before its point, and §7.4 draws the arc so the cost of another word is visible.
   A word count is a guess at that; neither of those is.
 
-- [ ] Stages 0–2: normalise, metadata, triage funnel
-- [ ] Stage 3: extraction with the corner list passed **as enums**
+- [x] ~~Stages 0–2: normalise, metadata, triage funnel~~ — **superseded by a person choosing**
+  The funnel existed to process submissions nobody looked at. In the importer a
+  driver picks the video from search results while watching it, which is a better
+  triage than a Flash-Lite call on 500 words. The only filter left that matters —
+  "has captions at all" — is the transcript fetch failing with a reason.
+- [x] Stage 3: extraction with the corner list passed **as enums**
   §12: never let the LLM free-text a corner reference. Enum or null.
   Two things changed under this. The corner index is now a stage-3 *output only* —
   the pipeline resolves it to a `pct` before writing the note (§4.4), so nothing
@@ -543,7 +560,17 @@ learning state to persist.
   The prompt also has to say **one note per corner** — the model will happily emit
   an approach, an apex and an exit note for the same corner, which is three lines
   where a driver can use one.
+  Done in `packages/importer/src/prompt.ts`: the map's corners are listed as the
+  only valid turns, one callout per turn with ranges via `throughTurn`, rewrite
+  don't echo, `textShort` 2–4 words, confidence and `sourceTs` per callout. The
+  reply parser drops any turn not in the map and says so. **Not yet run against a
+  real model end to end** — only the paste path has been exercised in the app.
 - [ ] Stage 4: cross-check against reference lap telemetry
+  The next thing worth building here. The importer places a callout at the turn's
+  entry; the reference lap knows where braking actually starts. Flag a callout
+  whose words say "brake" but whose turn has no brake onset, or whose landmark
+  distance disagrees with the onset by more than §10's 40 m — shown in the
+  importer's callout list before import, not after.
 - [x] Stage 5: the note editor (§7.4) — build it once, use it for both review and hand-authoring
   `Cmd/Ctrl+E`. SVG map, every callout's text readable without clicking, each
   one's speaking window shaded back along the centreline from its point, and the
@@ -570,6 +597,13 @@ learning state to persist.
   Piper, durations read from the WAV header rather than estimated, and each note's
   `dirty` flag cleared because text and audio now agree.
   *Done when:* a YouTube URL for a track guide produces a reviewed, rendered note set the runtime can load.
+  **Every step now exists** — search, transcript, convert, import, edit, render —
+  and a Snetterton set has been imported through it. Not yet rendered or driven,
+  so not ticked.
+- [ ] Snetterton's `corners.override.json`
+  The automatic map numbers its 11 corners in detection order. Snetterton 300's
+  official numbering has to be checked against it before a guide's "turn five" can
+  be trusted to land on our turn five — the same prerequisite Daytona needed.
 
 ## M6 — Packaging
 
@@ -590,7 +624,9 @@ learning state to persist.
 - [x] Overlay layout editor
   Unlock, drag, lock, remembered per panel. What is still missing is resizing —
   panels are fixed-size, which is fine for a delta bar and limiting for the trace.
-- [ ] Resize overlays, not just move them
+- [x] Resize overlays, not just move them
+  Overlays are `resizable` with OS-level hit-testing on the border, and the size is
+  remembered per panel along with the position.
 
 ## M7 — Race summary
 
@@ -659,8 +695,10 @@ its own, and the web API comes last because its auth is the slowest part.
   number at the flag. Shown as an estimate and replaced by the official number.
   No offline SR estimate — it is not derivable usefully from what the SDK gives.
 - [ ] Register an OAuth client with iRacing
-  Legacy email+hashed-password auth is being retired. Check the current Data API
-  docs for which grant a desktop app is allowed before building anything.
+  Legacy email+hashed-password auth is gone; the Data API is OAuth2 only, and one
+  report says iRacing has paused issuing new client ids — check before building.
+  This is the one place in the app a login is genuinely needed: this week's
+  schedule turned out to be public (the season PDF), results and ratings are not.
 - [ ] Sign-in flow in preferences, token stored with `safeStorage`
   Optional: everything else on the screen must work signed out.
 - [ ] `results/get?subsession_id=…` client
@@ -711,11 +749,13 @@ and how it compares to the last race in the same car.
   an M5 question, not an M1 one. Daytona's notes name real markers from a track
   guide with no inventory anywhere. A marking tool becomes worth building when the
   model needs a closed vocabulary, and not before.
-- [ ] **Car class taxonomy.** Need a car-ID → class mapping table, and a granularity decision (GT3 vs GT3-by-manufacturer).
+- [ ] **Car class taxonomy.** ~~Need a car-ID → class mapping table~~ (done: `data/cars/iracing.json`, one car so far), and a granularity decision (GT3 vs GT3-by-manufacturer).
+  The importer now leans on it too: a car picked from the schedule has only a
+  name, and is matched to the table by name before falling back to a slug.
   Now has a second consumer: the preferences window picks a reference lap by car
   id, and a note set names a car *class*. With one car and one track that gap is
   invisible; it will not stay that way.
-- [ ] **Reference lap source.** Live SDK recording for v1; `.ibt` and `.blap`/`.olap` import deferred.
+- [ ] **Reference lap source.** Live SDK recording for v1 — now automatic, the first clean lap and then the session's fastest (M1); `.ibt` and `.blap`/`.olap` import deferred.
 - [ ] Cheap first step on `.blap`: hex-dump a lap whose time you know, look for that time as a float, check whether file size scales with track length in a way that implies per-sample records. An hour of work tells you whether it's tractable at all.
 - [x] ~~**Voice provider.**~~ **Settled: Piper**, `en_US-lessac-medium`.
   See M2. Cost did not decide it — the whole v1 corpus is ~126k characters, which
