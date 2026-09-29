@@ -34,6 +34,7 @@ export function toReferenceView(
     throttle: lap.channels.throttle,
     brake: lap.channels.brake,
     speedMps: lap.channels.speedMps,
+    gear: lap.channels.gear,
     elapsedS: lap.channels.elapsedS,
     corners,
     brakeOnsetPcts,

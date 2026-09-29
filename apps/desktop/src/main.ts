@@ -25,6 +25,9 @@ import {
   AUDIO_PRELOAD_CHANNEL,
   ENGINE_EVENT_CHANNEL,
   MAP_CHANNEL,
+  OVERLAY_PROFILE_COMMAND_CHANNEL,
+  OVERLAY_PROFILES_CHANGED_CHANNEL,
+  RACE_CHANNEL,
   REFERENCE_CHANNEL,
   SESSION_COMMAND_CHANNEL,
   SESSION_STATUS_CHANNEL,
@@ -33,9 +36,12 @@ import {
   type AudioPlayCommand,
   type EngineEventView,
   type NoteSetPack,
+  type OverlayProfileCommand,
+  type OverlayProfilesView,
   type SessionCommand,
   type SessionStatus,
   type StateFrame,
+  DEFAULT_PANELS,
   isPanelId,
   PANELS,
   type PanelId,
@@ -46,6 +52,7 @@ import {
   NdjsonRecorder,
   ReplayAdapter,
   toTickInput,
+  type DashState,
   type SessionIdentity,
   type TelemetryFrame,
   type TelemetrySource,
@@ -55,7 +62,10 @@ import { audioKey, localRepositories } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, OverlayLayout, sendTo } from "./overlay.js";
+import { OverlayProfileStore } from "./overlay-profiles.js";
+import { startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
 import { installEditorIpc, openEditor, requestRender } from "./editor.js";
+import { installImporterIpc, openImporter } from "./importer.js";
 import {
   installSettingsIpc,
   openPreferences,
@@ -64,6 +74,16 @@ import {
 } from "./preferences.js";
 import { debugEnabled, SettingsStore } from "./settings.js";
 import { carWarnings, loadSession, type LoadedSession } from "./session.js";
+import { RaceViewBuilder } from "./race-view.js";
+import { AutoMapper } from "./auto-map.js";
+import { toMapView } from "./map-view.js";
+import { toReferenceView } from "./reference-view.js";
+
+/**
+ * How often the race panels are refreshed. The field does not move fast enough
+ * to need more, and a standings table redrawn at 60 Hz only flickers.
+ */
+const RACE_INTERVAL_MS = 200;
 
 // Before any getPath call: without it userData lands under "@exxeed", taken from
 // the package name, which is where the overlay's remembered position lives.
@@ -107,6 +127,14 @@ const settings = (): SettingsStore => {
   return store;
 };
 
+/** Same reasoning as `settings` above: `app.getPath` needs the app to be ready. */
+let profiles: OverlayProfileStore | null = null;
+
+const profileStore = (): OverlayProfileStore => {
+  if (profiles === null) throw new Error("overlay profiles read before app was ready");
+  return profiles;
+};
+
 /**
  * Bumped whenever the session has to be rebuilt. A running telemetry loop
  * carries the token it started with and stops as soon as it stops matching,
@@ -115,8 +143,17 @@ const settings = (): SettingsStore => {
  */
 let loopToken = 0;
 
+/**
+ * The data folder: the repo's own `data/` unless one is chosen.
+ *
+ * It used to default to `data/demo`, the committed Spa fixture. That made the
+ * fixture the thing a real session read from — so a map cut from a real lap
+ * would have landed among the fixtures, and note sets under `data/` were
+ * invisible until someone went looking for the setting. The demo is still one
+ * choice away, and the replay scripts name it explicitly.
+ */
 const resolveDataDir = (s: { dataDir: string | null }): string =>
-  s.dataDir ?? `${REPO_ROOT}/data/demo`;
+  s.dataDir ?? `${REPO_ROOT}/data`;
 
 /**
  * Pick a source. iRacing when the platform can support it, otherwise replay a
@@ -263,6 +300,7 @@ const toStateFrame = (
   session: LoadedSession | null,
   suppressedBy: StateFrame["suppressedBy"],
   lapElapsedS: StateFrame["lapElapsedS"],
+  dash: DashState | null,
 ): StateFrame => ({
   tMs: f.tMs,
   lap: f.lap,
@@ -274,6 +312,9 @@ const toStateFrame = (
   steerRad: f.steerRad,
   lat: f.lat,
   lon: f.lon,
+  rpm: dash?.rpm ?? null,
+  clutch: dash?.clutch ?? null,
+  ffb: dash?.ffb ?? null,
   lapElapsedS,
   deltaS:
     session?.reference == null
@@ -307,6 +348,9 @@ const emptyFrame: StateFrame = {
   steerRad: radians(0),
   lat: 0,
   lon: 0,
+  rpm: null,
+  clutch: null,
+  ffb: null,
   lapElapsedS: null,
   deltaS: null,
   connected: false,
@@ -446,6 +490,38 @@ function broadcastStatus(patch: Partial<SessionStatus>): void {
   refreshTrayMenu();
 }
 
+/**
+ * What the sim last reported, for the importer to fill in track and car from.
+ * Null whenever no session is connected — a stale track would be worse than none.
+ */
+let liveIdentity: SessionIdentity | null = null;
+
+/**
+ * The map and reference lap for the track being driven, straight from the
+ * repository, for when no note set brought them along.
+ */
+async function broadcastTrackViews(
+  surfaces: Surfaces,
+  identity: SessionIdentity | null,
+  withReference: boolean,
+): Promise<void> {
+  if (identity?.trackKey == null) return;
+  const repos = localRepositories(resolveDataDir(settings().get()));
+  try {
+    const version = await repos.trackMaps.latestVersion(identity.trackKey);
+    const map = version === null ? null : await repos.trackMaps.get({ ...identity.trackKey, mapVersion: version });
+    if (map !== null) surfaces.broadcast(MAP_CHANNEL, toMapView(map, []));
+    if (!withReference) return;
+    const cars = await repos.referenceLaps.listCars(identity.trackKey);
+    const carId = cars.includes(identity.carId) ? identity.carId : cars[0];
+    const lap = carId === undefined ? null : await repos.referenceLaps.get(identity.trackKey, carId);
+    if (lap !== null) surfaces.broadcast(REFERENCE_CHANNEL, toReferenceView(lap, map));
+  } catch (err) {
+    process.stderr.write(`could not load the map for ${identity.trackName}: ${String(err)}
+`);
+  }
+}
+
 async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   const token = ++loopToken;
   const source = createSource();
@@ -456,7 +532,15 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   // connect cheap: nothing has been loaded yet to throw away.
   await source.connect();
 
+  // Superseded while connecting — settings changed, or Stop was pressed. Let go
+  // of the SDK before the next loop takes it.
+  if (token !== loopToken) {
+    await source.close();
+    return;
+  }
+
   const identity = source.identity;
+  liveIdentity = identity;
   const chosen = await noteSetForTrack(identity, resolveDataDir(settings().get()));
   if (chosen.detail !== null) process.stdout.write(`${chosen.detail}\n`);
   rememberNoteSet(identity, chosen.id);
@@ -474,6 +558,10 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
 
   if (session?.mapView != null) {
     surfaces.broadcast(MAP_CHANNEL, session.mapView);
+  } else {
+    // No note set, or one without a map — but the track may well be mapped,
+    // and the map and the delta bar are worth having without any callouts.
+    await broadcastTrackViews(surfaces, identity, session?.reference == null);
   }
 
   if (session?.reference != null) {
@@ -534,6 +622,25 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     }
   }
 
+  // An unmapped track gets its map from the first clean lap (auto-map.ts).
+  const autoMapper = await AutoMapper.forSession(
+    resolveDataDir(settings().get()),
+    identity,
+    (event) => {
+      if (!surfaces.alive()) return;
+      if (session?.mapView == null) {
+        surfaces.broadcast(MAP_CHANNEL, toMapView(event.map, session?.noteSet.notes ?? []));
+      }
+      surfaces.broadcast(REFERENCE_CHANNEL, toReferenceView(event.reference, event.map));
+      if (event.kind === "mapped") {
+        broadcastStatus({ detail: `mapped ${event.map.trackName} from lap ${event.lap.lap}` });
+        void refreshPacks();
+      }
+    },
+    (line) => process.stdout.write(line),
+  );
+
+  setSessionLive(true);
   broadcastStatus({
     phase: "running",
     trackName: identity?.trackName ?? null,
@@ -544,6 +651,9 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   });
 
   const lapTimer = new LapTimer();
+  const raceView = new RaceViewBuilder();
+  let raceSentAt = 0;
+  let raceShown = false;
 
   // `isDestroyed()` alone is not enough: a render frame is disposed before its
   // BrowserWindow reports itself destroyed, so a loop checking only that races
@@ -561,6 +671,7 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
       // Always-on recording (§9). Every lap anyone drives must be replayable —
       // the moment this becomes opt-in, the interesting lap is the unrecorded one.
       recorder?.write(frame);
+      autoMapper?.push(frame);
 
       const lapElapsedS = lapTimer.update(frame.sessionTimeS, frame.lapDistPct);
       let suppressedBy: StateFrame["suppressedBy"] = null;
@@ -602,12 +713,34 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
       if (!surfaces.alive()) break;
       surfaces.broadcast(
         STATE_FRAME_CHANNEL,
-        toStateFrame(frame, source.name, session, suppressedBy, lapElapsedS),
+        toStateFrame(frame, source.name, session, suppressedBy, lapElapsedS, source.dash?.() ?? null),
       );
+
+      // The race around the car, on its own slower clock. Only a source that
+      // has it sends it — a replay has none, and the race panels say so.
+      if (frame.tMs - raceSentAt >= RACE_INTERVAL_MS || frame.tMs < raceSentAt) {
+        raceSentAt = frame.tMs;
+        const snapshot = source.race?.() ?? null;
+        if (snapshot !== null) {
+          surfaces.broadcast(RACE_CHANNEL, raceView.build(snapshot));
+          raceShown = true;
+        } else if (raceShown) {
+          surfaces.broadcast(RACE_CHANNEL, null);
+          raceShown = false;
+        }
+      }
     }
   } finally {
     await source.close();
     await recorder?.close();
+    // A lap that ended just before the sim closed still gets its map.
+    await autoMapper?.settled();
+    // Only if no newer loop has taken over — a settings change starts the next
+    // one before this one has finished closing, and it may already be live.
+    if (token === loopToken) setSessionLive(false);
+    // Leave nothing behind: the last race on screen after the sim has gone
+    // reads as a live one.
+    if (raceShown && surfaces.alive()) surfaces.broadcast(RACE_CHANNEL, null);
   }
 }
 
@@ -617,9 +750,9 @@ const PRELOAD = fileURLToPath(new URL("./preload.mjs", import.meta.url));
 const PAGE = fileURLToPath(new URL("../static/index.html", import.meta.url));
 
 /**
- * Which panels to open. `EXXEED_PANELS=map,delta` for a subset; all of them
- * otherwise. Unknown names are called out rather than ignored — a typo that
- * silently opens nothing is a bad afternoon.
+ * Which panels to open. `EXXEED_PANELS=map,delta` for a subset; the active
+ * overlay profile's panels otherwise. Unknown names are called out rather than
+ * ignored — a typo that silently opens nothing is a bad afternoon.
  */
 function chosenPanels(): PanelId[] {
   const raw = env("EXXEED_PANELS");
@@ -629,14 +762,17 @@ function chosenPanels(): PanelId[] {
       process.stderr.write(`unknown panel "${name}" — known: ${PANELS.join(", ")}\n`);
     }
   }
-  const panels = settings().get().panels;
-  const chosen = panels.length === 0 ? [...PANELS] : [...panels];
+
+  // `settings().get().panels` already carries EXXEED_PANELS (SettingsStore runs
+  // it through `withEnvOverrides`), so an override reads from there; otherwise
+  // it is whichever profile the Overlays section has active.
+  const chosen = raw !== undefined ? [...settings().get().panels] : [...profileStore().active.panels];
 
   // The telemetry panel is the raw channel dump — lapDistPct to five places,
   // gear, the suppression flags. That is a debugging instrument, not something
   // to read at 200 km/h, and it is the one panel that tells a driver nothing
   // they cannot see on the car's own dash. Keep it for development, hide it
-  // otherwise, and leave it in PANELS so nobody's saved layout loses its place.
+  // otherwise, and leave it selectable so nobody's saved profile loses its place.
   return debugEnabled() ? chosen : chosen.filter((p) => p !== "telemetry");
 }
 
@@ -685,10 +821,77 @@ let currentSurfaces: Surfaces | null = null;
 /** The open overlays, so the menu can unlock them. Null outside overlay mode. */
 let overlayLayout: OverlayLayout | null = null;
 
-function startOverlays(): void {
+/**
+ * Whether the Overlays section has an explicit "Edit" in progress.
+ *
+ * Deliberately not the same thing as `OverlayLayout#editing` (grabbable vs
+ * click-through): overlays are grabbable BY DEFAULT (§7) whether or not anyone
+ * is arranging them from this window, so that flag is true almost all the
+ * time and would make the Overlays section show "editing" the moment the app
+ * opens. This is only true between an explicit "Edit" and the matching "Done".
+ */
+let overlayEditingActive = false;
+
+/**
+ * The synthetic lap fed to the overlays while arranging them with nothing
+ * real to show — see `overlay-preview.ts`. Null whenever it should not be
+ * running.
+ */
+let overlayPreview: OverlayPreview | null = null;
+
+/**
+ * Start or stop the preview feed to match what is currently true, rather than
+ * each caller deciding for itself.
+ *
+ * Runs only while someone is arranging overlays AND no real session is
+ * running — a running session already has real telemetry, which answers "what
+ * will this look like" better than a fabricated lap ever could.
+ */
+function syncOverlayPreview(): void {
+  // !sessionLive rather than !wantRunning: while the app is only waiting for
+  // the sim there is no real telemetry either, so arranging still gets the
+  // sample lap to look at.
+  const shouldRun = overlayEditingActive && !sessionLive && overlayLayout !== null;
+  if (shouldRun && overlayPreview === null) {
+    // Reads `overlayLayout` at send time, not at start time, so the preview
+    // keeps following it across a profile switch mid-edit instead of needing
+    // to be restarted for one.
+    overlayPreview = startOverlayPreview((channel, payload) => overlayLayout?.broadcast(channel, payload));
+  } else if (!shouldRun && overlayPreview !== null) {
+    overlayPreview.stop();
+    overlayPreview = null;
+  }
+}
+
+/** What the Overlays section of the control window shows. */
+function overlayProfilesView(): OverlayProfilesView {
+  return {
+    profiles: profileStore().profiles,
+    activeProfileId: profileStore().activeId,
+    editing: overlayEditingActive,
+    debugEnabled: debugEnabled(),
+  };
+}
+
+function broadcastProfiles(): void {
+  if (controlWindow !== null && !controlWindow.isDestroyed()) {
+    controlWindow.webContents.send(OVERLAY_PROFILES_CHANGED_CHANNEL, overlayProfilesView());
+  }
+}
+
+/**
+ * Open the active profile's overlay windows.
+ *
+ * `enterEditing` is for the moment a profile switch was itself requested in
+ * order to arrange it — Overlays section "Edit" on a profile that was not
+ * already active. Without it, switching profiles would open the new windows
+ * locked and hidden, and arranging them would need a second click most people
+ * would not think to make.
+ */
+function startOverlays(enterEditing = false): void {
   process.stdout.write(FULLSCREEN_WARNING);
 
-  const layout = new OverlayLayout();
+  const layout = new OverlayLayout(profileStore().activeId, () => showControlWindow());
   overlayLayout = layout;
 
   const panels = chosenPanels();
@@ -703,18 +906,73 @@ function startOverlays(): void {
   // Wait for the renderers before sending anything, or the map, the reference
   // and the clips all land in pages that are not listening yet.
   const last = layout.windows[layout.windows.length - 1];
-  if (last === undefined) return;
+  if (last === undefined) {
+    broadcastProfiles();
+    return;
+  }
   last.webContents.once("did-finish-load", () => {
     // Only publish the surfaces. Whether a session should be running is the
     // supervisor's business, not a window's: a window finishing load says
     // nothing about whether the sim is up.
     currentSurfaces = overlaySurfaces(layout);
-    // Read wantRunning NOW rather than when the windows were created: autostart
-    // fires between those two moments, so a value captured at creation would
-    // hide the overlays a beat after the session had shown them.
-    layout.setVisible(wantRunning);
+    overlayEditingActive = enterEditing;
+    if (enterEditing) layout.setEditing(true);
+    // Read the session state NOW rather than when the windows were created:
+    // the sim can connect between those two moments.
+    syncOverlayVisibility();
+    // A supervisor that gave up earlier for lack of surfaces — or was never
+    // started, which autostart can race — picks back up here. One that is
+    // already running just keeps going; `supervising` guards against a second.
+    if (wantRunning) void supervise();
+    syncOverlayPreview();
     broadcastStatus({});
+    broadcastProfiles();
   });
+}
+
+/**
+ * Close the active profile's windows and open the (possibly new) active
+ * profile's instead — a profile switch, a panel-set edit, or the active
+ * profile being deleted out from under itself all land here.
+ *
+ * Async because `OverlayLayout#destroy` waits for every window to actually
+ * close before this returns — see its doc comment for why starting the new
+ * layout any earlier is a race on the global arrange-overlays shortcut.
+ */
+async function restartOverlaysForActiveProfile(enterEditing: boolean): Promise<void> {
+  const old = overlayLayout;
+  overlayLayout = null;
+  if (old !== null) await old.destroy();
+  startOverlays(enterEditing);
+}
+
+/**
+ * Serialises calls to `restartOverlaysForActiveProfile`.
+ *
+ * A person can click "Edit" on a second profile before the first restart's
+ * `destroy()` has resolved — two profile commands arriving before either has
+ * finished tearing down its windows. Without this, the second restart would
+ * read `overlayLayout` while it is still the first restart's, race it to
+ * `null`, and the two could each create a fresh set of windows the other
+ * never knew to destroy. Chaining onto whatever is already in flight makes
+ * every restart wait for the one before it, however it was requested.
+ */
+let overlayTransition: Promise<void> = Promise.resolve();
+
+function queueOverlayRestart(enterEditing: boolean): void {
+  overlayTransition = overlayTransition.then(
+    () => restartOverlaysForActiveProfile(enterEditing),
+    () => restartOverlaysForActiveProfile(enterEditing),
+  );
+}
+
+/** Enter or leave the Overlays section's edit session for the active profile. */
+function setOverlayEditing(active: boolean): void {
+  overlayEditingActive = active;
+  overlayLayout?.setEditing(active);
+  syncOverlayVisibility();
+  syncOverlayPreview();
+  broadcastProfiles();
 }
 
 /**
@@ -729,6 +987,7 @@ function rebuildMenu(): void {
   buildApplicationMenu({
     openPreferences: () => openPreferences(PRELOAD),
     openEditor: () => openEditor(PRELOAD),
+    openImporter: () => openImporter(PRELOAD),
     renderAudio: () => requestRender(PRELOAD),
     toggleOverlayEdit: () => overlayLayout?.toggleEditing(),
     overlayMode: true,
@@ -850,8 +1109,8 @@ function openControlWindow(): void {
   }
 
   const window = new BrowserWindow({
-    width: 420,
-    height: 520,
+    width: 620,
+    height: 580,
     title: "Exxeed",
     webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
@@ -885,7 +1144,10 @@ function openControlWindow(): void {
     controlWindow = null;
   });
   void window.loadFile(CONTROL_PAGE);
-  window.webContents.once("did-finish-load", () => broadcastStatus({}));
+  window.webContents.once("did-finish-load", () => {
+    broadcastStatus({});
+    broadcastProfiles();
+  });
 }
 
 /**
@@ -896,8 +1158,33 @@ function openControlWindow(): void {
  * this.
  */
 let wantRunning = false;
+
+/**
+ * True while the sim is actually connected with a session loaded — not merely
+ * wanted. This, not `wantRunning`, is what the overlays follow: the app is
+ * meant to be left on while the sim comes and goes, and overlays sitting over
+ * the desktop "waiting for the sim" are a row of empty rectangles over
+ * whatever else is on screen. They appear when the sim does, and go when it
+ * goes.
+ */
+let sessionLive = false;
+
+/** Show the overlays while a session is live or someone is arranging them. */
+function syncOverlayVisibility(): void {
+  overlayLayout?.setVisible(overlayEditingActive || sessionLive);
+}
+
+function setSessionLive(live: boolean): void {
+  if (sessionLive === live) return;
+  sessionLive = live;
+  syncOverlayVisibility();
+  syncOverlayPreview();
+}
 /** Guards against two supervisors racing after a rapid stop/start. */
 let supervising = false;
+
+/** Set when the running loop was ended to reload settings, so the next one starts at once. */
+let restartRequested = false;
 
 const sleepMs = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -921,9 +1208,11 @@ async function supervise(): Promise<void> {
       try {
         broadcastStatus({ phase: "waiting", detail: "waiting for the sim" });
         await runTelemetryLoop(surfaces);
+        liveIdentity = null;
         // A clean return means the source ended — the sim closed, or the replay
         // finished. Either way, go back to waiting rather than giving up.
       } catch (err) {
+        liveIdentity = null;
         const message = err instanceof Error ? err.message : String(err);
         // Not an error worth shouting about: it is the expected state whenever
         // the sim is not up yet, which is most of the time.
@@ -939,6 +1228,10 @@ async function supervise(): Promise<void> {
       }
 
       if (!wantRunning) break;
+      if (restartRequested) {
+        restartRequested = false;
+        continue;
+      }
       await sleepMs(2000);
     }
   } finally {
@@ -960,10 +1253,9 @@ async function supervise(): Promise<void> {
 function startSession(): void {
   if (wantRunning) return;
   wantRunning = true;
-  // The overlays exist to show a session. With none running they are five
-  // translucent rectangles of nothing sitting over whatever else is on screen,
-  // so they follow the session rather than the app.
-  overlayLayout?.setVisible(true);
+  // Deliberately does NOT show the overlays. "On" means "waiting for the
+  // sim", and until the sim actually has a session there is nothing for them
+  // to show — see `setSessionLive`.
   void supervise();
 }
 
@@ -971,13 +1263,30 @@ function stopSession(): void {
   wantRunning = false;
   // Bumping the token makes any running loop stop at its next frame.
   loopToken++;
-  overlayLayout?.setVisible(false);
+  setSessionLive(false);
 }
 
 void app.whenReady().then(() => {
   store = new SettingsStore();
+  // Seeds the Default profile the first time this installs, or when migrating
+  // from a version that had no profiles yet (§ `overlay-profiles.ts`).
+  profiles = new OverlayProfileStore(
+    settings().get().panels.length === 0 ? [...DEFAULT_PANELS] : settings().get().panels,
+  );
   installSettingsIpc(settings(), resolveDataDir, RECORDINGS_DIR);
   installEditorIpc(() => settings().get(), resolveDataDir);
+  installImporterIpc({
+    getSettings: () => settings().get(),
+    resolveDataDir,
+    identity: () => liveIdentity,
+    openImported: (noteSetId) => {
+      // Selecting is how the editor is aimed (see "editNoteSet" below), and the
+      // pack list should show the new set without waiting for anything else.
+      settings().update({ noteSetId });
+      void refreshPacks();
+      openEditor(PRELOAD);
+    },
+  });
   registerPreferencesShortcut(PRELOAD);
 
   // The overlays are the product (§7): transparent, frameless, always-on-top,
@@ -1031,10 +1340,50 @@ void app.whenReady().then(() => {
       // app should be doing, so the session listener SHOULD rebuild on it.
       settings().update({ noteSetId: command.id });
       broadcastStatus({});
+    } else if (command.kind === "openImporter") {
+      openImporter(PRELOAD);
     } else if (command.kind === "editNoteSet") {
       // The editor edits whatever is selected, so selecting is how you aim it.
       settings().update({ noteSetId: command.id });
       openEditor(PRELOAD);
+    }
+  });
+
+  // Renderer → main: the Overlays section of the control window.
+  ipcMain.on(OVERLAY_PROFILE_COMMAND_CHANNEL, (_event, raw: unknown) => {
+    const command = raw as OverlayProfileCommand;
+    if (command.kind === "create") {
+      profileStore().create(command.name);
+      broadcastProfiles();
+    } else if (command.kind === "rename") {
+      profileStore().rename(command.id, command.name);
+      broadcastProfiles();
+    } else if (command.kind === "delete") {
+      const wasActive = profileStore().activeId === command.id;
+      profileStore().delete(command.id);
+      if (wasActive) queueOverlayRestart(false);
+      else broadcastProfiles();
+    } else if (command.kind === "setPanels") {
+      profileStore().setPanels(command.id, command.panels);
+      if (command.id === profileStore().activeId) {
+        queueOverlayRestart(overlayEditingActive);
+      } else {
+        broadcastProfiles();
+      }
+    } else if (command.kind === "setActive") {
+      if (command.id !== profileStore().activeId) {
+        profileStore().setActive(command.id);
+        queueOverlayRestart(false);
+      }
+    } else if (command.kind === "edit") {
+      if (command.id === profileStore().activeId) {
+        setOverlayEditing(true);
+      } else {
+        profileStore().setActive(command.id);
+        queueOverlayRestart(true);
+      }
+    } else if (command.kind === "stopEditing") {
+      setOverlayEditing(false);
     }
   });
 
@@ -1063,11 +1412,20 @@ void app.whenReady().then(() => {
   // A changed note set, voice, car, data folder or lead adjust means a different
   // engine and different audio, so the session is rebuilt. Panels are not in
   // that list: adding or removing a window at runtime is M6's layout work.
+  //
+  // The reload goes through supervise(), never a second runTelemetryLoop beside
+  // the first. The iRacing SDK maps the sim's shared memory once per process, so
+  // two adapters share it: the old loop's close() unmaps it under the new one,
+  // and the new one's next read takes the whole app down — no exception, no log.
+  // That is what "the app crashes when I open the editor" was: Edit selects the
+  // note set, which is a settings change. Ending the running loop and letting the
+  // supervisor start the next one means one adapter at a time, always.
   settings().onChange(() => {
-    const surfaces = currentSurfaces;
-    if (surfaces === null) return;
+    // Nothing to reload while stopped; the next Start reads the new settings.
+    if (!wantRunning) return;
     process.stdout.write("settings changed — reloading the session\n");
-    void runTelemetryLoop(surfaces);
+    restartRequested = true;
+    loopToken++;
   });
 
   app.on("activate", () => {

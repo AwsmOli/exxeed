@@ -26,6 +26,7 @@ import { app, Menu, shell, type MenuItemConstructorOptions } from "electron";
 export interface MenuActions {
   readonly openPreferences: () => void;
   readonly openEditor: () => void;
+  readonly openImporter: () => void;
   readonly renderAudio: () => void;
   readonly toggleOverlayEdit: () => void;
   readonly overlayMode: boolean;
@@ -61,6 +62,12 @@ export function buildApplicationMenu(actions: MenuActions): void {
     label: "Edit Notes…",
     accelerator: "CommandOrControl+E",
     click: () => actions.openEditor(),
+  };
+
+  const importYouTube: MenuItemConstructorOptions = {
+    label: "Import From YouTube…",
+    accelerator: "CommandOrControl+I",
+    click: () => actions.openImporter(),
   };
 
   const renderAudio: MenuItemConstructorOptions = {
@@ -125,6 +132,7 @@ export function buildApplicationMenu(actions: MenuActions): void {
         label: "File",
         submenu: [
           editNotes,
+          importYouTube,
           renderAudio,
           { type: "separator" },
           ...toggles,
@@ -136,6 +144,7 @@ export function buildApplicationMenu(actions: MenuActions): void {
         label: "File",
         submenu: [
           editNotes,
+          importYouTube,
           renderAudio,
           preferences,
           { type: "separator" },

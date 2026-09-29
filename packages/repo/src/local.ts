@@ -125,7 +125,19 @@ export class LocalFileTrackMapRepository implements TrackMapRepository {
           const version = await this.latestVersion(key);
           if (version === null) continue;
 
-          const map = await this.get({ ...key, mapVersion: version });
+          // One map that no longer matches the schema — cut before a change to
+          // it — must not hide every other track. It is skipped and said, and
+          // still fails loudly when something asks for that track itself.
+          let map: TrackMap | null;
+          try {
+            map = await this.get({ ...key, mapVersion: version });
+          } catch (err) {
+            process.stderr.write(
+              `skipping track ${sim}/${trackId}/${configId} v${version}: its map could not be read ` +
+                `(${err instanceof Error ? err.message.split("\n")[0] : String(err)}) — re-cut it\n`,
+            );
+            continue;
+          }
           if (map === null) continue;
 
           out.push({

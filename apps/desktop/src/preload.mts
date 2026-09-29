@@ -16,6 +16,7 @@ const AUDIO_PLAY_CHANNEL = "exxeed:audio-play";
 const MAP_CHANNEL = "exxeed:map";
 const REFERENCE_CHANNEL = "exxeed:reference";
 const ENGINE_EVENT_CHANNEL = "exxeed:engine-event";
+const RACE_CHANNEL = "exxeed:race";
 
 const subscribe = (channel: string, callback: (payload: unknown) => void): (() => void) => {
   const listener = (_event: unknown, payload: unknown): void => callback(payload);
@@ -25,6 +26,8 @@ const subscribe = (channel: string, callback: (payload: unknown) => void): (() =
 
 const EDIT_MODE_CHANNEL = "exxeed:edit-mode";
 const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
+const OVERLAY_PROFILES_CHANGED_CHANNEL = "exxeed:overlay-profiles-changed";
+const OVERLAY_PROFILE_COMMAND_CHANNEL = "exxeed:overlay-profile-command";
 const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
 const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
 const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
@@ -37,6 +40,8 @@ const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
 const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
 const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
 const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
+const IMPORTER_CHANNEL = "exxeed:importer";
+const IMPORTER_PROGRESS_CHANNEL = "exxeed:importer-progress";
 
 contextBridge.exposeInMainWorld("exxeed", {
   /** The control window: start, stop, autostart, and what the app is doing. */
@@ -44,6 +49,13 @@ contextBridge.exposeInMainWorld("exxeed", {
     subscribe("exxeed:session-status", cb),
   sendSessionCommand: (command: unknown): void => {
     ipcRenderer.send("exxeed:session-command", command);
+  },
+
+  /** The Overlays section: profiles, which is active, and layout-edit state. */
+  onOverlayProfiles: (cb: (payload: unknown) => void) =>
+    subscribe(OVERLAY_PROFILES_CHANGED_CHANNEL, cb),
+  sendOverlayProfileCommand: (command: unknown): void => {
+    ipcRenderer.send(OVERLAY_PROFILE_COMMAND_CHANNEL, command);
   },
 
   /** Preferences. The only request/response pair — everything else is one-way. */
@@ -78,6 +90,14 @@ contextBridge.exposeInMainWorld("exxeed", {
     subscribe(EDITOR_RENDER_REQUEST_CHANNEL, () => cb()),
 
   /**
+   * The YouTube importer. One request/response channel with an `op`, because
+   * the window has a dozen small questions for main and none of them is on a
+   * hot path. Answers are `{ ok, value }` or `{ ok: false, error }`.
+   */
+  importer: (request: unknown): Promise<unknown> => ipcRenderer.invoke(IMPORTER_CHANNEL, request),
+  onImporterProgress: (cb: (payload: unknown) => void) => subscribe(IMPORTER_PROGRESS_CHANNEL, cb),
+
+  /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:
    * everything else is one-way, because the renderer decides nothing (§7).
    */
@@ -93,4 +113,6 @@ contextBridge.exposeInMainWorld("exxeed", {
   onMap: (cb: (view: unknown) => void) => subscribe(MAP_CHANNEL, cb),
   onReference: (cb: (view: unknown) => void) => subscribe(REFERENCE_CHANNEL, cb),
   onEngineEvent: (cb: (event: unknown) => void) => subscribe(ENGINE_EVENT_CHANNEL, cb),
+  /** The field, fuel, tyres and weather — or null when the source has none. */
+  onRace: (cb: (view: unknown) => void) => subscribe(RACE_CHANNEL, cb),
 });

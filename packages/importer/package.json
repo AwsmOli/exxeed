@@ -1,0 +1,27 @@
+{
+  "name": "@exxeed/importer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The YouTube importer's working parts: the race week, the video search, the transcript, and turning it into callouts. SPEC.md §10.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "@exxeed/core": "workspace:*",
+    "pdfjs-dist": "^4.10.38",
+    "zod": "^3.23.8"
+  }
+}

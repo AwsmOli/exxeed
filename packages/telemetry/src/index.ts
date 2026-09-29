@@ -13,3 +13,6 @@ export * from "./recorder.js";
 export * from "./recordings.js";
 export * from "./replay.js";
 export * from "./iracing.js";
+export * from "./race.js";
+export * from "./laps.js";
+export * from "./map-build.js";

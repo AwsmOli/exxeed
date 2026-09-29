@@ -44,6 +44,10 @@ data/voices/*
 !data/voices/.gitkeep
 data/piper/*
 !data/piper/.gitkeep
+# yt-dlp, fetched by the YouTube importer the same way.
+data/tools/*
+# Callouts converted from a video for a track with no map yet, waiting on one.
+data/**/imports/
 data/profile/*
 !data/profile/.gitkeep
 

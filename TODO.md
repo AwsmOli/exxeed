@@ -460,7 +460,17 @@ learning state to persist.
 
 ## M5 — Ingest pipeline (parallel from the start, separate package)
 
-- [ ] Move video ingest out into a **separate CLI tool, its own repo**
+- [x] ~~Move video ingest out into a separate CLI tool~~ — **reversed: it is in the app**
+  File > Import From YouTube (`Ctrl+I`). This week's official races (iRacing's
+  public schedule PDF, no login) or the live session fill in track and car; yt-dlp
+  searches and fetches captions; one prompt converts the transcript, sent to
+  Claude / OpenAI / Gemini / an OpenAI-compatible server on the author's key, or
+  copied into any chat and pasted back. `{ turn, text }` is still the whole
+  contract and `resolveProfile` still does the placing. See SPEC §10's note. The
+  reasoning below is kept because the contract, the numbering prerequisite and
+  the ordering fallback all still apply.
+
+  *Original plan:*
   Stages 0–3 leave this project. The helper takes a video, playlist or channel
   link and emits one or more importable profiles; Exxeed gains an import path and
   never talks to YouTube. Scan a playlist and you get a backlog of track/car
@@ -581,6 +591,117 @@ learning state to persist.
   Unlock, drag, lock, remembered per panel. What is still missing is resizing —
   panels are fixed-size, which is fine for a delta bar and limiting for the trace.
 - [ ] Resize overlays, not just move them
+
+## M7 — Race summary
+
+A screen after the chequered flag: the result, the iRating and Safety Rating
+change with an animation, where the time went, and how this race compares to
+others in the same combo. **Everything except the rating change is local.** The
+result is in the session YAML, the time loss is in the recording (§9), and the
+comparisons are a query over races already driven. Only the ratings need the web.
+
+The order below is the order of dependency. Each step ships something usable on
+its own, and the web API comes last because its auth is the slowest part.
+
+**Step 1 — Result from the SDK**
+
+- [ ] Read `Sessions[n].ResultsPositions` from the session YAML into `race.ts`
+  Position, class position, laps, laps led, fastest lap, incidents, reason out,
+  for every car. It updates live and is final at the flag. Same rule as the rest
+  of `race.ts`: a snapshot a source MAY offer, absent on replay.
+- [ ] Watch `Sessions[n].ResultsOfficial` go 0 → 1
+  That is "the report is ready", as far as the sim can tell us. Only visible while
+  the driver is still in the session, so nothing may depend on seeing it.
+- [ ] Capture `WeekendInfo.SubSessionID` at connect
+  It is the key for the Data API in step 4 and costs nothing to keep. Without it,
+  a race cannot be looked up afterwards.
+- [ ] Detect the end of a race session
+  Chequered flag or session state, race sessions only — practice and qualifying
+  get no summary screen, or a lighter one.
+- [ ] Session YAML fixture with results in it
+  A replay has no race snapshot (§7), so the results path needs its own checked-in
+  YAML, taken at the flag and again after `ResultsOfficial`, to test against.
+
+**Step 2 — The race summary record**
+
+- [ ] `RaceSummary` schema (Zod, §4 style)
+  `subsessionId`, `TrackKey`, `carId`, date, session type, field size and SOF,
+  finishing and class position, incidents, per-lap times with a clean/dirty flag
+  (pit, off track, yellow), per-corner segment times, and the iRating/SR deltas as
+  optional until step 4 fills them. **This record is what makes every comparison
+  cheap.** Without it, "since forever" means re-parsing every old recording.
+- [ ] `RaceSummaryRepository` + `LocalFile*` implementation (§8)
+  Keyed by `TrackKey` + `carId`, like `ReferenceLap`, because a comparison across
+  map revisions still has to work. `listForCombo(trackKey, carId, since?)` is the
+  query everything in step 5 needs.
+- [ ] Write the record when a race ends, and link it to its recording
+  The recording path goes in the record, so a summary can always be recomputed
+  if the segment maths changes.
+- [ ] Backfill from existing recordings
+  A tool that builds summaries from `data/recordings/` so history does not start
+  at zero. Recordings have no result, so these are laps and segments only.
+
+**Step 3 — The results screen**
+
+- [ ] Summary window, opened automatically at the end of a race
+  Its own window, not an overlay: it is read after the race, not glanced at during
+  it. Dismissable, and reopenable from a menu for the last race.
+- [ ] Result block: position, class position, positions gained, incidents, best lap
+- [ ] Lap chart: every lap time, clean laps distinguished, best lap marked
+- [ ] Placeholder for the rating change
+  Shows the local estimate (step 4) or "waiting for official results", so the
+  screen is complete without the web and fills in when it arrives.
+
+**Step 4 — iRating and Safety Rating**
+
+- [ ] Local iRating estimate from the field
+  The SDK has every driver's iRating, so the community-known formula gives a
+  number at the flag. Shown as an estimate and replaced by the official number.
+  No offline SR estimate — it is not derivable usefully from what the SDK gives.
+- [ ] Register an OAuth client with iRacing
+  Legacy email+hashed-password auth is being retired. Check the current Data API
+  docs for which grant a desktop app is allowed before building anything.
+- [ ] Sign-in flow in preferences, token stored with `safeStorage`
+  Optional: everything else on the screen must work signed out.
+- [ ] `results/get?subsession_id=…` client
+  Two-step: the response is a JSON with a `link` to a signed S3 URL, and the data
+  is behind that. Poll after the race ends until it appears (usually a minute or
+  two), respecting the `x-ratelimit-*` headers, and give up quietly.
+- [ ] Fill the deltas into the `RaceSummary`
+  `newi_rating − oldi_rating`, `new_sub_level − old_sub_level`, license class
+  before and after.
+- [ ] The animation
+  iRating counter rolls from old to new; the SR bar fills or drains; a
+  license-promotion moment when a threshold is crossed. The estimate-to-official
+  settle is itself part of it.
+
+**Step 5 — Where the time went**
+
+- [ ] Segment each lap at corner boundaries
+  From the corner list the map already has, via the §4.6 pct helpers — never raw
+  subtraction, and the segment spanning S/F is the one to test first.
+- [ ] Time lost per corner, ranked
+  Against the race's own best lap, and against the `ReferenceLap` when there is
+  one. Average and worst, so one mistake does not read as a habit.
+- [ ] Say *why*, where the channels support it
+  Brake onset against the reference's `brakeOnsetPct` (§5.1 — the same function,
+  or the comparison drifts), minimum speed, throttle-on. "Turn 7: −0.31 s, braking
+  12 m early" is the line worth building toward.
+- [ ] Theoretical best: stitched best segments against the actual best lap
+- [ ] Consistency: spread of clean lap times
+
+**Step 6 — Compared with other races**
+
+- [ ] This race against this week's and all-time in the same combo
+  Best lap, average clean lap, finishing position, incidents, iRating trend.
+- [ ] Most improved and most regressed corner
+  Per-corner segment times against the previous races in the combo. The
+  improvement is the dopamine; the regression is the useful half.
+- [ ] Rating history chart per combo, once step 4 has filled enough records
+
+*Done when:* finishing a race at Daytona opens a summary with the official
+result, the real iRating and SR change, the three corners costing the most time,
+and how it compares to the last race in the same car.
 
 ## Open questions (§13)
 

@@ -10,6 +10,7 @@
 import type { TrackKey } from "@exxeed/core";
 
 import type { TelemetryFrame } from "./frame.js";
+import type { DashState, RaceSnapshot } from "./race.js";
 
 /**
  * Which track and which car — SPEC.md §9.
@@ -64,6 +65,18 @@ export interface TelemetrySource extends AsyncIterable<TelemetryFrame> {
    * Never block recording on this: an unlabelled lap is worth more than no lap.
    */
   readonly identity: SessionIdentity | null;
+
+  /**
+   * The field, fuel, tyres and weather, when this source knows them.
+   *
+   * Optional, and null when present but not ready: the live sim has all of it,
+   * a replay has none (recordings are the driver's own car only — see
+   * race.ts), and every overlay that draws from it copes with its absence.
+   */
+  race?(): RaceSnapshot | null;
+
+  /** RPM, clutch and FFB for the current frame — live sim only, like `race`. */
+  dash?(): DashState | null;
 
   /** Resolves when the source is ready. Throws if the platform can't support it
    *  — see IRacingAdapter off Windows. */

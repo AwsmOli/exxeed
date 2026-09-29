@@ -18,7 +18,8 @@
       "@exxeed/core": ["./packages/core/src/index.ts"],
       "@exxeed/telemetry": ["./packages/telemetry/src/index.ts"],
       "@exxeed/repo": ["./packages/repo/src/index.ts"],
-      "@exxeed/tts": ["./packages/tts/src/index.ts"]
+      "@exxeed/tts": ["./packages/tts/src/index.ts"],
+      "@exxeed/importer": ["./packages/importer/src/index.ts"]
     }
   },
   "include": ["packages/*/test/**/*.ts", "tools/*/test/**/*.ts"]

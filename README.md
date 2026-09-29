@@ -130,6 +130,29 @@ it, drag a point to move it, or snap it to the measured braking point.
 redraws the windows from the new durations. Download a voice in preferences
 first — without one the button is disabled rather than failing when pressed.
 
+### Importing from YouTube
+
+`Cmd/Ctrl+I` (or **Import from YouTube** in Track Coach) finds a track guide and
+turns it into callouts:
+
+1. **Race** — the live session fills in track and car on its own; otherwise pick
+   from **This week**'s official races, or type them in.
+2. **Search** — `iRacing track guide <car> <track>` through yt-dlp, which is
+   downloaded on first use into `data/tools/`.
+3. **Watch** — the guide plays in the window beside its transcript; click any
+   timestamp to jump there.
+4. **Convert** — one request to the model chosen under **AI model** (Claude,
+   OpenAI, Gemini, or any OpenAI-compatible server such as Ollama), on your own
+   API key. Or **Copy prompt**, paste it into any AI chat, and paste the answer
+   back. Either way you get one editable callout per turn.
+5. **Import** — a draft note set placed on the track map, opened in the editor.
+   Render its audio before driving. A track with no map yet keeps the callouts
+   under `<data>/imports/` until you have driven a lap there.
+
+API keys are stored encrypted with the OS keychain and never reach the window.
+This week's races need no account: they come from iRacing's public season
+schedule PDF, fetched a few times a day and read by date.
+
 ## Testing on Windows
 
 The live SDK, the steering sign convention, and recording a real lap all need a
@@ -162,11 +185,12 @@ Replay a recording through the note engine, or boot the app against one:
 pnpm --filter @exxeed/replay start <recording.ndjson> --notes spa-gt3-fixture --data data/demo
 
 # The app, with audio, replaying the built-in fixture at 8x
-EXXEED_NOTES=spa-gt3-fixture EXXEED_SPEED=8 pnpm dev
+EXXEED_DATA=data/demo EXXEED_NOTES=spa-gt3-fixture EXXEED_SPEED=8 pnpm dev
 ```
 
 `data/demo/` holds a two-corner Spa stub — track map, landmarks, note set and a
-placeholder audio pack — so both of those work with nothing else set up. The
+placeholder audio pack — so both of those work with nothing else set up. The app
+itself reads `data/` by default; point it at `data/demo` to use the fixture. The
 audio is tone bursts at the right durations, not speech: the engine only cares
 about `durationMs`, which is what sets lead distance.
 
@@ -255,6 +279,17 @@ edit look like it did nothing.
 `EXXEED_REPLAY` takes a full path, and should — it is passed by scripts that
 never see the picker. The saved setting behind it names a file inside the
 recordings folder instead; see below.
+
+#### Track maps
+
+At a track with no map, the app cuts one from your **first clean lap** while you
+drive — a full lap from the line, never on pit road, off track or towed — and the
+map overlay appears as soon as that lap ends. A faster clean lap later in the same
+session replaces the reference lap (the delta bar's ghost) without re-cutting the
+map. The log says why each lap before that one was not used. Corners are numbered
+as detected; add `data/tracks/iracing/<id>/<layout>/corners.override.json` to match
+the official numbering before importing callouts by turn. The map overlay shows
+for any mapped track, with or without a note set.
 
 #### Recordings
 

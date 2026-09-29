@@ -49,31 +49,6 @@ function render(payload) {
   $("leadAdjust").value = String(current.leadAdjustS);
   renderVoices(payload.options);
 
-  const panels = $("panels");
-  panels.replaceChildren();
-  for (const id of ["telemetry", "map", "trace", "delta", "callouts"]) {
-    const label = document.createElement("label");
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.checked = current.panels.includes(id);
-    box.addEventListener("change", () => {
-      const chosen = [...panels.querySelectorAll("input")]
-        .filter((b) => b.checked)
-        .map((b) => b.dataset.panel);
-      // Refuse to leave nothing: an empty selection opens no windows at all and
-      // there is no way back from inside the app.
-      if (chosen.length === 0) {
-        box.checked = true;
-        flash("at least one panel has to stay on");
-        return;
-      }
-      save({ panels: chosen });
-    });
-    box.dataset.panel = id;
-    label.append(box, document.createTextNode(id));
-    panels.append(label);
-  }
-
   $("debug").hidden = !options.debugEnabled;
   $("restart-note").hidden = false;
 

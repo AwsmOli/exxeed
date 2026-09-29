@@ -3,8 +3,10 @@
  *
  * One transparent, frameless, always-on-top window per panel. The flags come
  * straight from the spec: `transparent`, `frame: false`, `alwaysOnTop`,
- * `skipTaskbar`, `resizable: false`, plus `setAlwaysOnTop(true, "screen-saver")`
- * to clear the sim.
+ * `skipTaskbar`, `resizable: true`, plus `setAlwaysOnTop(true, "screen-saver")`
+ * to clear the sim. Resizable like any other window — dragging an edge works
+ * the same way it does on a normal frameless-but-bordered window, and the
+ * size is remembered per panel alongside its position.
  *
  * §7 also specifies `setIgnoreMouseEvents(true, { forward: true })` so clicks
  * reach the game, and that is available — but not the default. Click-through and
@@ -38,7 +40,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { app, BrowserWindow, globalShortcut, ipcMain, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, Menu, screen } from "electron";
 
 import {
   MOVE_WINDOW_CHANNEL,
@@ -47,13 +49,16 @@ import {
   type PanelId,
 } from "@exxeed/overlays";
 
+import { DEFAULT_PROFILE_ID } from "./overlay-profiles.js";
+
 export const EDIT_MODE_SHORTCUT = "CommandOrControl+Shift+E";
 
 export const FULLSCREEN_WARNING =
   "Overlay mode: run the sim in BORDERLESS WINDOWED, not exclusive fullscreen —\n" +
   "  transparent overlays are not supported over exclusive fullscreen.\n" +
   `  Drag any overlay to move it. ${EDIT_MODE_SHORTCUT} makes them click-through so\n` +
-  "  clicks reach the sim instead; press it again to grab them.\n";
+  "  clicks reach the sim instead; press it again to grab them.\n" +
+  "  Right-click any overlay for Exxeed, or to hide it or all of them.\n";
 
 /**
  * Windows that have begun closing.
@@ -81,26 +86,45 @@ export function sendTo(window: BrowserWindow, channel: string, payload: unknown)
 interface Bounds {
   readonly x: number;
   readonly y: number;
+  /** Absent for a layout saved before resizing existed — falls back to the
+   *  panel's default size (`PANEL_SPECS`). */
+  readonly width?: number;
+  readonly height?: number;
 }
 
 type SavedLayout = Partial<Record<PanelId, Bounds>>;
 
-const layoutPath = (): string => join(app.getPath("userData"), "overlay-layout.json");
+const layoutPath = (profileId: string): string =>
+  join(app.getPath("userData"), `overlay-layout-${profileId}.json`);
 
-function loadLayout(): SavedLayout {
+/** Where positions lived before profiles existed — read once, as a fallback. */
+const legacyLayoutPath = (): string => join(app.getPath("userData"), "overlay-layout.json");
+
+function readLayoutFile(path: string): SavedLayout | null {
   try {
-    const raw: unknown = JSON.parse(readFileSync(layoutPath(), "utf8"));
-    if (typeof raw !== "object" || raw === null) return {};
-    return raw as SavedLayout;
+    const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+    return typeof raw === "object" && raw !== null ? (raw as SavedLayout) : null;
   } catch {
-    // No layout yet, or one written by an older version. Defaults are fine.
-    return {};
+    return null;
   }
 }
 
-function saveLayout(layout: SavedLayout): void {
+/**
+ * The default profile carries the pre-profile id (`overlay-profiles.ts`), so
+ * falling back to the old single-layout file only when its own hasn't been
+ * written yet is what migrates a pre-profile install without a copy step: the
+ * first save under the new name simply supersedes it.
+ */
+function loadLayout(profileId: string): SavedLayout {
+  const own = readLayoutFile(layoutPath(profileId));
+  if (own !== null) return own;
+  if (profileId !== DEFAULT_PROFILE_ID) return {};
+  return readLayoutFile(legacyLayoutPath()) ?? {};
+}
+
+function saveLayout(profileId: string, layout: SavedLayout): void {
   try {
-    writeFileSync(layoutPath(), `${JSON.stringify(layout, null, 2)}\n`, "utf8");
+    writeFileSync(layoutPath(profileId), `${JSON.stringify(layout, null, 2)}\n`, "utf8");
   } catch {
     // Losing a remembered layout is not worth taking the app down for.
   }
@@ -148,7 +172,8 @@ function defaultPosition(panels: readonly PanelId[], index: number): Bounds {
 }
 
 export class OverlayLayout {
-  #layout: SavedLayout = loadLayout();
+  #profileId: string;
+  #layout: SavedLayout;
   #windows = new Map<PanelId, BrowserWindow>();
   /**
    * Whether clicks pass straight through to the sim.
@@ -164,6 +189,13 @@ export class OverlayLayout {
   #rememberTimers = new Map<PanelId, NodeJS.Timeout>();
   #shortcutRegistered = false;
   #moveHandlerInstalled = false;
+  #onShowMainWindow: () => void;
+
+  constructor(profileId: string, onShowMainWindow: () => void) {
+    this.#profileId = profileId;
+    this.#layout = loadLayout(profileId);
+    this.#onShowMainWindow = onShowMainWindow;
+  }
 
   get windows(): readonly BrowserWindow[] {
     return [...this.#windows.values()];
@@ -205,17 +237,32 @@ export class OverlayLayout {
         ? saved
         : defaultPosition(panels, index);
 
+    const width = position.width ?? spec.width;
+    const height = position.height ?? spec.height;
+
     const window = new BrowserWindow({
       x: position.x,
       y: position.y,
-      width: spec.width,
-      height: spec.height,
+      width,
+      height,
+      // A panel shrunk to nothing is not a smaller panel, it is a lost one —
+      // and one stretched to nothing wide is a divide-by-zero waiting to
+      // happen in a canvas fit. Small enough to still be worth having,
+      // nowhere near small enough to vanish under the cursor.
+      minWidth: 120,
+      minHeight: 60,
       title: `Exxeed — ${spec.title}`,
       transparent: true,
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
-      resizable: false,
+      // Resizable like any other window (§7 originally said otherwise, but a
+      // fixed size was never the point — it was just what nobody had asked to
+      // change yet). Dragging the edge of a frameless, transparent window
+      // still works on Windows: OS-level hit-testing for the resize border
+      // happens before a click reaches the page, so it does not fight with
+      // the renderer's own mousedown-drag-to-move handler.
+      resizable: true,
       hasShadow: false,
       // Otherwise the transparent window paints an opaque backdrop on some
       // compositors, which defeats the point.
@@ -246,13 +293,18 @@ export class OverlayLayout {
     void window.loadFile(page, { search: `overlay=1&panel=${panel}` });
 
     window.on("close", () => markClosing(window));
-    // Persisting on every "moved" would write the settings file continuously
-    // for the length of a drag, so it settles first.
+    // Persisting on every "moved"/"resized" would write the settings file
+    // continuously for the length of a drag, so it settles first.
     window.on("moved", () => this.#rememberSoon(panel, window));
+    window.on("resized", () => this.#rememberSoon(panel, window));
     window.once("closed", () => {
       this.#windows.delete(panel);
       if (this.#windows.size === 0) this.#releaseShortcut();
     });
+    // Only reaches this window while it is grabbable — click-through forwards
+    // a right-click to the sim same as any other, which is what someone who
+    // locked the overlays for driving wants.
+    window.webContents.on("context-menu", () => this.#showContextMenu(window));
 
     // Where it actually landed. Worth printing: over a fullscreen sim an overlay
     // can be invisible, and "off-screen or behind the game?" is otherwise
@@ -260,7 +312,7 @@ export class OverlayLayout {
     const restored = saved !== undefined && position === saved;
     process.stdout.write(
       `  ${panel.padEnd(9)} ${String(position.x).padStart(5)},${String(position.y).padEnd(5)} ` +
-        `${spec.width}x${spec.height}${restored ? "  (remembered)" : ""}\n`,
+        `${width}x${height}${restored ? "  (remembered)" : ""}\n`,
     );
 
     this.#windows.set(panel, window);
@@ -270,9 +322,52 @@ export class OverlayLayout {
   }
 
   #remember(panel: PanelId, window: BrowserWindow): void {
-    const { x, y } = window.getBounds();
-    this.#layout = { ...this.#layout, [panel]: { x, y } };
-    saveLayout(this.#layout);
+    const { x, y, width, height } = window.getBounds();
+    this.#layout = { ...this.#layout, [panel]: { x, y, width, height } };
+    saveLayout(this.#profileId, this.#layout);
+  }
+
+  /**
+   * The one way into the app from an overlay: there is no menu bar and no
+   * taskbar entry (§7), so right-click is the only thing to try when the
+   * control window has gone missing behind the sim or into the tray.
+   */
+  #showContextMenu(window: BrowserWindow): void {
+    Menu.buildFromTemplate([
+      { label: "Show Exxeed", click: () => this.#onShowMainWindow() },
+      { type: "separator" },
+      { label: "Hide This Overlay", click: () => window.hide() },
+      { label: "Close All Overlays", click: () => this.setVisible(false) },
+    ]).popup({ window });
+  }
+
+  /**
+   * Close every window this layout owns, without touching anything else, and
+   * resolve once they are actually gone.
+   *
+   * For switching profiles: the caller builds a fresh `OverlayLayout` for
+   * whichever profile is now active and creates its windows, so this only has
+   * to tear down the old set — but it has to finish first. `globalShortcut` is
+   * OS-level state shared by every `OverlayLayout`, and the old instance
+   * releasing it (§ `#releaseShortcut`, which fires once its last window closes)
+   * AFTER a new instance has already re-registered it for the incoming profile
+   * would silently kill the shortcut for windows that are not this layout's to
+   * touch. Awaiting `closed` for every window, not just sending `close()`, is
+   * what keeps the two layouts from interleaving.
+   */
+  destroy(): Promise<void> {
+    const windows = [...this.#windows.values()].filter((w) => !w.isDestroyed());
+    if (windows.length === 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      let remaining = windows.length;
+      for (const window of windows) {
+        window.once("closed", () => {
+          remaining -= 1;
+          if (remaining === 0) resolve();
+        });
+        window.close();
+      }
+    });
   }
 
   /**

@@ -21,30 +21,232 @@ import type { Mps, NoteState, Pct, Radians, Seconds, SuppressionReason } from "@
  *
  * Each is its own BrowserWindow with its own remembered position (§7). They all
  * render the same document — the panel is chosen by query string — so there is
- * one renderer to maintain rather than five.
+ * one renderer to maintain rather than twenty.
+ *
+ * The set follows GO Fast's overlay suite, so someone moving from it finds the
+ * panels they expect, less the two the SDK cannot feed: a racing-line
+ * comparison needs a lateral track position iRacing does not expose, and a
+ * weather forecast needs a forecast it does not publish.
  */
-export const PANELS = ["telemetry", "map", "trace", "delta", "callouts"] as const;
+export const PANELS = [
+  // Driving — the car's own inputs, against the reference where there is one.
+  "inputs",
+  "pedals",
+  "trace",
+  "speed",
+  "brake",
+  // Timing.
+  "delta",
+  "sectors",
+  "corners",
+  "reference",
+  // The race around the car. Live sim only — see RaceView.
+  "standings",
+  "relative",
+  "radar",
+  // Track.
+  "map",
+  "minimap",
+  // The car.
+  "fuel",
+  "tyres",
+  "damage",
+  "weather",
+  // Exxeed's own.
+  "callouts",
+  "telemetry",
+] as const;
 
 export type PanelId = (typeof PANELS)[number];
 
 export const isPanelId = (v: string): v is PanelId =>
   (PANELS as readonly string[]).includes(v);
 
+/**
+ * What a fresh install opens.
+ *
+ * Not every panel. There are twenty, and twenty windows on first launch is a
+ * wall to pull apart before anything can be driven. These are the ones Exxeed
+ * is actually about — where to brake, and how that went — and the rest are a
+ * checkbox away in the Overlays section.
+ */
+export const DEFAULT_PANELS: readonly PanelId[] = [
+  "telemetry",
+  "map",
+  "trace",
+  "delta",
+  "brake",
+  "callouts",
+];
+
 export interface PanelSpec {
   readonly id: PanelId;
   readonly title: string;
-  /** Starting size. Position is remembered; size is not resized by the user yet. */
+  /** Starting size. Position and size are both remembered once changed. */
   readonly width: number;
   readonly height: number;
 }
 
 export const PANEL_SPECS: Readonly<Record<PanelId, PanelSpec>> = {
-  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 330 },
-  map: { id: "map", title: "Track", width: 250, height: 275 },
-  trace: { id: "trace", title: "Inputs", width: 340, height: 175 },
-  delta: { id: "delta", title: "Delta", width: 230, height: 78 },
-  callouts: { id: "callouts", title: "Callouts", width: 320, height: 200 },
+  inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110 },
+  pedals: { id: "pedals", title: "Input Telemetry", width: 540, height: 170 },
+  trace: { id: "trace", title: "Input Comparison", width: 640, height: 150 },
+  speed: { id: "speed", title: "Speed Comparison", width: 640, height: 140 },
+  brake: { id: "brake", title: "Brake Indicator", width: 300, height: 72 },
+  delta: { id: "delta", title: "Delta Bar", width: 340, height: 72 },
+  sectors: { id: "sectors", title: "Delta Sectors", width: 280, height: 224 },
+  corners: { id: "corners", title: "Corner Analysis", width: 340, height: 220 },
+  reference: { id: "reference", title: "Comparison Target", width: 360, height: 190 },
+  standings: { id: "standings", title: "Standings", width: 640, height: 420 },
+  relative: { id: "relative", title: "Relatives", width: 440, height: 360 },
+  radar: { id: "radar", title: "Radar", width: 260, height: 260 },
+  map: { id: "map", title: "Track Map", width: 360, height: 360 },
+  minimap: { id: "minimap", title: "Mini Map", width: 230, height: 230 },
+  fuel: { id: "fuel", title: "Fuel Calculator", width: 260, height: 340 },
+  tyres: { id: "tyres", title: "Tyres", width: 250, height: 340 },
+  damage: { id: "damage", title: "Damage", width: 220, height: 100 },
+  weather: { id: "weather", title: "Weather Conditions", width: 400, height: 130 },
+  callouts: { id: "callouts", title: "Callouts", width: 320, height: 220 },
+  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 340 },
 };
+
+/**
+ * The field, fuel, tyres and weather, main → renderer, a few times a second.
+ *
+ * Not on the state frame, and not at its rate. §7 wants that frame small, and
+ * nothing here changes fast enough to be worth 60 Hz — a standings table
+ * redrawn sixty times a second only flickers. Sent only while the source has
+ * it (the live sim does; a replay never does), and null when it goes away, so
+ * the race panels can say so rather than show the last race forever.
+ */
+export const RACE_CHANNEL = "exxeed:race";
+
+/** One row of the standings, as the panel draws it. */
+export interface RaceRow {
+  readonly carIdx: number;
+  readonly position: number;
+  readonly classPosition: number;
+  readonly carNumber: string;
+  readonly name: string;
+  readonly iRating: number;
+  readonly license: string;
+  readonly licenseColor: string;
+  readonly lap: number;
+  /** Seconds behind the class leader. Null for the leader. */
+  readonly gapS: number | null;
+  /** Seconds behind the car one place ahead in class. Null for the leader. */
+  readonly intervalS: number | null;
+  readonly lastLapS: number | null;
+  readonly bestLapS: number | null;
+  /** Holds the class's fastest lap — drawn purple, as every timing screen does. */
+  readonly fastest: boolean;
+  readonly onPitRoad: boolean;
+  readonly isPlayer: boolean;
+}
+
+export interface RaceClass {
+  readonly classId: number;
+  readonly className: string;
+  readonly classColor: string;
+  /** Strength of field for this class alone. */
+  readonly sof: number | null;
+  readonly rows: readonly RaceRow[];
+}
+
+/** One car near the player on the road, for the relative. */
+export interface RelativeRow {
+  readonly carIdx: number;
+  readonly position: number;
+  readonly carNumber: string;
+  readonly name: string;
+  readonly classColor: string;
+  readonly iRating: number;
+  readonly license: string;
+  readonly licenseColor: string;
+  readonly lap: number;
+  /** Seconds on the road, positive ahead. */
+  readonly gapS: number;
+  /** +1 lapping the player, −1 being lapped by them, 0 on the same lap. */
+  readonly lapState: -1 | 0 | 1;
+  readonly onPitRoad: boolean;
+  readonly isPlayer: boolean;
+}
+
+export type SpotterState = "off" | "clear" | "left" | "right" | "both" | "twoLeft" | "twoRight";
+
+export interface RaceView {
+  readonly sessionType: string;
+  /** "moderate usage" — how rubbered-in the track is, in the sim's words. */
+  readonly rubber: string;
+  /** Where the shift lights start, and where they say shift. RPM. */
+  readonly shiftLights: {
+    readonly firstRpm: number;
+    readonly shiftRpm: number;
+    readonly lastRpm: number;
+    readonly blinkRpm: number;
+  } | null;
+  readonly lap: number;
+  readonly lapsTotal: number | null;
+  readonly lapsRemain: number | null;
+  readonly timeRemainS: number | null;
+  readonly trackLengthM: number | null;
+  readonly classes: readonly RaceClass[];
+  /** Ahead first, the player in the middle, behind last. */
+  readonly relatives: readonly RelativeRow[];
+  /** Every car in the world, for the maps. */
+  readonly cars: readonly {
+    readonly carIdx: number;
+    readonly lapDistPct: number;
+    readonly classColor: string;
+    readonly isPlayer: boolean;
+    readonly onPitRoad: boolean;
+  }[];
+  readonly radar: {
+    readonly spotter: SpotterState;
+    /** Cars within radar range, metres along the road — positive ahead. */
+    readonly nearby: readonly { readonly aheadM: number; readonly classColor: string }[];
+  };
+  readonly fuel: {
+    readonly levelL: number;
+    readonly levelPct: number;
+    readonly tankL: number;
+    readonly useLph: number;
+    readonly perLapL: number | null;
+    readonly lastLapL: number | null;
+    readonly maxLapL: number | null;
+    readonly lapsLeft: number | null;
+    readonly toFinishL: number | null;
+    readonly marginL: number | null;
+  };
+  readonly tyres: Readonly<
+    Record<
+      "lf" | "rf" | "lr" | "rr",
+      {
+        readonly tempC: readonly number[];
+        readonly wear: readonly number[];
+        readonly coldPressureKpa: number;
+      }
+    >
+  >;
+  readonly weather: {
+    readonly airC: number;
+    readonly trackC: number;
+    readonly humidity: number;
+    readonly precipitation: number;
+    readonly windMps: number;
+    readonly windDirRad: number;
+    readonly wetness: string;
+    readonly skies: string;
+    readonly declaredWet: boolean;
+  };
+  readonly repairS: number;
+  readonly optionalRepairS: number;
+  readonly brakeBiasPct: number | null;
+  readonly incidents: number;
+  readonly sectorStartPcts: readonly number[];
+  readonly lastLapS: number | null;
+  readonly bestLapS: number | null;
+}
 
 /** 60 Hz state frame, main → renderer. */
 export const STATE_FRAME_CHANNEL = "exxeed:state-frame";
@@ -125,7 +327,8 @@ export type SessionCommand =
   | { readonly kind: "runAtLogin"; readonly value: boolean }
   | { readonly kind: "startMinimized"; readonly value: boolean }
   | { readonly kind: "selectNoteSet"; readonly id: string | null }
-  | { readonly kind: "editNoteSet"; readonly id: string };
+  | { readonly kind: "editNoteSet"; readonly id: string }
+  | { readonly kind: "openImporter" };
 
 /**
  * Everything the app is configured by.
@@ -143,7 +346,7 @@ export type SessionCommand =
 export interface Settings {
   /** Null means telemetry only — no engine, no callouts. */
   readonly noteSetId: string | null;
-  /** Null means the built-in demo data. */
+  /** Null means the repo's `data/` folder. The Spa fixture is `data/demo`. */
   readonly dataDir: string | null;
   readonly voiceId: string;
   /** The sim's car slug. Null means "the only reference lap recorded for this
@@ -242,7 +445,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceId: "en_test",
   carId: null,
   leadAdjustS: 0,
-  panels: [...PANELS],
+  panels: [...DEFAULT_PANELS],
   piperBinary: null,
   renderVoiceId: null,
   autoStart: true,
@@ -583,6 +786,54 @@ export interface MoveWindowRequest {
   readonly dy: number;
 }
 
+/**
+ * One overlay profile — a named, switchable arrangement of which panels are open
+ * and where they sit.
+ *
+ * Positions are not part of this view: the control window only ever creates,
+ * renames, deletes, activates or edits a profile by id, and never needs to know
+ * where a panel currently sits to do any of that. Main keeps the positions.
+ */
+export interface OverlayProfile {
+  readonly id: string;
+  readonly name: string;
+  readonly panels: readonly PanelId[];
+}
+
+/** What the Overlays section of the control window draws. */
+export interface OverlayProfilesView {
+  readonly profiles: readonly OverlayProfile[];
+  readonly activeProfileId: string;
+  /** The active profile's overlays are grabbable and shown for arranging. */
+  readonly editing: boolean;
+  /** Whether the telemetry panel is offerable — a debugging instrument, not a
+   *  shipping one (see `chosenPanels` in main.ts). */
+  readonly debugEnabled: boolean;
+}
+
+/**
+ * Control window → main: create, rename, delete, switch, or edit a profile.
+ *
+ * `setActive` switches which profile's overlays are open without touching
+ * whether they are grabbable. `edit` is the "Edit" button: switch to this
+ * profile if it is not already active, and either way leave it grabbable and
+ * visible so it can be dragged into place. `stopEditing` is "Done" — lock the
+ * currently open profile and let it go back to following the session.
+ */
+export type OverlayProfileCommand =
+  | { readonly kind: "create"; readonly name: string }
+  | { readonly kind: "rename"; readonly id: string; readonly name: string }
+  | { readonly kind: "delete"; readonly id: string }
+  | { readonly kind: "setPanels"; readonly id: string; readonly panels: readonly PanelId[] }
+  | { readonly kind: "setActive"; readonly id: string }
+  | { readonly kind: "edit"; readonly id: string }
+  | { readonly kind: "stopEditing" };
+
+/** Main → control window: the profile list, active id, or editing state changed. */
+export const OVERLAY_PROFILES_CHANGED_CHANNEL = "exxeed:overlay-profiles-changed";
+/** Control window → main. */
+export const OVERLAY_PROFILE_COMMAND_CHANNEL = "exxeed:overlay-profile-command";
+
 /** The track outline, main → renderer, once at session start. */
 export const MAP_CHANNEL = "exxeed:map";
 
@@ -617,6 +868,14 @@ export interface StateFrame {
    */
   readonly lat: number;
   readonly lon: number;
+  /**
+   * Engine speed, clutch travel (0..1, 1 = pedal down) and force-feedback load
+   * (0..1). Live sim only — they come off `TelemetrySource.dash()`, which a
+   * replay does not have, and they are never recorded. Null when absent.
+   */
+  readonly rpm: number | null;
+  readonly clutch: number | null;
+  readonly ffb: number | null;
   /** Seconds vs the reference lap at this pct index (§7.2). Null until M3. */
   readonly deltaS: Seconds | null;
   readonly connected: boolean;
@@ -698,6 +957,8 @@ export interface ReferenceView {
   readonly brake: readonly number[];
   /** m/s. Converted to km/h in render code and nowhere else (§3). */
   readonly speedMps: readonly number[];
+  /** The reference's gear at each pct, for "what gear here" beside your own. */
+  readonly gear: readonly number[];
   /** Elapsed lap time at each pct — what makes the delta bar a lookup (§7.2). */
   readonly elapsedS: readonly number[];
   /** Faint vertical guides on the trace. */

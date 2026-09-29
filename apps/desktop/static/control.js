@@ -11,6 +11,22 @@ const PHASES = {
 
 let phase = "stopped";
 
+// -- Sections -----------------------------------------------------------
+
+for (const btn of document.querySelectorAll(".section-btn")) {
+  btn.addEventListener("click", () => {
+    const section = btn.dataset.section;
+    for (const b of document.querySelectorAll(".section-btn")) {
+      b.classList.toggle("active", b === btn);
+    }
+    for (const view of document.querySelectorAll(".view")) {
+      view.classList.toggle("active", view.id === `view-${section}`);
+    }
+  });
+}
+
+// -- Session status -------------------------------------------------------
+
 /**
  * The pack list.
  *
@@ -71,7 +87,7 @@ const renderPacks = (s) => {
       // is not something it can do yet, so the button would lead nowhere.
       if (written) {
         const edit = document.createElement("button");
-        edit.className = "pack-edit";
+        edit.className = "ghost";
         edit.textContent = "Edit";
         edit.addEventListener("click", () => {
           window.exxeed?.sendSessionCommand({ kind: "editNoteSet", id: pack.id });
@@ -112,8 +128,203 @@ el("power").addEventListener("click", () => {
   window.exxeed?.sendSessionCommand({ kind: phase === "stopped" ? "start" : "stop" });
 });
 
+el("import-yt").addEventListener("click", () => {
+  window.exxeed?.sendSessionCommand({ kind: "openImporter" });
+});
+
 el("pick-auto").addEventListener("change", () => {
   window.exxeed?.sendSessionCommand({ kind: "selectNoteSet", id: null });
 });
 
 window.exxeed?.onSessionStatus(render);
+
+// -- Overlay profiles -------------------------------------------------------
+
+// Mirrors PANELS and PANEL_SPECS in @exxeed/overlays, grouped the way the
+// panels are about — this page is plain JS and cannot import the package.
+// "Race" and "Car" need the live sim: a replay has no other cars, fuel or
+// tyres to show.
+const PANEL_GROUPS = [
+  ["Driving", ["inputs", "pedals", "trace", "speed", "brake"]],
+  ["Timing", ["delta", "sectors", "corners", "reference"]],
+  ["Race", ["standings", "relative", "radar"]],
+  ["Track", ["map", "minimap"]],
+  ["Car", ["fuel", "tyres", "damage", "weather"]],
+  ["Exxeed", ["callouts", "telemetry"]],
+];
+const PANEL_ORDER = PANEL_GROUPS.flatMap(([, ids]) => ids);
+const PANEL_LABELS = {
+  inputs: "Essential Inputs",
+  pedals: "Input Telemetry",
+  trace: "Input Comparison",
+  speed: "Speed Comparison",
+  brake: "Brake Indicator",
+  delta: "Delta Bar",
+  sectors: "Delta Sectors",
+  corners: "Corner Analysis",
+  reference: "Comparison Target",
+  standings: "Standings",
+  relative: "Relatives",
+  radar: "Radar",
+  map: "Track Map",
+  minimap: "Mini Map",
+  fuel: "Fuel Calculator",
+  tyres: "Tyres",
+  damage: "Damage",
+  weather: "Weather",
+  callouts: "Callouts",
+  telemetry: "Telemetry",
+};
+
+const sendOverlayCommand = (command) => window.exxeed?.sendOverlayProfileCommand(command);
+
+/** Double-click to rename, inline — the same pattern as the note editor's pills. */
+function makeNameEditable(span, profile) {
+  span.addEventListener("dblclick", () => {
+    span.contentEditable = "true";
+    span.spellcheck = false;
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+
+  const commit = () => {
+    span.contentEditable = "false";
+    const name = span.textContent.trim();
+    if (name === "" || name === profile.name) {
+      span.textContent = profile.name;
+      return;
+    }
+    sendOverlayCommand({ kind: "rename", id: profile.id, name });
+  };
+  const cancel = () => {
+    span.contentEditable = "false";
+    span.textContent = profile.name;
+  };
+
+  span.addEventListener("blur", commit);
+  span.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      span.blur();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancel();
+      span.blur();
+    }
+  });
+}
+
+function renderOverlayProfiles(view) {
+  const list = el("ov-profiles");
+  if (!list) return;
+
+  const panelIds = view.debugEnabled ? PANEL_ORDER : PANEL_ORDER.filter((p) => p !== "telemetry");
+
+  list.replaceChildren(
+    ...view.profiles.map((profile) => {
+      const isActive = profile.id === view.activeProfileId;
+      const isEditingThis = isActive && view.editing;
+
+      const li = document.createElement("li");
+      li.className = `ov-profile${isActive ? " active" : ""}`;
+
+      const row = document.createElement("div");
+      row.className = "ov-row";
+
+      const dot = document.createElement("button");
+      dot.type = "button";
+      dot.className = "ov-active-dot";
+      dot.title = isActive ? "Active — this profile's overlays are open" : "Make this profile active";
+      dot.addEventListener("click", () => {
+        if (!isActive) sendOverlayCommand({ kind: "setActive", id: profile.id });
+      });
+
+      const name = document.createElement("span");
+      name.className = "ov-name";
+      name.textContent = profile.name;
+      makeNameEditable(name, profile);
+
+      const actions = document.createElement("div");
+      actions.className = "ov-actions";
+
+      // Edit and Save are the same button: click to start arranging this
+      // profile's overlays, click again — now reading "Save" — to lock them
+      // back down. One button doing both means there is nothing extra to
+      // dismiss once you are done dragging.
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = isEditingThis ? "ghost primary" : "ghost";
+      editBtn.textContent = isEditingThis ? "Save" : "Edit";
+      editBtn.addEventListener("click", () => {
+        sendOverlayCommand(
+          isEditingThis ? { kind: "stopEditing" } : { kind: "edit", id: profile.id },
+        );
+      });
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "ghost";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.disabled = view.profiles.length <= 1;
+      deleteBtn.addEventListener("click", () => {
+        if (window.confirm(`Delete the overlay profile "${profile.name}"?`)) {
+          sendOverlayCommand({ kind: "delete", id: profile.id });
+        }
+      });
+
+      actions.append(editBtn, deleteBtn);
+      row.append(dot, name, actions);
+
+      const panels = document.createElement("div");
+      panels.className = "ov-panels";
+      const groups = new Map();
+      for (const [group, ids] of PANEL_GROUPS) {
+        if (!ids.some((id) => panelIds.includes(id))) continue;
+        const row = document.createElement("div");
+        row.className = "ov-group";
+        const heading = document.createElement("span");
+        heading.className = "ov-group-name";
+        heading.textContent = group;
+        row.append(heading);
+        panels.append(row);
+        for (const id of ids) groups.set(id, row);
+      }
+      for (const id of panelIds) {
+        const label = document.createElement("label");
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = profile.panels.includes(id);
+        box.addEventListener("change", () => {
+          // PANEL_ORDER, not panelIds: this build might not show a checkbox for
+          // every panel (telemetry is debug-only), and a profile carrying one
+          // from a debug build must not lose it just because someone toggled an
+          // unrelated panel from a non-debug window.
+          const chosen = PANEL_ORDER.filter((p) =>
+            p === id ? box.checked : profile.panels.includes(p),
+          );
+          // Refuse to leave nothing: an empty profile opens no windows at all,
+          // with no way back inside the app.
+          if (chosen.length === 0) {
+            box.checked = true;
+            return;
+          }
+          sendOverlayCommand({ kind: "setPanels", id: profile.id, panels: chosen });
+        });
+        label.append(box, document.createTextNode(PANEL_LABELS[id] ?? id));
+        (groups.get(id) ?? panels).append(label);
+      }
+
+      li.append(row, panels);
+      return li;
+    }),
+  );
+}
+
+el("ov-new").addEventListener("click", () => {
+  sendOverlayCommand({ kind: "create", name: "New profile" });
+});
+
+window.exxeed?.onOverlayProfiles(renderOverlayProfiles);

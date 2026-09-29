@@ -800,10 +800,12 @@ reaching for only once the duplication is actually painful.
 ## 7. Overlays
 
 Electron windows: `transparent: true, frame: false, alwaysOnTop: true,
-skipTaskbar: true, resizable: false`, plus
+skipTaskbar: true, resizable: true`, plus
 `win.setAlwaysOnTop(true, "screen-saver")` and
 `win.setIgnoreMouseEvents(true, { forward: true })` — the latter toggled off when
-the user enters layout-edit mode.
+the user enters layout-edit mode. Resizable like any other window: dragging an
+edge works the same way it does on a frameless window with a border, and the
+size is remembered alongside the position.
 
 > **Document this prominently:** transparent overlays are **not supported** over
 > **exclusive fullscreen**. The sim should run borderless windowed. Word it
@@ -819,6 +821,39 @@ throttled when occluded or backgrounded, which will silently destroy callout
 timing. Main owns the telemetry loop, the note engine and audio, and pushes a
 compact state frame to renderers over IPC at 60 Hz. Never send raw telemetry
 across IPC.
+
+**The panel set and the look follow GO Fast's overlay suite**, so someone
+coming from it finds the panels where they expect them. Twenty panels, each
+its own window (`PANELS` in `@exxeed/overlays`), grouped in the Overlays
+section of the control window:
+
+| Group   | Panels                                                        | Needs            |
+|---------|---------------------------------------------------------------|------------------|
+| Driving | Essential Inputs, Input Telemetry, Input Comparison (§7.1), Speed Comparison, Brake Indicator | reference lap for the last three |
+| Timing  | Delta Bar (§7.2), Delta Sectors, Corner Analysis, Comparison Target | reference lap |
+| Race    | Standings, Relatives, Radar                                   | live sim         |
+| Track   | Track Map, Mini Map                                           | track map        |
+| Car     | Fuel Calculator, Tyres, Damage, Weather                       | live sim         |
+| Exxeed  | Callouts (§7.3), Telemetry (debug builds only)                | —                |
+
+Not carried over: GO Fast's racing-line comparison (needs a lateral track
+position the iRacing SDK does not expose) and weather forecast (the SDK
+publishes current conditions only).
+
+The styling (`static/overlay.css`) is a 70%-black card per panel with 8px
+corners and no border, white type with two quieter greys, and one set of signal
+colours shared by every panel: green for gain/throttle/you, red for
+loss/brake, purple for a class's fastest lap.
+
+**Race data is a separate, slower channel.** Other cars, fuel, tyres, weather
+and the spotter come off `TelemetrySource.race()` as a `RaceSnapshot`, built by
+`RaceViewBuilder` in main and broadcast on `RACE_CHANNEL` at 5 Hz. None of it
+is in `TelemetryFrame`: that frame is the driver's own car, it is what gets
+recorded (§9), and sixty-four cars of positions per sample would bloat every
+recording for data no callout reads. The cost is that a replay has no race
+data, so every race and car panel says "live sim only" rather than sitting
+blank. The same caveat applies to tyre temperatures and wear on the live sim:
+iRacing only updates them in the pit stall.
 
 ### 7.0 Vue reactivity rules for 60 Hz data
 
@@ -1130,6 +1165,25 @@ nothing until the listing has been implemented wrongly and seen to fail.
 
 `services/ingest` — standalone Node CLI, runs offline, never bundled into the app.
 Never call an LLM from the client.
+
+> **Revised: stages 0–3 also run in the app, as an authoring tool.** File >
+> Import From YouTube (`Ctrl+I`, `apps/desktop/src/importer.ts`, working parts
+> in `packages/importer`). Pick this week's official race from iRacing's public
+> season schedule PDF (no login — the Data API needs a member account and an OAuth
+> client, the PDF needs neither; tracks are matched to maps by name) or take
+> track and car from the live session, search YouTube, watch the guide
+> beside its transcript, and convert the transcript to `{ turn, text }` callouts —
+> by sending one prompt to a model on the author's own key (Claude, OpenAI,
+> Gemini, or any OpenAI-compatible server), or by copying the prompt into any chat
+> and pasting the answer back. The result goes through `resolveProfile` into a
+> draft note set and opens in the editor (stage 5). Search and captions use
+> yt-dlp, fetched on first use like Piper.
+>
+> What still holds: the **runtime** never touches the network or a model (§2);
+> no key of ours ships in the bundle — keys are the author's, encrypted with the
+> OS keychain (`safeStorage`), and read only in main; stage 6 is unchanged. A
+> track with no map yet cannot place a turn number, so its callouts are saved
+> under `<data>/imports/` and placed once a lap has been recorded there.
 
 Built as a funnel so bad submissions die cheaply. Most public YouTube laps are
 silent hotlaps with music over them and are worth nothing.

@@ -44,8 +44,6 @@
       .path { display: block; margin: 3px 0; color: #566072; word-break: break-all; }
       #importResult.bad, #voiceProgress.bad { color: #d8a06a; }
       #importResult.ok, #voiceProgress.ok { color: #7ee787; }
-      .panels { display: flex; flex-wrap: wrap; gap: 12px; }
-      .panels label { display: flex; align-items: center; gap: 5px; color: #e6e9ee; }
       .note {
         margin-top: 22px; padding: 9px 11px; border-radius: 6px;
         background: rgba(88,166,255,0.07); border: 1px solid rgba(88,166,255,0.22);
@@ -117,12 +115,10 @@
       audio's length is what sets its lead.
     </div>
 
-    <h2>Overlays</h2>
-    <div class="row">
-      <label class="name">Panels</label>
-      <div class="panels" id="panels"></div>
+    <div class="hint">
+      Overlay panels and their layout now live in the Overlays section of the
+      main Exxeed window, not here.
     </div>
-    <div class="hint">Unlock and drag them with Ctrl/Cmd+Shift+E. Positions are remembered.</div>
 
     <section id="debug" hidden>
       <h2>Debug</h2>

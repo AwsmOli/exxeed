@@ -1,0 +1,322 @@
+<!doctype html>
+<!--
+  The YouTube importer — SPEC.md §10 stages 0–3.
+
+  Three columns, left to right in the order the work happens: pick the race and
+  find a guide, watch it with its transcript, turn it into callouts. Each column
+  is usable before the next has anything in it, so nothing is a wizard step you
+  cannot go back from.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' https://i.ytimg.com; frame-src https://www.youtube-nocookie.com"
+    />
+    <title>Exxeed — Import From YouTube</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101215;
+        --panel: #14171c;
+        --raised: #1b1f26;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --text: #e6e9ee;
+        --muted: #8a93a0;
+        --accent: #58a6ff;
+        --accent-fill: #1f6feb;
+        --warn: #f0883e;
+        --bad: #f85149;
+        --good: #3fb950;
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      html, body { height: 100%; }
+      body {
+        margin: 0; display: flex; flex-direction: column; overflow: hidden;
+        background: var(--bg); color: var(--text);
+        font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      header {
+        padding: 12px 18px; border-bottom: 1px solid var(--line);
+        display: flex; align-items: center; gap: 14px; flex: none;
+      }
+      h1 { margin: 0; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+      h2 {
+        margin: 0 0 8px; font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase;
+        color: var(--muted); font-weight: 600;
+      }
+      .grow { flex: 1; }
+      .muted { color: var(--muted); }
+      .small { font-size: 11.5px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+      button {
+        background: var(--raised); color: var(--text); font: inherit;
+        border: 1px solid var(--line-strong); border-radius: 5px;
+        padding: 5px 11px; cursor: pointer; white-space: nowrap;
+      }
+      button:hover:not(:disabled) { border-color: var(--accent); }
+      button:disabled { opacity: 0.4; cursor: default; }
+      button.primary { background: var(--accent-fill); border-color: var(--accent-fill); }
+      button.link { background: none; border: none; padding: 0; color: var(--accent); }
+      button.icon { padding: 2px 7px; }
+      input[type="text"], input[type="password"], input[type="search"], input[type="number"], select, textarea {
+        width: 100%; background: #0b0d10; color: var(--text); font: inherit;
+        border: 1px solid var(--line-strong); border-radius: 5px; padding: 5px 8px;
+      }
+      input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+      textarea { resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      label.field { display: block; margin-bottom: 9px; }
+      label.field > span { display: block; color: var(--muted); font-size: 11.5px; margin-bottom: 3px; }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .row > * { min-width: 0; }
+
+      main {
+        flex: 1; min-height: 0; display: grid;
+        grid-template-columns: 340px minmax(0, 1fr) 440px;
+      }
+      .col { min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+      .col:last-child { border-right: none; }
+      .pane { padding: 14px 16px; border-bottom: 1px solid var(--line); flex: none; }
+      .scroll { overflow-y: auto; flex: 1; min-height: 0; }
+
+      /* Race picker */
+      .tabs { display: flex; gap: 2px; margin-bottom: 10px; background: #0b0d10; padding: 2px; border-radius: 6px; }
+      .tabs button { flex: 1; border: none; background: none; color: var(--muted); padding: 4px 6px; }
+      .tabs button.on { background: var(--raised); color: var(--text); }
+      .race-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+      .race-list li {
+        padding: 6px 8px; border-radius: 5px; cursor: pointer; border: 1px solid transparent;
+      }
+      .race-list li:hover { background: var(--raised); }
+      .race-list li.on { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+      .race-list .series { font-weight: 600; font-size: 12.5px; }
+      .race-list .where { color: var(--muted); font-size: 11.5px; }
+      .chosen {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        padding: 8px 10px; margin: 10px 0;
+      }
+      .chosen .t { font-weight: 600; }
+      .badge {
+        display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 9px;
+        border: 1px solid var(--line-strong); color: var(--muted); margin-left: 4px;
+      }
+      .badge.good { border-color: rgba(63,185,80,0.5); color: var(--good); }
+      .badge.warn { border-color: rgba(240,136,62,0.5); color: var(--warn); }
+
+      /* Results */
+      .results { list-style: none; margin: 0; padding: 6px 10px 14px; }
+      .results li {
+        display: grid; grid-template-columns: 112px 1fr; gap: 9px; padding: 6px;
+        border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+      }
+      .results li:hover { background: var(--raised); }
+      .results li.on { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+      .results img { width: 112px; height: 63px; object-fit: cover; border-radius: 4px; background: #000; }
+      .results .title { font-size: 12.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .results .meta { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+      /* Player + transcript */
+      .player { background: #000; aspect-ratio: 16 / 9; width: 100%; flex: none; position: relative; }
+      .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+      .player .empty {
+        position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); text-align: center; padding: 20px;
+      }
+      .video-bar { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; flex: none; }
+      .video-bar .vt { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .transcript { list-style: none; margin: 0; padding: 8px 10px 20px; }
+      .transcript li { display: grid; grid-template-columns: 58px 1fr; gap: 6px; padding: 3px 6px; border-radius: 4px; }
+      .transcript li:hover { background: var(--raised); }
+      .transcript li.hit { background: rgba(88,166,255,0.12); }
+      .ts { color: var(--accent); cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+
+      /* Callouts */
+      .callouts { list-style: none; margin: 0; padding: 8px 12px 16px; }
+      .callouts li {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+        padding: 8px 9px; margin-bottom: 7px;
+      }
+      .callouts .head { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; }
+      .callouts .head input { width: 52px; padding: 2px 5px; }
+      .callouts .head .conf { font-size: 11px; color: var(--muted); }
+      .callouts .head .conf.low { color: var(--warn); }
+      .callouts textarea { font-family: inherit; font-size: 12.5px; margin-bottom: 4px; min-height: 42px; }
+      .callouts .short { font-size: 12px; }
+      .problems { margin: 0; padding: 0 0 0 16px; color: var(--warn); font-size: 11.5px; }
+      .status { font-size: 12px; min-height: 18px; }
+      .status.bad { color: var(--bad); }
+      .status.good { color: var(--good); }
+      .spinner {
+        display: inline-block; width: 11px; height: 11px; border: 2px solid var(--line-strong);
+        border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Accounts */
+      dialog {
+        background: var(--panel); color: var(--text); border: 1px solid var(--line-strong);
+        border-radius: 8px; padding: 0; width: 560px; max-width: calc(100vw - 32px);
+      }
+      dialog::backdrop { background: rgba(0,0,0,0.55); }
+      dialog form { padding: 18px 20px; }
+      dialog section { margin-bottom: 16px; }
+      dialog .note { font-size: 11.5px; color: var(--muted); margin: 0 0 10px; }
+      .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+      .empty-state { color: var(--muted); padding: 14px 16px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Import From YouTube</h1>
+      <span class="muted small" id="banner"></span>
+      <span class="grow"></span>
+      <button id="accounts-btn" type="button">AI model…</button>
+    </header>
+
+    <main>
+      <!-- 1. Which race, and which guide -->
+      <div class="col">
+        <div class="pane">
+          <h2>Race</h2>
+          <div class="tabs" role="tablist">
+            <button type="button" data-tab="session">Live session</button>
+            <button type="button" data-tab="week">This week</button>
+            <button type="button" data-tab="manual">Manual</button>
+          </div>
+
+          <div data-panel="session">
+            <p class="muted small" id="session-text">No iRacing session is running.</p>
+            <button type="button" id="session-refresh" class="small">Check again</button>
+          </div>
+
+          <div data-panel="week" hidden>
+            <div class="row">
+              <input type="search" id="week-filter" placeholder="Filter series, track or car" />
+              <button type="button" class="icon" id="week-refresh" title="Reload the schedule">↻</button>
+            </div>
+            <ul class="race-list" id="week-list"></ul>
+            <p class="muted small" id="week-status"></p>
+          </div>
+
+          <div data-panel="manual" hidden>
+            <label class="field"><span>Track</span><input type="text" id="m-track" placeholder="Daytona International Speedway" /></label>
+            <div class="two">
+              <label class="field"><span>Layout</span><input type="text" id="m-config" placeholder="Road Course" /></label>
+              <label class="field"><span>iRacing track id (optional)</span><input type="number" id="m-track-id" placeholder="192" /></label>
+            </div>
+            <label class="field"><span>Car</span><input type="text" id="m-car" placeholder="Mazda MX-5 Cup" /></label>
+            <button type="button" id="m-apply">Use this</button>
+          </div>
+
+          <div class="chosen" id="chosen" hidden>
+            <div class="t" id="chosen-track"></div>
+            <div class="muted small" id="chosen-car"></div>
+            <select id="chosen-car-select" hidden></select>
+            <div class="small" id="chosen-map"></div>
+          </div>
+
+          <label class="field"><span>YouTube search</span>
+            <div class="row">
+              <input type="text" id="query" />
+              <button type="button" class="primary" id="search-btn">Search</button>
+            </div>
+          </label>
+          <div class="status small" id="search-status"></div>
+        </div>
+        <div class="scroll">
+          <ul class="results" id="results"></ul>
+        </div>
+      </div>
+
+      <!-- 2. The video and what is said in it -->
+      <div class="col">
+        <div class="player" id="player">
+          <div class="empty" id="player-empty">Pick a video on the left to watch it here.</div>
+        </div>
+        <div class="video-bar">
+          <div class="grow" style="min-width: 0">
+            <div class="vt" id="video-title">No video</div>
+            <div class="muted small" id="video-meta"></div>
+          </div>
+          <button type="button" id="open-yt" disabled>Open on YouTube</button>
+          <button type="button" class="primary" id="transcript-btn" disabled>Get transcript</button>
+        </div>
+        <div class="pane" style="padding: 8px 16px">
+          <div class="row">
+            <input type="search" id="transcript-filter" placeholder="Find in transcript (e.g. brake, turn 4)" />
+          </div>
+        </div>
+        <div class="scroll">
+          <ul class="transcript" id="transcript"></ul>
+          <div class="empty-state" id="transcript-empty">The transcript appears here. Click a timestamp to jump the video to it.</div>
+        </div>
+      </div>
+
+      <!-- 3. Callouts -->
+      <div class="col">
+        <div class="pane">
+          <h2>Convert to callouts</h2>
+          <div class="row" style="margin-bottom: 8px">
+            <button type="button" class="primary" id="convert-btn" disabled>Convert with AI</button>
+            <button type="button" id="copy-btn" disabled title="Copy the full instructions and transcript, to paste into any AI chat">Copy prompt</button>
+            <span class="grow"></span>
+          </div>
+          <div class="muted small" id="provider-line"></div>
+          <details id="paste-box" style="margin-top: 8px">
+            <summary class="small">Paste a reply from another AI chat</summary>
+            <textarea id="paste" rows="5" placeholder="Paste the whole answer — the JSON is found wherever it is."></textarea>
+            <button type="button" id="paste-btn" style="margin-top: 6px">Use pasted reply</button>
+          </details>
+          <div class="status small" id="convert-status" style="margin-top: 8px"></div>
+          <ul class="problems" id="problems"></ul>
+        </div>
+        <div class="scroll">
+          <ul class="callouts" id="callouts"></ul>
+          <div class="empty-state" id="callouts-empty">Callouts show up here, one per turn, to check and edit before importing.</div>
+        </div>
+        <div class="pane" style="border-top: 1px solid var(--line); border-bottom: none">
+          <div class="row" style="margin-bottom: 8px">
+            <label class="field" style="margin: 0; flex: 1"><span>Car class</span><input type="text" id="car-class" placeholder="mx5" /></label>
+            <button type="button" id="add-btn" style="align-self: flex-end" disabled>+ Callout</button>
+            <button type="button" class="primary" id="import-btn" style="align-self: flex-end" disabled>Import</button>
+          </div>
+          <div class="status small" id="import-status"></div>
+          <details id="saved-box">
+            <summary class="small muted">Saved for tracks with no map yet</summary>
+            <ul class="race-list" id="saved"></ul>
+          </details>
+        </div>
+      </div>
+    </main>
+
+    <dialog id="accounts">
+      <form method="dialog" id="accounts-form">
+        <section>
+          <h2>AI model</h2>
+          <p class="note">
+            Any of these converts a transcript with one request on your own key, stored encrypted on
+            this machine. Claude and ChatGPT
+            subscriptions cannot sign in to other apps — for those, use <b>Copy prompt</b> and paste
+            the answer back.
+          </p>
+          <label class="field"><span>Provider</span><select id="ai-provider"></select></label>
+          <div class="two">
+            <label class="field"><span>Model</span><input type="text" id="ai-model" /></label>
+            <label class="field"><span>API key <button type="button" id="ai-key-link" class="link small">get one</button></span><input type="password" id="ai-key" autocomplete="off" /></label>
+          </div>
+          <label class="field" id="ai-base-wrap"><span>Base URL</span><input type="text" id="ai-base" placeholder="http://localhost:11434/v1" /></label>
+        </section>
+        <div class="row">
+          <span class="status small grow" id="accounts-status"></span>
+          <button type="button" id="accounts-cancel">Cancel</button>
+          <button type="submit" class="primary" id="accounts-save">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="importer.js"></script>
+  </body>
+</html>

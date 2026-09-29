@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Electron shell. Owns the telemetry loop, the note engine and audio \u2014 never a renderer.",
+  "description": "Electron shell. Owns the telemetry loop, the note engine and audio — never a renderer.",
   "main": "./dist/main.js",
   "scripts": {
     "build": "tsc --build",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@exxeed/core": "workspace:*",
+    "@exxeed/importer": "workspace:*",
     "@exxeed/overlays": "workspace:*",
     "@exxeed/repo": "workspace:*",
     "@exxeed/telemetry": "workspace:*",

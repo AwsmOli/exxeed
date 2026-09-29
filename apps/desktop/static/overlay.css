@@ -1,0 +1,351 @@
+/*
+  Overlay styling — SPEC.md §7.
+
+  Modelled on GO Fast's overlay suite. What makes that look is less the colours
+  than the construction, so that is what these rules are about:
+
+   - A panel is a STACK of cards, not one box. A title sits in its own short
+     card above the content ("Corner Analysis", "Front", the fuel lap count),
+     with a small gap between, and each card is near-black at 70% with 8px
+     corners and no border.
+   - Numbers are big and LIGHT. Weight comes from size, not from bold.
+   - Bars are pills: fully rounded tracks, rounded fills, a small white knob
+     where a pedal is.
+   - Rows get their colour from a gradient bleeding in from the left edge —
+     the class colour behind a position, red or green behind a sector —
+     rather than from filled chips.
+   - The maps have no card at all: a glowing grey road straight over the sim.
+
+  Our own rules written to that look; nothing here is copied from theirs.
+*/
+
+:root {
+  color-scheme: dark;
+
+  --card: rgba(0, 0, 0, 0.7);
+  --card-hi: rgba(255, 255, 255, 0.07);
+  --well: rgba(255, 255, 255, 0.045);
+  --line: rgba(255, 255, 255, 0.07);
+  --track: rgba(255, 255, 255, 0.09);
+  --radius: 8px;
+  --gap: 4px;
+
+  --text: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.6);
+  --text-3: rgba(255, 255, 255, 0.38);
+
+  --green: #4de95f;
+  --mint: #2ee88f;
+  --red: #ff3c22;
+  --yellow: #ffd23f;
+  --orange: #ff9f1c;
+  --cyan: #00e0ff;
+  --purple: #d77dff;
+  --blue: #58a6ff;
+
+  --font: "Satoshi", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", SFMono-Regular, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+
+body {
+  background: #50575f;
+  color: var(--text);
+  font: 500 13px/1.25 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Opened on its own (development): every panel laid out on a grey page. */
+body:not(.overlay) #root {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px;
+  align-items: flex-start;
+}
+
+/* Overlay mode: one window, one panel, filling it. The inset keeps the
+   rounded corners off the window edge, where they would be clipped square. */
+body.overlay {
+  --inset: 4px;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+body.overlay #root { position: absolute; inset: var(--inset); }
+body.overlay .panel { width: 100%; height: 100%; }
+
+.panel { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; min-height: 0; }
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.card.grow { flex: 1 1 auto; display: flex; flex-direction: column; }
+
+/* The short title card that sits on top of a content card. */
+.titlebar {
+  background: var(--card);
+  border-radius: var(--radius);
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.titlebar.split { justify-content: space-between; }
+
+body.overlay.editing { cursor: grab; }
+body.overlay.editing.dragging { cursor: grabbing; }
+body.overlay.dragging .panel { outline: 1px dashed var(--blue); outline-offset: 2px; border-radius: var(--radius); }
+
+/* -- Type ------------------------------------------------------------------ */
+
+.cap {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.muted { color: var(--text-2); }
+.faint { color: var(--text-3); }
+.good { color: var(--green); }
+.bad { color: var(--red); }
+.fast { color: var(--purple); }
+.light { font-weight: 400; }
+.n { font-variant-numeric: tabular-nums; }
+.xl { font-size: 26px; font-weight: 400; line-height: 1; letter-spacing: -0.01em; }
+.lg { font-size: 20px; font-weight: 400; line-height: 1; }
+.md { font-size: 15px; font-weight: 500; }
+.u { font-size: 11px; color: var(--text-2); margin-left: 2px; font-weight: 500; }
+.r { text-align: right; }
+.c { text-align: center; }
+
+.row-flex { display: flex; align-items: center; gap: 8px; }
+.spread { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Small outlined or filled tags. */
+.tag {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 18px; padding: 0 6px; border-radius: 4px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
+  background: var(--well); color: var(--text-2);
+  white-space: nowrap;
+}
+.tag.outline { background: transparent; border: 1.5px solid currentColor; }
+
+canvas.fill { display: block; width: 100%; height: 100%; }
+
+/* When a panel has nothing to show, and why. */
+.empty {
+  display: none;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 11px;
+  padding: 8px;
+  background: var(--card);
+  border-radius: var(--radius);
+}
+.panel.is-empty > .empty { display: flex; }
+.panel.is-empty > :not(.empty):not(.keep) { display: none; }
+
+/* -- Pills ---------------------------------------------------------------- */
+
+.pill-h { position: relative; height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.pill-h > i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 99px; }
+
+/* Vertical pedal pills with a value above. */
+.pedal { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pedal .v { font-size: 10.5px; font-weight: 600; }
+.pedal .pill-v {
+  position: relative; width: 14px; flex: 1; min-height: 30px;
+  border-radius: 99px; background: var(--track); overflow: hidden;
+}
+.pedal .pill-v > i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 99px; }
+/* The knob: a short white cap riding the top of the fill. */
+.pedal.knob .pill-v > b {
+  position: absolute; left: 2px; right: 2px; height: 5px; border-radius: 99px;
+  background: #fff; box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+/* -- Rows ----------------------------------------------------------------- */
+
+.rows { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.rows > * { flex: none; }
+.row {
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+  height: 24px;
+  padding: 0 8px 0 0;
+  white-space: nowrap;
+  position: relative;
+}
+.row + .row { border-top: 1px solid var(--line); }
+.row > * { overflow: hidden; text-overflow: ellipsis; }
+.row .pos {
+  align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600;
+}
+/* The player: a green wash from the left, and a green position. */
+.row.me { background: linear-gradient(90deg, rgba(77, 233, 95, 0.28), rgba(77, 233, 95, 0.05) 70%); }
+.row.me .pos { color: var(--green); }
+.row.pit { opacity: 0.5; }
+.row .num { color: var(--text-3); }
+.irk {
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  height: 18px; padding: 0 6px; border-radius: 4px;
+  background: var(--well); border: 1px solid var(--line);
+  font-size: 10px; font-weight: 700; color: var(--text-2);
+}
+.irk i { width: 6px; height: 6px; border-radius: 50%; }
+
+/* -- Panel-specific ------------------------------------------------------- */
+
+/* Essential inputs and input telemetry share a body. */
+.inputs-body { display: flex; align-items: stretch; gap: 14px; flex: 1 1 auto; min-height: 0; }
+.inputs-body .graph { flex: 1 1 auto; min-width: 80px; background: var(--well); border-radius: 4px; }
+.inputs-body .pedals { display: flex; gap: 12px; flex: none; }
+.inputs-body .sep { width: 1px; background: var(--line); flex: none; }
+.inputs-body .speedo { display: flex; flex-direction: column; justify-content: center; gap: 6px; flex: none; }
+.speedo .line { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.speedo .line.ref { color: var(--text-2); }
+.speedo .gear { display: inline-flex; align-items: baseline; gap: 3px; margin-left: 6px; }
+.speedo .gear svg { width: 12px; height: 12px; align-self: center; }
+.speedo .ffb { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--text-3); font-weight: 700; }
+.speedo .ffb .pill-h { width: 100px; height: 4px; }
+.wheel { flex: none; align-self: center; }
+
+/* The shift lights: sixteen short pills, lighting from both ends inward. */
+.shift { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; margin-bottom: 10px; flex: none; }
+.shift i { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); }
+
+/* A tab riding on top of a card's right edge — the live delta on Input Telemetry. */
+.tab-wrap { gap: 0; }
+.tab-wrap .tab {
+  align-self: flex-end;
+  background: var(--card);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 5px 16px 3px;
+  font-size: 18px; font-weight: 400;
+  flex: none;
+}
+.tab-wrap .card { border-top-right-radius: 0; }
+
+/* Brake indicator. */
+.brake-bar { position: relative; height: 14px; border-radius: 99px; background: rgba(255, 60, 34, 0.14); overflow: hidden; }
+.brake-bar > i {
+  position: absolute; top: 0; bottom: 0; left: 0; border-radius: 99px;
+  background: linear-gradient(90deg, #9d1c0b, #ff3c22);
+}
+.brake-bar > s { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.35); }
+.brake-bar.now > i { background: #ff3c22; box-shadow: 0 0 12px #ff3c22; }
+.brake-marks { position: relative; height: 16px; margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.brake-marks span { position: absolute; transform: translateX(-50%); }
+
+/* Delta bar: a long pill, and the number in its own small card below. */
+.delta-track { position: relative; height: 12px; border-radius: 99px; background: var(--card); overflow: hidden; flex: none; }
+.delta-track > i { position: absolute; top: 0; bottom: 0; }
+.delta-track::after {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.delta-readout {
+  align-self: center; background: var(--card); border-radius: var(--radius);
+  padding: 4px 14px; font-size: 16px; font-weight: 500;
+}
+
+/* Sector rows: the colour bleeds in behind the sector name. */
+.sector { display: grid; grid-template-columns: 44px 1fr 1fr; align-items: center; height: 30px; font-size: 14px; }
+.sector + .sector { border-top: 1px solid var(--line); }
+.sector .name { align-self: stretch; display: flex; align-items: center; padding-left: 12px; font-weight: 600; }
+.sector .name.good { background: linear-gradient(90deg, rgba(77, 233, 95, 0.4), transparent); }
+.sector .name.bad { background: linear-gradient(90deg, rgba(255, 60, 34, 0.45), transparent); }
+.sector.live { background: var(--card-hi); }
+.sector.live .t { border-right: 1px solid rgba(255, 255, 255, 0.2); }
+.sector .t { text-align: center; font-weight: 400; color: var(--text-2); }
+.sector .d { text-align: right; padding-right: 12px; font-weight: 400; }
+.laps3 { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; row-gap: 2px; }
+.laps3 .t { font-size: 14px; }
+.laps3 .d { font-size: 13px; }
+
+/* Fuel. */
+.fuel-top { display: flex; align-items: center; justify-content: space-between; }
+/* The gradient spans the whole track and the empty part covers it, so the
+   colour at the fuel line says how full the tank is. */
+.fuel-bar {
+  position: relative; height: 10px; border-radius: 99px; overflow: hidden; margin: 10px 0 12px;
+  background: linear-gradient(90deg, #ff3c22, #ff9f1c 45%, #d9e33a 75%, #4de95f);
+}
+.fuel-bar > i { position: absolute; top: 0; bottom: 0; right: 0; background: #2b1411; }
+.predict {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius);
+  background: linear-gradient(90deg, rgba(46, 232, 143, 0.28), var(--well) 40%);
+}
+.predict svg { flex: none; }
+.usage { display: grid; grid-template-columns: 1fr 1fr 1fr; row-gap: 5px; margin: 12px 4px; font-size: 13px; }
+.usage .h { color: var(--text-2); font-size: 11px; }
+.finish { display: flex; align-items: flex-end; justify-content: space-between; background: var(--well); border-radius: var(--radius); padding: 8px 12px; }
+
+/* Tyres: a rounded tyre per corner, coloured by its temperature. */
+.axle { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tyre { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tyre .body {
+  width: 58px; height: 92px; border-radius: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.tyre .body::after { /* a little sheen, so it reads as rubber rather than a box */
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(0,0,0,0.25), transparent 30%, transparent 70%, rgba(0,0,0,0.25));
+}
+.tyre .temp { font-size: 22px; font-weight: 400; position: relative; z-index: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.tyre .ico { position: absolute; bottom: 6px; left: 0; right: 0; display: flex; justify-content: space-around; font-size: 9px; color: rgba(255, 255, 255, 0.7); z-index: 1; }
+.axle .mid { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-2); font-size: 11px; }
+
+/* Weather. */
+.wx-stats { display: flex; align-items: center; gap: 14px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.wx-stats .grid { display: grid; grid-template-columns: auto auto; gap: 6px 14px; flex: 1; }
+.wx-stat { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.wx-stat svg { align-self: center; flex: none; }
+.wx-stat b { font-size: 17px; font-weight: 500; }
+.wx-wind { display: flex; align-items: center; gap: 8px; padding-left: 14px; border-left: 1px solid var(--line); }
+
+/* Comparison target. */
+.target {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius);
+  border: 1.5px solid rgba(46, 232, 143, 0.7);
+  background: linear-gradient(90deg, rgba(46, 232, 143, 0.22), rgba(46, 232, 143, 0.06));
+  box-shadow: inset 4px 0 0 var(--mint);
+}
+.target .tag { background: var(--mint); color: #062012; }
+
+/* Callouts log. */
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+.log li { flex: none; padding: 4px 2px; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log li + li { border-top: 1px solid var(--line); }
+.log li.play { color: var(--mint); }
+.log li.drop { color: var(--orange); }
+
+/* Debug telemetry table. */
+.kvt { width: 100%; border-collapse: collapse; font: 12px/1.55 var(--mono); }
+.kvt td:first-child { color: var(--text-2); }
+.kvt td:last-child { text-align: right; }

@@ -1,0 +1,309 @@
+=== page 1
+36:Current iRacing Race Schedule
+56:OVAL . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 568:6
+76:R Class Series (OVAL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 568:6
+96:Mini Stock Rookie Series by Thrustmaster - 2026 Season 4 . . . . . . . . . . . . . . . . . . | 568:6
+96:Rookie Legends Cup by Simshop - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . | 568:7
+96:Rookie Street Stock Series by Fanatec - 2026 Season 4 Fixed . . . . . . . . . . . . . . . . | 568:8
+76:D Class Series (OVAL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 568:9
+96:ARCA Menards Series - 2026 Season 4 - Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:11
+96:CARS Tour Late Model Stocks - Fixed - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . | 560:11
+96:Draft Master Challenge by Simagic - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . | 560:12
+96:Jr Open Wheel Oval Challenge - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:13
+96:SK Modified Series - 2026 Season 4 - Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:14
+96:SK Modified Weekly Series - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:15
+96:SRX Series - Fixed - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:16
+76:C Class Series (OVAL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:17
+96:CARS Tour Late Model Stocks - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:17
+96:Indy NXT Oval Series - Fixed - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:18
+96:Legends Cup by Go Motorsports Shop - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . | 560:19
+96:NASCAR Class C Series - Fixed - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:21
+96:NASCAR Gen 4 Cup Series - 2026 Season 4 Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:23
+96:NASCAR Gen 4 Grand National Series - 2026 Season 4 Fixed . . . . . . . . . . . . . . . . . | 560:24
+96:NASCAR iRacing Class C Series Series - 2026 Season . . . . . . . . . . . . . . . . . . . . . . | 560:29
+96:NASCAR iRacing Series - 2026 Season Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:33
+96:NASCAR iRacing Series - 2026 Season Open . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:37
+96:NASCAR Modified Tour - 2026 Season Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:39
+96:NASCAR Tour Modified Series - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:40
+96:NASCAR Tour Modified Series - Fixed - 2026 Season 4 - Fixed . . . . . . . . . . . . . . . . | 560:41
+96:Street Stock Series by Next Level Racing - 2026 Season 4 . . . . . . . . . . . . . . . . . . . | 560:43
+96:Super Late Model Series - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:44
+96:Super Late Model Series - 2026 Season 4 - Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:45
+96:Super Late Model Tour - 2026 Season Fixed . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:48
+76:B Class Series (OVAL) . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:49
+96:INDYCAR Series - Oval - Fixed - 2026 Season 4 . . . . . . . . . . . . . . . . . . . . . . . . . . . . | 560:49
+96:NASCAR 1987 Legends Cup - 2026 Season 4 Fixed . . . . . . . . . . . . . . . . . . . . . . . . . | 560:51
+96:NASCAR iRacing Class B Series Series - 2026 Season . . . . . . . . . . . . . . . . . . . . . . | 560:55
+303:1
+=== page 29
+58:Week 36 (2026-10-13) | 158:Phoenix Raceway - Oval w/open dogleg | 358:82°F/28°C, All dry events, Rolling start, | 518:90 laps
+158:(2026-10-17 16:35 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:F150: 4 tire sets
+358:TTP: 4 tire sets
+358:CS2019: 4 tire sets
+358:RAM26: 4 tire sets
+58:Week 37 (2026-10-20) | 158:Talladega Superspeedway | 358:84°F/29°C, All dry events, Rolling start, | 518:50 laps
+158:(2026-10-24 13:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:F150: 3 tire sets
+358:TTP: 3 tire sets
+358:CS2019: 3 tire sets
+358:RAM26: 3 tire sets
+58:Week 38 (2026-10-27) | 158:Martinsville Speedway | 358:67°F/20°C, All dry events, Rolling start, | 518:120 laps
+158:(2026-10-31 16:55 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:F150: 5 tire sets
+358:TTP: 5 tire sets
+358:CS2019: 5 tire sets
+358:RAM26: 5 tire sets
+58:Week 39 (2026-11-03) | 158:Homestead Miami Speedway - Oval | 358:82°F/28°C, All dry events, Rolling start, | 518:80 laps
+158:(2026-10-31 18:40 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:F150: 4 tire sets
+358:TTP: 4 tire sets
+358:CS2019: 4 tire sets
+358:RAM26: 4 tire sets
+299:29
+=== page 30
+58:NASCAR iRacing Series - 2026 Season Fixed
+58:NASCAR Cup Series Next Gen Chevrolet Camaro ZL1, NASCAR Cup
+58:Series Next Gen Ford Mustang, NASCAR Cup Series Next Gen Toyota
+58:Camry
+58:Class D 4.0 --> Pro/WC 4.0
+58:5 Timeslots Per Week
+58:Min entries for official: 8 | Split at: 37 | Drops: 6
+58:Penalty every 17 incidents. DQ at 25 incidents.
+58:Week 1 (2026-02-11) | 158:Daytona International Speedway - Oval | 358:74°F/23°C, All dry events, Rolling start, | 518:200 laps
+158:(2026-02-15 14:30 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 8 tire sets
+358:NGF: 8 tire sets
+358:NGT: 8 tire sets
+58:Week 2 (2026-02-18) | 158:EchoPark Speedway (Atlanta) - Oval | 358:69°F/20°C, All dry events, Rolling start, | 518:130 laps
+158:(2026-02-22 15:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 3 (2026-02-25) | 158:Circuit of the Americas - NASCAR West | 358:77°F/25°C, All dry events, Rolling start, | 518:48 laps
+158:(2026-03-01 14:30 1x) | 358:Local enforced cautions, Qual scrutiny
+358:- Moderate.
+358:NGC: 3 tire sets
+358:NGF: 3 tire sets
+358:NGT: 3 tire sets
+58:Week 4 (2026-03-04) | 158:Phoenix Raceway - Oval w/open dogleg | 358:72°F/22°C, All dry events, Rolling start, | 518:156 laps
+158:(2026-03-08 12:30 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 5 (2026-03-11) | 158:Las Vegas Motor Speedway - Oval | 358:73°F/23°C, All dry events, Rolling start, | 518:134 laps
+158:(2026-03-15 13:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 6 (2026-03-18) | 158:Darlington Raceway | 358:74°F/23°C, All dry events, Rolling start, | 518:147 laps
+158:(2026-03-22 15:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 7 (2026-03-25) | 158:Martinsville Speedway | 358:74°F/24°C, All dry events, Rolling start, | 518:200 laps
+158:(2026-03-29 15:30 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 7 tire sets
+358:NGF: 7 tire sets
+358:NGT: 7 tire sets
+58:Week 8 (2026-04-08) | 158:Bristol Motor Speedway - Single Pit Roads | 358:80°F/27°C, All dry events, Rolling start, | 518:250 laps
+158:(2026-04-12 15:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 7 tire sets
+358:NGF: 7 tire sets
+358:NGT: 7 tire sets
+58:Week 9 (2026-04-15) | 158:Kansas Speedway - Oval | 358:69°F/20°C, All dry events, Rolling start, | 518:134 laps
+158:(2026-04-19 13:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+299:30
+=== page 31
+58:Week 10 (2026-04-22) | 158:Talladega Superspeedway | 358:75°F/24°C, All dry events, Rolling start, | 518:94 laps
+158:(2026-04-26 15:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 4 tire sets
+358:NGF: 4 tire sets
+358:NGT: 4 tire sets
+58:Week 11 (2026-04-29) | 158:Texas Motor Speedway - Oval | 358:75°F/24°C, All dry events, Rolling start, | 518:134 laps
+158:(2026-05-03 13:30 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 12 (2026-05-06) | 158:Watkins Glen International - Cup | 358:75°F/24°C, All dry events, Rolling start, | 518:50 laps
+158:(2026-05-10 15:00 1x) | 358:Local enforced cautions, Qual scrutiny
+358:- Moderate.
+358:NGC: 3 tire sets
+358:NGF: 3 tire sets
+358:NGT: 3 tire sets
+58:Week 13 (2026-05-20) | 158:Charlotte Motor Speedway - Oval | 358:79°F/26°C, All dry events, Rolling start, | 518:400 laps
+158:(2026-05-24 18:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 13 tire sets
+358:NGF: 13 tire sets
+358:NGT: 13 tire sets
+58:Week 14 (2026-05-27) | 158:Nashville Superspeedway | 358:79°F/26°C, All dry events, Rolling start, | 518:150 laps
+158:(2026-05-31 18:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 15 (2026-06-03) | 158:Michigan International Speedway | 358:77°F/25°C, All dry events, Rolling start, | 518:100 laps
+158:(2026-06-07 14:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 5 tire sets
+358:NGF: 5 tire sets
+358:NGT: 5 tire sets
+58:Week 16 (2026-06-10) | 158:Pocono Raceway | 358:73°F/23°C, All dry events, Rolling start, | 518:80 laps
+158:(2026-06-14 15:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 4 tire sets
+358:NGF: 4 tire sets
+358:NGT: 4 tire sets
+58:Week 17 (2026-06-17) | 158:Qualcomm Circuit (Naval Base Coronado) | 358:69°F/21°C, All dry events, Rolling start, | 518:37 laps
+158:(2026-06-21 13:00 1x) | 358:Start zone, Local enforced cautions,
+358:Qual scrutiny - Moderate.
+358:NGC: 3 tire sets
+358:NGF: 3 tire sets
+358:NGT: 3 tire sets
+58:Week 18 (2026-06-24) | 158:Sonoma Raceway - Cup Short | 358:80°F/27°C, All dry events, Rolling start, | 518:55 laps
+158:(2026-06-28 12:30 1x) | 358:Local enforced cautions, Qual scrutiny
+358:- Moderate.
+358:NGC: 3 tire sets
+358:NGF: 3 tire sets
+358:NGT: 3 tire sets
+58:Week 19 (2026-07-01) | 158:Chicagoland Speedway | 358:76°F/25°C, All dry events, Rolling start, | 518:134 laps
+158:(2026-07-05 17:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+58:Week 20 (2026-07-08) | 158:EchoPark Speedway (Atlanta) - Oval | 358:83°F/29°C, All dry events, Rolling start, | 518:130 laps
+158:(2026-07-12 19:00 1x) | 358:Start zone, Full course cautions, Lucky
+358:dog, 3-G/W/C, Double-file Back, Qual
+358:scrutiny - Moderate.
+358:NGC: 6 tire sets
+358:NGF: 6 tire sets
+358:NGT: 6 tire sets
+299:31
+=== page 66
+58:Global Mazda MX-5 Cup by Fanatec - 2026 Season 4
+58:Global Mazda MX-5 Cup
+58:Rookie 1.0 --> Pro/WC 4.0
+58:Races every 30 minutes at :00 & :30
+58:Min entries for official: 6 | Split at: 12 | Drops: 4
+58:No incident DT penalties. DQ at 17 incidents.
+58:Week 1 (2026-09-15) | 158:Okayama International Circuit - Full Course | 358:72°F/22°C, All dry events, Standing | 518:12 mins
+158:(2026-09-19 12:00 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 2 (2026-09-22) | 158:Motorsport Arena Oschersleben - Grand Prix | 358:71°F/22°C, All dry events, Standing | 518:12 mins
+158:(2026-09-26 12:00 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 3 (2026-09-29) | 158:Tsukuba Circuit - 2000 Full | 358:70°F/21°C, All dry events, Standing | 518:12 mins
+158:(2026-10-03 11:40 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 4 (2026-10-06) | 158:Oulton Park Circuit - Fosters | 358:67°F/20°C, All dry events, Standing | 518:12 mins
+158:(2026-10-10 13:20 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 5 (2026-10-13) | 158:Circuito de Navarra - Speed Circuit | 358:68°F/20°C, All dry events, Standing | 518:12 mins
+158:(2026-10-17 14:15 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 6 (2026-10-20) | 158:Lime Rock Park - Grand Prix | 358:67°F/20°C, All dry events, Standing | 518:12 mins
+158:(2026-10-24 12:00 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 7 (2026-10-27) | 158:Okayama International Circuit - Short | 358:69°F/21°C, All dry events, Standing | 518:12 mins
+158:(2026-10-31 12:00 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 8 (2026-11-03) | 158:Summit Point Raceway - Summit Point Raceway | 358:69°F/21°C, All dry events, Standing | 518:12 mins
+158:(2026-11-07 12:25 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 9 (2026-11-10) | 158:Winton Motor Raceway - National Circuit | 358:70°F/21°C, All dry events, Standing | 518:12 mins
+158:(2027-04-01 13:40 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 10 (2026-11-17) | 158:Circuit de Lédenon | 358:68°F/20°C, All dry events, Standing | 518:12 mins
+158:(2027-03-15 12:00 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 11 (2026-11-24) | 158:Virginia International Raceway - North Course | 358:67°F/19°C, All dry events, Standing | 518:12 mins
+158:(2026-11-28 12:20 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+58:Week 12 (2026-12-01) | 158:Charlotte Motor Speedway - Roval 2025 | 358:69°F/20°C, All dry events, Standing | 518:12 mins
+158:(2027-04-01 12:00 1x) | 358:start, Local enforced cautions, Qual
+358:scrutiny - Permissive.
+299:66
+=== page 67
+56:D Class Series (SPORTS CAR)
+58:BMW M Power Challenge - 2026 Season 4
+58:BMW M2 Racing (G87)
+58:Rookie 4.0 --> Pro/WC 4.0
+58:Races every hour at :15 past
+58:Min entries for official: 6 | Split at: 20 | Drops: 4
+58:No incident DT penalties. DQ at 17 incidents.
+58:Forecast regenerated for each race
+58:Week 1 (2026-09-15) | 158:Summit Point Raceway - Summit Point Raceway | 358:Rain possible, Rolling start, Local | 518:15 mins
+158:(2026-09-19 13:20 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 2 (2026-09-22) | 158:Cadwell Park Circuit - Full | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-09-26 13:25 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 3 (2026-09-29) | 158:Circuit Zolder - Grand Prix | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-10-03 10:05 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 4 (2026-10-06) | 158:Oulton Park Circuit - International | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-10-10 13:20 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 5 (2026-10-13) | 158:Mid-Ohio Sports Car Course - Full Course | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-10-17 12:00 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 6 (2026-10-20) | 158:Mobility Resort Motegi - East | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-10-24 07:45 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 7 (2026-10-27) | 158:Rudskogen Motorsenter | 358:Rain possible, Rolling start, Local | 518:15 mins
+158:(2027-05-01 08:05 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 8 (2026-11-03) | 158:Circuito de Jerez - Ángel Nieto - Grand Prix | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-11-07 13:15 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 9 (2026-11-10) | 158:Sandown International Motor Raceway | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-11-14 12:00 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 10 (2026-11-17) | 158:Okayama International Circuit - Full Course | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2026-11-21 08:45 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 11 (2026-11-24) | 158:St. Petersburg Grand Prix - Grand Prix | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2027-05-01 12:00 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+58:Week 12 (2026-12-01) | 158:MotorLand Aragón - National | 358:All dry events, Rolling start, Local | 518:15 mins
+158:(2027-02-15 10:00 1x) | 358:enforced cautions, Qual scrutiny -
+358:Moderate.
+299:67

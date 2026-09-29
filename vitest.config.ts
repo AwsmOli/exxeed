@@ -14,6 +14,7 @@ export default defineConfig({
       "@exxeed/telemetry": pkg("telemetry"),
       "@exxeed/repo": pkg("repo"),
       "@exxeed/tts": pkg("tts"),
+      "@exxeed/importer": pkg("importer"),
     },
   },
   test: {

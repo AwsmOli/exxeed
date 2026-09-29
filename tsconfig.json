@@ -13,6 +13,7 @@
     { "path": "./packages/telemetry" },
     { "path": "./packages/repo" },
     { "path": "./packages/tts" },
+    { "path": "./packages/importer" },
     { "path": "./packages/overlays" },
     { "path": "./apps/desktop" },
     { "path": "./tools/replay" },
