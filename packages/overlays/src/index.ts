@@ -273,6 +273,40 @@ export const SESSION_STATUS_CHANNEL = "exxeed:session-status";
 /** Renderer → main: start, stop, or set autostart. */
 export const SESSION_COMMAND_CHANNEL = "exxeed:session-command";
 
+/** Renderer → main, invoke: sign in, sign out, edit the profile (M8). */
+export const ACCOUNT_CHANNEL = "exxeed:account";
+/** Main → renderer: who is signed in changed. */
+export const ACCOUNT_CHANGED_CHANNEL = "exxeed:account-changed";
+
+/**
+ * Who is signed in, as a window may see it. No tokens: the session stays in
+ * main (apps/desktop/src/account.ts).
+ */
+export interface AccountView {
+  /** False when no backend is configured or it cannot be reached. */
+  readonly available: boolean;
+  readonly signedIn: boolean;
+  readonly userId: string | null;
+  readonly email: string | null;
+  readonly displayName: string | null;
+  readonly avatarUrl: string | null;
+  /** False until the person has confirmed their display name on first sign-in. */
+  readonly onboarded: boolean;
+  /** OAuth providers switched on for the project, e.g. { discord: true }. */
+  readonly providers: Readonly<Record<string, boolean>>;
+  /** A sign-in in progress in the browser, so the dialog can say so. */
+  readonly waitingForBrowser: boolean;
+}
+
+export type AccountRequest =
+  | { readonly op: "view" }
+  | { readonly op: "signInWith"; readonly provider: string }
+  | { readonly op: "cancelBrowserSignIn" }
+  | { readonly op: "sendEmailCode"; readonly email: string }
+  | { readonly op: "verifyEmailCode"; readonly email: string; readonly code: string }
+  | { readonly op: "saveProfile"; readonly displayName: string }
+  | { readonly op: "signOut" };
+
 /**
  * What the app is doing, for the control window.
  *
@@ -328,7 +362,10 @@ export type SessionCommand =
   | { readonly kind: "startMinimized"; readonly value: boolean }
   | { readonly kind: "selectNoteSet"; readonly id: string | null }
   | { readonly kind: "editNoteSet"; readonly id: string }
-  | { readonly kind: "openImporter" };
+  /** With a track, the importer opens already pointed at it. */
+  | { readonly kind: "openImporter"; readonly track?: { readonly trackId: number; readonly configId: string } }
+  /** An empty hand-authored set for a mapped track, opened in the editor. */
+  | { readonly kind: "newNoteSet"; readonly trackId: number; readonly configId: string };
 
 /**
  * Everything the app is configured by.
@@ -403,6 +440,19 @@ export interface Settings {
    * out of the way" are separate wishes.
    */
   readonly startMinimized: boolean;
+  /**
+   * Hide the overlays while a live iRacing session is running but the sim is
+   * not the window in front — alt-tab to a browser and they go with the sim
+   * instead of floating always-on-top over it. Windows only; elsewhere there is
+   * no sim window to be in front, and this does nothing.
+   */
+  readonly hideOverlaysWhenSimUnfocused: boolean;
+  /**
+   * A random id for this copy of the app, made on first run. Counts a download
+   * once per installation (M8), signed in or not. Not tied to a person and
+   * never sent anywhere except with a download.
+   */
+  readonly installationId: string | null;
   readonly debug: DebugSettings;
 }
 
@@ -452,6 +502,8 @@ export const DEFAULT_SETTINGS: Settings = {
   noteSetByTrack: {},
   runAtLogin: false,
   startMinimized: false,
+  hideOverlaysWhenSimUnfocused: true,
+  installationId: null,
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -501,6 +553,14 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
       typeof s.startMinimized === "boolean"
         ? s.startMinimized
         : DEFAULT_SETTINGS.startMinimized,
+    hideOverlaysWhenSimUnfocused:
+      typeof s.hideOverlaysWhenSimUnfocused === "boolean"
+        ? s.hideOverlaysWhenSimUnfocused
+        : DEFAULT_SETTINGS.hideOverlaysWhenSimUnfocused,
+    installationId:
+      typeof s.installationId === "string" && s.installationId !== ""
+        ? s.installationId
+        : DEFAULT_SETTINGS.installationId,
     noteSetByTrack:
       typeof s.noteSetByTrack === "object" && s.noteSetByTrack !== null
         ? Object.fromEntries(
@@ -563,6 +623,8 @@ export function withEnvOverrides(
     noteSetByTrack: settings.noteSetByTrack,
     runAtLogin: settings.runAtLogin,
     startMinimized: settings.startMinimized,
+    hideOverlaysWhenSimUnfocused: settings.hideOverlaysWhenSimUnfocused,
+    installationId: settings.installationId,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
@@ -753,13 +815,20 @@ export interface EditorPayload {
   readonly canRender: boolean;
 }
 
-/** What the editor sends back. Only the fields it can change. */
+/**
+ * What the editor sends back. Only the fields it can change.
+ *
+ * A patch for an id the set does not have is a new note — the editor mints the
+ * id, since it is an opaque handle (note-id.ts) and nothing is gained by a round
+ * trip to ask for one. `deleted` removes the note.
+ */
 export interface EditorNotePatch {
   readonly id: string;
   readonly pct: number;
   readonly text: string;
   readonly textShort: string;
   readonly leadAdjustS: number;
+  readonly deleted?: boolean;
 }
 
 /** Renderer → main, invoke: read the current settings and pickers. */
@@ -809,6 +878,8 @@ export interface OverlayProfilesView {
   /** Whether the telemetry panel is offerable — a debugging instrument, not a
    *  shipping one (see `chosenPanels` in main.ts). */
   readonly debugEnabled: boolean;
+  /** Settings.hideOverlaysWhenSimUnfocused, for the checkbox under the list. */
+  readonly hideWhenSimUnfocused: boolean;
 }
 
 /**
@@ -827,7 +898,8 @@ export type OverlayProfileCommand =
   | { readonly kind: "setPanels"; readonly id: string; readonly panels: readonly PanelId[] }
   | { readonly kind: "setActive"; readonly id: string }
   | { readonly kind: "edit"; readonly id: string }
-  | { readonly kind: "stopEditing" };
+  | { readonly kind: "stopEditing" }
+  | { readonly kind: "hideWhenSimUnfocused"; readonly value: boolean };
 
 /** Main → control window: the profile list, active id, or editing state changed. */
 export const OVERLAY_PROFILES_CHANGED_CHANNEL = "exxeed:overlay-profiles-changed";

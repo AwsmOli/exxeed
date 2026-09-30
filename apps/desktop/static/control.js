@@ -83,9 +83,25 @@ const renderPacks = (s) => {
       main.append(name, sub);
       li.append(main);
 
-      // No pack, nothing for the editor to open. Creating one from a bare track
-      // is not something it can do yet, so the button would lead nowhere.
-      if (written) {
+      // A mapped track with nothing to say: the two ways to start saying it.
+      if (!written) {
+        const track = { trackId: pack.trackId, configId: pack.configId };
+        const importBtn = document.createElement("button");
+        importBtn.className = "ghost";
+        importBtn.textContent = "Import…";
+        importBtn.title = "Import callouts from a YouTube track guide for this track";
+        importBtn.addEventListener("click", () => {
+          window.exxeed?.sendSessionCommand({ kind: "openImporter", track });
+        });
+        const writeBtn = document.createElement("button");
+        writeBtn.className = "ghost";
+        writeBtn.textContent = "Write manually";
+        writeBtn.title = "Start an empty note set for this track and open it in the editor";
+        writeBtn.addEventListener("click", () => {
+          window.exxeed?.sendSessionCommand({ kind: "newNoteSet", ...track });
+        });
+        li.append(importBtn, writeBtn);
+      } else {
         const edit = document.createElement("button");
         edit.className = "ghost";
         edit.textContent = "Edit";
@@ -221,6 +237,8 @@ function renderOverlayProfiles(view) {
   const list = el("ov-profiles");
   if (!list) return;
 
+  el("ov-hide-unfocused").checked = view.hideWhenSimUnfocused;
+
   const panelIds = view.debugEnabled ? PANEL_ORDER : PANEL_ORDER.filter((p) => p !== "telemetry");
 
   list.replaceChildren(
@@ -322,6 +340,10 @@ function renderOverlayProfiles(view) {
     }),
   );
 }
+
+el("ov-hide-unfocused").addEventListener("change", (e) => {
+  sendOverlayCommand({ kind: "hideWhenSimUnfocused", value: e.target.checked });
+});
 
 el("ov-new").addEventListener("click", () => {
   sendOverlayCommand({ kind: "create", name: "New profile" });

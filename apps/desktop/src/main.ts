@@ -14,6 +14,7 @@
  * the decision path never leaves this process.
  */
 
+import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -58,13 +59,16 @@ import {
   type TelemetrySource,
 } from "@exxeed/telemetry";
 
-import { audioKey, localRepositories } from "@exxeed/repo";
+import { audioKey, localRepositories, type TrackSummary } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
-import { FULLSCREEN_WARNING, OverlayLayout, sendTo } from "./overlay.js";
+import { FULLSCREEN_WARNING, isOverlayWindow, OverlayLayout, sendTo } from "./overlay.js";
 import { OverlayProfileStore } from "./overlay-profiles.js";
 import { startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
-import { installEditorIpc, openEditor, requestRender } from "./editor.js";
+import { createManualNoteSet, installEditorIpc, openEditor, requestRender } from "./editor.js";
+import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
+import { installAccount, onAccountChange } from "./account.js";
+import { shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
 import { installImporterIpc, openImporter } from "./importer.js";
 import {
   installSettingsIpc,
@@ -152,8 +156,14 @@ let loopToken = 0;
  * invisible until someone went looking for the setting. The demo is still one
  * choice away, and the replay scripts name it explicitly.
  */
+/**
+ * Where artefacts live. In development, the repo's `data/`, which doubles as
+ * the fixture set. Packaged, the user's own app-data folder: installed packs,
+ * fetched maps and rendered audio belong to the person, not to the install
+ * directory, which an update replaces.
+ */
 const resolveDataDir = (s: { dataDir: string | null }): string =>
-  s.dataDir ?? `${REPO_ROOT}/data`;
+  s.dataDir ?? (app.isPackaged ? join(app.getPath("userData"), "data") : `${REPO_ROOT}/data`);
 
 /**
  * Pick a source. iRacing when the platform can support it, otherwise replay a
@@ -416,6 +426,8 @@ let sessionStatus: SessionStatus = {
  * status broadcasts on every phase change, which is not.
  */
 let packs: NoteSetPack[] = [];
+/** The mapped tracks behind `packs`, for commands that name one by key. */
+let listedTracks: TrackSummary[] = [];
 
 async function refreshPacks(): Promise<void> {
   try {
@@ -425,6 +437,7 @@ async function refreshPacks(): Promise<void> {
       repos.noteSets.listAll(),
       repos.trackMaps.listTracks(),
     ]);
+    listedTracks = tracks;
 
     const written = summaries.map((p) => ({
       id: p.id,
@@ -541,6 +554,16 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
 
   const identity = source.identity;
   liveIdentity = identity;
+
+  // Before anything reads the track from disk: fetch its map if someone has
+  // already shared one, so this session has a map from the first lap and the
+  // auto-mapper does not cut a competing one.
+  await syncBeforeSession(resolveDataDir(settings().get()), identity, (line) => process.stdout.write(line));
+  if (token !== loopToken) {
+    await source.close();
+    return;
+  }
+
   const chosen = await noteSetForTrack(identity, resolveDataDir(settings().get()));
   if (chosen.detail !== null) process.stdout.write(`${chosen.detail}\n`);
   rememberNoteSet(identity, chosen.id);
@@ -627,6 +650,8 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     resolveDataDir(settings().get()),
     identity,
     (event) => {
+      // Shared whether or not any overlay is open to show it.
+      void shareCut(event, (line) => process.stdout.write(line));
       if (!surfaces.alive()) return;
       if (session?.mapView == null) {
         surfaces.broadcast(MAP_CHANNEL, toMapView(event.map, session?.noteSet.notes ?? []));
@@ -640,7 +665,7 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     (line) => process.stdout.write(line),
   );
 
-  setSessionLive(true);
+  setSessionLive(true, source instanceof IRacingAdapter);
   broadcastStatus({
     phase: "running",
     trackName: identity?.trackName ?? null,
@@ -870,6 +895,7 @@ function overlayProfilesView(): OverlayProfilesView {
     activeProfileId: profileStore().activeId,
     editing: overlayEditingActive,
     debugEnabled: debugEnabled(),
+    hideWhenSimUnfocused: settings().get().hideOverlaysWhenSimUnfocused,
   };
 }
 
@@ -1169,14 +1195,48 @@ let wantRunning = false;
  */
 let sessionLive = false;
 
-/** Show the overlays while a session is live or someone is arranging them. */
+/**
+ * Whether the sim is the window in front. Only consulted for a live iRacing
+ * session: a replay has no sim window to be in front, and gating on one would
+ * hide the overlays for the whole of it.
+ */
+let simFocused = true;
+let focusGated = false;
+let focusWatcher: ForegroundWatcher | null = null;
+
+/**
+ * Show the overlays while someone is arranging them, or while a session is live
+ * and the sim is in front. Alt-tab to a browser mid-session and they go with
+ * the sim, rather than sitting always-on-top over whatever you switched to.
+ */
 function syncOverlayVisibility(): void {
-  overlayLayout?.setVisible(overlayEditingActive || sessionLive);
+  const gated = focusGated && settings().get().hideOverlaysWhenSimUnfocused;
+  overlayLayout?.setVisible(overlayEditingActive || (sessionLive && (!gated || simFocused)));
 }
 
-function setSessionLive(live: boolean): void {
+function setSessionLive(live: boolean, gateOnSimFocus = false): void {
   if (sessionLive === live) return;
   sessionLive = live;
+
+  focusWatcher?.stop();
+  focusWatcher = null;
+  focusGated = false;
+  simFocused = true;
+  if (live && gateOnSimFocus) {
+    focusWatcher = watchSimFocus(
+      (focused) => {
+        simFocused = focused;
+        syncOverlayVisibility();
+      },
+      () => {
+        const focused = BrowserWindow.getFocusedWindow();
+        return focused !== null && (overlayLayout?.windows.includes(focused) ?? false);
+      },
+    );
+    // Null where the foreground cannot be read: behave as though always in front.
+    focusGated = focusWatcher !== null;
+  }
+
   syncOverlayVisibility();
   syncOverlayPreview();
 }
@@ -1266,6 +1326,32 @@ function stopSession(): void {
   setSessionLive(false);
 }
 
+/**
+ * macOS: a dock icon while any ordinary window is open, none when only overlays
+ * are. The overlays are not something you switch to — and with the control
+ * window hidden to the tray, an icon that opens nothing would just be noise.
+ *
+ * Windows needs none of this: each ordinary window gets its own taskbar button
+ * while it is visible, and overlays set `skipTaskbar`.
+ */
+function syncDock(): void {
+  if (process.platform !== "darwin" || app.dock === undefined) return;
+  const ordinaryVisible = BrowserWindow.getAllWindows().some(
+    (w) => !w.isDestroyed() && w.isVisible() && !isOverlayWindow(w),
+  );
+  if (ordinaryVisible) void app.dock.show();
+  else app.dock.hide();
+}
+
+app.on("browser-window-created", (_event, window) => {
+  // After the event, so `isVisible` and the overlay marker are up to date.
+  const later = (): void => void setImmediate(syncDock);
+  window.on("show", later);
+  window.on("hide", later);
+  window.on("closed", later);
+  later();
+});
+
 void app.whenReady().then(() => {
   store = new SettingsStore();
   // Seeds the Default profile the first time this installs, or when migrating
@@ -1273,7 +1359,17 @@ void app.whenReady().then(() => {
   profiles = new OverlayProfileStore(
     settings().get().panels.length === 0 ? [...DEFAULT_PANELS] : settings().get().panels,
   );
+  // One random id per copy of the app, for counting downloads once (M8).
+  if (settings().get().installationId === null) {
+    settings().updateQuietly({ installationId: randomUUID() });
+  }
   installSettingsIpc(settings(), resolveDataDir, RECORDINGS_DIR);
+  onAccountChange((view) => {
+    if (view.signedIn) {
+      void shareOnSignIn(resolveDataDir(settings().get()), (line) => process.stdout.write(line));
+    }
+  });
+  installAccount();
   installEditorIpc(() => settings().get(), resolveDataDir);
   installImporterIpc({
     getSettings: () => settings().get(),
@@ -1341,11 +1437,37 @@ void app.whenReady().then(() => {
       settings().update({ noteSetId: command.id });
       broadcastStatus({});
     } else if (command.kind === "openImporter") {
-      openImporter(PRELOAD);
+      const track = command.track;
+      if (track === undefined) {
+        openImporter(PRELOAD);
+      } else {
+        // The map's own names, so the importer resolves the same key back.
+        const found = listedTracks.find(
+          (t) => t.key.trackId === track.trackId && t.key.configId === track.configId,
+        );
+        openImporter(
+          PRELOAD,
+          found === undefined
+            ? undefined
+            : { trackId: track.trackId, trackName: found.trackName, configName: found.configName },
+        );
+      }
     } else if (command.kind === "editNoteSet") {
       // The editor edits whatever is selected, so selecting is how you aim it.
+      const changed = settings().get().noteSetId !== command.id;
       settings().update({ noteSetId: command.id });
-      openEditor(PRELOAD);
+      openEditor(PRELOAD, { reload: changed });
+    } else if (command.kind === "newNoteSet") {
+      const dataDir = resolveDataDir(settings().get());
+      createManualNoteSet(dataDir, { sim: "iracing", trackId: command.trackId, configId: command.configId })
+        .then(async (id) => {
+          settings().update({ noteSetId: id });
+          await refreshPacks();
+          openEditor(PRELOAD, { reload: true });
+        })
+        .catch((err: unknown) => {
+          process.stderr.write(`could not create a note set: ${String(err)}\n`);
+        });
     }
   });
 
@@ -1384,6 +1506,11 @@ void app.whenReady().then(() => {
       }
     } else if (command.kind === "stopEditing") {
       setOverlayEditing(false);
+    } else if (command.kind === "hideWhenSimUnfocused") {
+      // Quietly: a visibility rule, not something a running session reloads for.
+      settings().updateQuietly({ hideOverlaysWhenSimUnfocused: command.value });
+      syncOverlayVisibility();
+      broadcastProfiles();
     }
   });
 

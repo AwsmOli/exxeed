@@ -1,0 +1,11 @@
+# Supabase
+.branches
+.temp
+
+# OAuth provider secrets for local auth (config.toml's env(...) values)
+.env
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local

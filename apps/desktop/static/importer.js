@@ -565,6 +565,27 @@ const refreshContext = async () => {
   if (s != null && state.tab === "session") void chooseRace({ ...s, cars: null });
 };
 
+/**
+ * Point the window at one mapped track, through the Manual tab so what was
+ * filled in is visible and correctable. The car is left as typed, or the live
+ * session's, since a track has no car of its own.
+ */
+const applyPreset = (preset) => {
+  el("m-track").value = preset.trackName;
+  el("m-config").value = preset.configName;
+  el("m-track-id").value = String(preset.trackId);
+  if (el("m-car").value.trim() === "") el("m-car").value = state.context?.session?.carName ?? "";
+  showTab("manual");
+  void chooseRace({
+    trackId: preset.trackId,
+    trackName: preset.trackName,
+    configName: preset.configName,
+    carName: el("m-car").value.trim(),
+    carId: null,
+    cars: null,
+  });
+};
+
 const init = async () => {
   for (const b of document.querySelectorAll("[data-tab]")) b.addEventListener("click", () => showTab(b.dataset.tab));
   el("session-refresh").addEventListener("click", () => void refreshContext());
@@ -607,8 +628,18 @@ const init = async () => {
     if (total > 0) setStatus("search-status", `Downloading yt-dlp… ${Math.round((received / total) * 100)}%`, "busy");
   });
 
-  await refreshContext();
-  showTab(state.context.session != null ? "session" : "week");
+  window.exxeed.onImporterPreset?.(applyPreset);
+
+  // Opened on a track from the control window: that wins over the live session.
+  state.context = await call({ op: "context" });
+  renderSession();
+  if (state.context.preset != null) {
+    applyPreset(state.context.preset);
+  } else {
+    const s = state.context.session;
+    showTab(s != null ? "session" : "week");
+    if (s != null) void chooseRace({ ...s, cars: null });
+  }
   updateButtons();
   void loadSaved();
 };

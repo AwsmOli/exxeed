@@ -16,7 +16,8 @@
     "@exxeed/overlays": "workspace:*",
     "@exxeed/repo": "workspace:*",
     "@exxeed/telemetry": "workspace:*",
-    "@exxeed/tts": "workspace:*"
+    "@exxeed/tts": "workspace:*",
+    "koffi": "^3.3.2"
   },
   "devDependencies": {
     "electron": "^33.0.2"

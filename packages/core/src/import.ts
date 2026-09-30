@@ -101,7 +101,7 @@ export interface ResolvedProfile {
  * import and render, not so anything can be timed against it. Rendering replaces
  * it with a measured one.
  */
-const placeholderMs = (text: string): number => 300 + text.split(/\s+/).length * 320;
+export const placeholderMs = (text: string): number => 300 + text.split(/\s+/).length * 320;
 
 /**
  * A short form when the helper gave none.

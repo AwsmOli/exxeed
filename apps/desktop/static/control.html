@@ -20,7 +20,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'" />
+    <!-- img-src: avatars come from the sign-in provider's CDN. Named hosts, not
+         "https:", so nothing else can load an image into this window. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: https://cdn.discordapp.com https://*.googleusercontent.com" />
     <title>Exxeed</title>
     <style>
       :root { color-scheme: dark; }
@@ -95,6 +97,66 @@
       nav.top .spacer { flex: 1; }
       nav.top .pinned { color: #6e7681; font-size: 11.5px; }
 
+      /* Account, top right (M8). */
+      .account { position: relative; }
+      .account-btn {
+        appearance: none; border: 1px solid #30363d; border-radius: 16px;
+        background: transparent; color: #c9d1d9; cursor: pointer;
+        display: flex; align-items: center; gap: 7px; padding: 3px 10px 3px 3px;
+        font: 500 12px/1 inherit;
+      }
+      .account-btn.signed-out { padding: 6px 12px; }
+      .account-btn:hover { border-color: #6e7681; color: #e6edf3; }
+      .account-btn:disabled { opacity: 0.5; cursor: default; }
+      .avatar {
+        width: 24px; height: 24px; border-radius: 50%; flex: none; object-fit: cover;
+        background: #1f6feb; color: #fff; display: grid; place-items: center;
+        font: 600 11px/1 inherit;
+      }
+      .account-menu {
+        position: absolute; right: 0; top: calc(100% + 6px); z-index: 10;
+        min-width: 200px; background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+        padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      }
+      .account-menu .who { padding: 6px 8px 8px; color: #8b949e; font-size: 11.5px; border-bottom: 1px solid #21262d; margin-bottom: 4px; overflow-wrap: anywhere; }
+      .account-menu .who strong { color: #e6edf3; display: block; font-size: 12.5px; }
+      .account-menu button {
+        appearance: none; display: block; width: 100%; text-align: left; border: 0; border-radius: 5px;
+        background: transparent; color: #c9d1d9; padding: 7px 8px; font: 12.5px/1.2 inherit; cursor: pointer;
+      }
+      .account-menu button:hover { background: #21262d; }
+
+      dialog.modal {
+        border: 1px solid #30363d; border-radius: 10px; background: #161b22; color: #e6edf3;
+        padding: 20px 22px; width: 340px; user-select: text;
+      }
+      dialog.modal::backdrop { background: rgba(1,4,9,0.6); }
+      dialog.modal h2 { margin: 0 0 4px; font-size: 16px; }
+      dialog.modal p.lead { margin: 0 0 16px; color: #8b949e; font-size: 12px; }
+      .provider {
+        appearance: none; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+        border: 0; border-radius: 7px; padding: 10px; margin-bottom: 8px; cursor: pointer;
+        font: 600 13px/1 inherit; color: #fff;
+      }
+      .provider.discord { background: #5865f2; }
+      .provider.google { background: #fff; color: #1f1f1f; }
+      .provider:hover { filter: brightness(1.07); }
+      .or { display: flex; align-items: center; gap: 10px; color: #6e7681; font-size: 11px; margin: 12px 0; }
+      .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid #30363d; }
+      dialog.modal input[type="email"], dialog.modal input[type="text"] {
+        width: 100%; box-sizing: border-box; background: #0d1117; color: #e6edf3;
+        border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font: 13px/1.2 inherit; margin-bottom: 8px;
+      }
+      dialog.modal input.code { letter-spacing: 6px; font: 600 18px/1.2 ui-monospace, monospace; text-align: center; }
+      dialog.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+      button.solid {
+        appearance: none; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+        background: #1f6feb; color: #fff; font: 600 12.5px/1 inherit;
+      }
+      button.solid:disabled { opacity: 0.5; cursor: default; }
+      .form-status { min-height: 16px; font-size: 11.5px; color: #8b949e; }
+      .form-status.bad { color: #f85149; }
+
       main { overflow-y: auto; padding: 12px 14px; min-height: 0; }
       .view { display: none; }
       .view.active { display: block; }
@@ -162,6 +224,8 @@
       .ov-panels input { accent-color: #58a6ff; }
 
       .ov-hint { color: #6e7681; font-size: 11.5px; margin-top: 2px; }
+      .ov-option { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; }
+      .ov-option input { accent-color: #58a6ff; }
 
       footer {
         border-top: 1px solid #21262d;
@@ -201,6 +265,14 @@
         <button class="power" id="power">Start</button>
         <span class="spacer"></span>
         <span class="pinned" id="pinned"></span>
+        <div class="account">
+          <button class="account-btn signed-out" id="account-btn" type="button">Sign in</button>
+          <div class="account-menu" id="account-menu" hidden>
+            <div class="who" id="account-who"></div>
+            <button type="button" id="account-profile">Edit profile</button>
+            <button type="button" id="account-signout">Sign out</button>
+          </div>
+        </div>
       </nav>
 
       <main>
@@ -214,6 +286,10 @@
             Double-click a name to rename it. Edit shows that profile's overlays so
             you can drag them into place; Save locks them back down.
           </div>
+          <label class="ov-option">
+            <input type="checkbox" id="ov-hide-unfocused" />
+            Hide overlays when iRacing isn't the window in front
+          </label>
         </section>
 
         <section class="view" id="view-packs">
@@ -234,6 +310,39 @@
       </footer>
     </div>
 
+    <dialog class="modal" id="signin">
+      <h2>Sign in to Exxeed</h2>
+      <p class="lead">To publish callout packs, star others' and keep your drafts on every machine. Browsing and installing need no account.</p>
+      <div id="signin-providers"></div>
+      <div class="or" id="signin-or">or with email</div>
+      <div id="signin-email-step">
+        <input type="email" id="signin-email" placeholder="you@example.com" autocomplete="email" />
+        <div class="actions"><button class="solid" id="signin-send" type="button">Email me a code</button></div>
+      </div>
+      <div id="signin-code-step" hidden>
+        <p class="lead" id="signin-code-lead"></p>
+        <input type="text" id="signin-code" class="code" inputmode="numeric" maxlength="8" placeholder="000000" autocomplete="one-time-code" />
+        <div class="actions">
+          <button class="ghost" id="signin-back" type="button">Back</button>
+          <button class="solid" id="signin-verify" type="button">Sign in</button>
+        </div>
+      </div>
+      <div class="form-status" id="signin-status"></div>
+      <div class="actions"><button class="ghost" id="signin-cancel" type="button">Close</button></div>
+    </dialog>
+
+    <dialog class="modal" id="profile">
+      <h2 id="profile-title">Choose your name</h2>
+      <p class="lead">Shown as the author on anything you publish. You can change it later.</p>
+      <input type="text" id="profile-name" maxlength="40" />
+      <div class="form-status" id="profile-status"></div>
+      <div class="actions">
+        <button class="ghost" id="profile-cancel" type="button">Later</button>
+        <button class="solid" id="profile-save" type="button">Save</button>
+      </div>
+    </dialog>
+
     <script type="module" src="./control.js"></script>
+    <script type="module" src="./account.js"></script>
   </body>
 </html>

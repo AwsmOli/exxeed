@@ -42,6 +42,9 @@ const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
 const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
 const IMPORTER_CHANNEL = "exxeed:importer";
 const IMPORTER_PROGRESS_CHANNEL = "exxeed:importer-progress";
+const IMPORTER_PRESET_CHANNEL = "exxeed:importer-preset";
+const ACCOUNT_CHANNEL = "exxeed:account";
+const ACCOUNT_CHANGED_CHANNEL = "exxeed:account-changed";
 
 contextBridge.exposeInMainWorld("exxeed", {
   /** The control window: start, stop, autostart, and what the app is doing. */
@@ -96,6 +99,15 @@ contextBridge.exposeInMainWorld("exxeed", {
    */
   importer: (request: unknown): Promise<unknown> => ipcRenderer.invoke(IMPORTER_CHANNEL, request),
   onImporterProgress: (cb: (payload: unknown) => void) => subscribe(IMPORTER_PROGRESS_CHANNEL, cb),
+  onImporterPreset: (cb: (payload: unknown) => void) => subscribe(IMPORTER_PRESET_CHANNEL, cb),
+
+  /**
+   * The account (M8): sign in, sign out, the profile. Answers are
+   * `{ ok, value: AccountView }` or `{ ok: false, error }`; no token ever
+   * crosses this bridge.
+   */
+  account: (request: unknown): Promise<unknown> => ipcRenderer.invoke(ACCOUNT_CHANNEL, request),
+  onAccountChanged: (cb: (view: unknown) => void) => subscribe(ACCOUNT_CHANGED_CHANNEL, cb),
 
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:

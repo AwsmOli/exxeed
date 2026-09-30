@@ -756,6 +756,722 @@ its own, and the web API comes last because its auth is the slowest part.
 result, the real iRating and SR change, the three corners costing the most time,
 and how it compares to the last race in the same car.
 
+## M8 — Community packs (Supabase)
+
+People sign in, make their own callout packs, publish them, and browse and
+install everyone else's. The catalog of sims, tracks, layouts and cars lives in
+the database, and so do the track maps, so a pack installed on a new machine has
+a map to draw on. That is the Snetterton problem: the note set was committed, but
+its map was gitignored and stayed on the rig that cut it.
+
+**Most of the shape already exists.** §8's repositories were built to be swapped
+for Supabase ones as a DI change. Every key already carries `sim`, which is
+currently the literal `"iracing"`. §8.1 has a first draft of the schema, and Auth
+and Storage were in the §3 stack table from the start. What is new is that packs
+are user-made and public, rather than authored by us under the service role.
+
+**A pack** is a published note set, plus what it needs to work and be trusted:
+the map version and reference lap it was authored against, the voice it was
+rendered with, optional setups, and an author. Audio is *not* in the pack by
+default. It renders locally on install with the pack's voice, the same way import
+already does (`auto-render.ts`). Measured at Daytona, audio is about 250 KB per
+note as WAV against about 1 KB of JSON, so it would be almost all the storage and
+bandwidth. Piper with `--noise-scale 0` and a named voice model makes the render
+the same on every machine.
+
+Sizes, measured on Daytona, gzipped: note set 1.1 KB, map 41 KB, reference lap
+62 KB. So a few hundred tracks of maps plus every pack anyone writes fit in the
+free tier. Audio is the only thing that would not.
+
+**Step 0 — Decisions and the schema**
+
+- [x] Bring §8.1 up to date before writing a migration
+  The draft predates four changes. Note sets are keyed by `TrackKey`, not
+  `TrackRef`, because they hold lap positions, not corner indices (§4.4), so
+  `map_version` comes off `note_sets`. Car ids are the sim's slug
+  (`mx5-mx52016`), not an int. A map is ~100 KB, not "a few KB". And a
+  reference lap is a JSON document today, not a `Float32Array`: decide whether
+  the binary blob is still worth it at 62 KB gzipped (probably not yet).
+- [ ] Widen `SimSchema` from the literal to an enum, and a `sims` table
+  `iracing` is the only member, but the column and the enum exist from the first
+  migration. Adding a sim later then means a row and an adapter, not a
+  migration that rekeys every table. Things that are per-sim: track and car ids,
+  the setup file format, and whether a map can be cut from telemetry at all.
+- [x] Catalog tables: `sims`, `track_layouts`, `cars`, `car_classes` — no separate `tracks`: iRacing gives each layout its own id
+  `track_layouts` is what `TrackKey` points at (`sim, track_id, config_id`),
+  with display names, length, and turn numbering (`turn-numbers.json` moves
+  here). `cars` is keyed by `(sim, car_id)` with a class. This replaces
+  `data/cars/iracing.json`, and §13's granularity question gets settled in
+  data. Read-only to clients.
+- [x] Content tables: `track_maps`, `reference_laps`, `content_items`, `content_versions`, `content_drafts`, `content_media`, `content_setups`, `stars`, `downloads`, `reports`
+  `packs` is the identity (owner, track layout, car class, title, description,
+  visibility). `pack_versions` holds the immutable published note sets, each with
+  the map version, reference lap and voice id it was authored against. Installing
+  pins a version, and an update is a new version, never an edit under someone who
+  is driving it. Drafts are a `pack_versions` row that is not published.
+  Columns for Step 3b: `(pack_id, version)` unique, `changelog`, `published_at`,
+  `withdrawn_at`, and `based_on` (pack version) for forks. `installs` records
+  `(user, pack, version, policy)`.
+- [x] Row Level Security on in the first migration, per §8.1
+  Published versions are readable by anyone, including signed-out users.
+  Drafts are readable and writable only by the owner. The catalog is read-only.
+  Maps and reference laps are insertable by any signed-in user and never updatable
+  (see Step 2). Write the policy tests alongside the policies: a draft invisible
+  to another user and to the anon key, and a published version the owner cannot
+  mutate.
+- [x] `supabase/` in the repo: migrations, seed, and `supabase start` for local dev
+  Generated types go to `packages/repo/src/db.generated.ts` and stay inside
+  `packages/repo` (§8.1). Develop against the local stack, and treat the hosted
+  project as a deploy target.
+- [x] Settle the data directory before there is anything to sync into it
+  `resolveDataDir` defaults to the repo's `data/`, which is right for development
+  and wrong for a packaged app. Installed packs, cached maps and rendered audio go
+  under `userData`. The repo's `data/` stays as the dev fixture set.
+
+**Step 1 — Sign in**
+
+- [ ] Supabase Auth in the Electron app: Discord and Google OAuth, plus an email code
+  Built (`apps/desktop/src/account.ts`). OAuth uses PKCE through the system
+  browser, back to a one-shot loopback listener on `127.0.0.1:53682`, not a
+  custom protocol: no registry entry, and it works in dev on both OSes. Email
+  is a 6-digit code typed into the app, not a magic link, because a link opened
+  on a phone cannot reach the PC. The email path is verified end to end on the
+  local stack. Discord verified end to end locally.
+  **Open, before launch: custom SMTP.** A hosted project without its own SMTP
+  sends only to members of the Supabase organisation, and cannot use custom
+  templates, so the code template is local-only for now. The app also listens
+  for the email's link, so email sign-in works when the link is clicked on the
+  same PC. With SMTP (e.g. Resend on a verified blkpixel.com sender), put
+  `supabase/templates/sign-in-code.html` into the hosted "Magic Link" and
+  "Confirm signup" templates, and the code path works for everyone.
+- [x] Session in main, refresh token stored with `safeStorage`
+  Same rule as the importer's API keys: the renderer never holds a secret, and it
+  asks main. The anon key ships in the app, and the service role key never does
+  (§8.1).
+- [x] `profiles` table: display name and avatar, created on first sign-in
+  The author name shown on a pack. Nothing else about a person is public.
+- [x] Top-right of the control window: "Sign in", or the avatar with a menu (profile, sign out)
+  Everything works signed out except publishing, starring and syncing your own
+  drafts. Browsing and installing public packs must not need an account.
+
+**Step 2 — Catalog and maps in the database**
+
+This step has value on its own, before anything is shared: it fixes maps living
+on one machine.
+
+- [ ] Seed the catalog
+  iRacing's Data API has every track, layout and car with ids (`track/get`,
+  `car/get`), but it needs the OAuth client that M7 step 4 is already blocked on.
+  Until then, add rows as they are seen: on connect the sim reports `TrackID`,
+  layout, `CarPath` and display names, and a `report_session` RPC
+  inserts-if-absent. Enough to cover every combo anyone actually drives, and the
+  Data API backfills the rest later. The schedule PDF can add names, but it
+  carries no ids.
+  **Half done:** `report_session` runs on connect when signed in. The Data API
+  backfill waits on the iRacing OAuth client.
+- [x] Publish a map the first time anyone cuts one
+  `AutoMapper` already cuts a map from the first clean lap. Signed in, it also
+  uploads it if the layout has none. The first map wins and is not replaced by
+  later ones: a note set's positions are pct, which is physical tarmac (§4.4), so
+  any good map serves every pack. But the corner list and numbering are what
+  everyone authors against, and they should not churn. Replacing a bad map is a
+  new `map_version`, and that is a moderation action, not an automatic one.
+  Refuse to publish a map whose orientation check came in under the threshold
+  (§4.1.1): a mirrored map shipped to everyone is worse than none.
+- [x] Reference laps per layout and car, contributed the same way
+  One public reference lap per combo, for the editor's speaking windows and the
+  trace overlay's ghost. The first one, or a faster clean one, replaces it. A
+  driver's own laps stay local.
+- [x] ~~`Supabase*` repositories wrapping the `LocalFile*` ones~~ — **a sync service instead** (`packages/repo/src/cloud/sync.ts`, `apps/desktop/src/cloud-sync.ts`)
+  Local files stay the runtime's source of truth; the sync pulls a missing map
+  and reference laps before a session and when the editor opens a set without
+  one, pushes what the auto-mapper cuts, and offers every local map once per
+  sign-in. Artefacts only move through `packages/repo`; the one other place
+  that talks to Supabase is `account.ts`, for auth and the profile.
+- [x] Then commit nothing under `data/tracks` or `data/reflaps` for real use
+  They stay gitignored, as dev fixtures only. The database is where a map lives.
+
+**Step 3 — Making and publishing your own packs**
+
+- [ ] Every note set gets an owner and a remote id
+  A local slug id (`daytona-mx5-draft`) stays the file name. A `remoteId`
+  (uuid) and `version` get added to `NoteSet`, absent until published. Existing
+  sets and imports keep working unpublished.
+- [ ] Publish from the control window and the editor
+  Title, description, car class, visibility (public or unlisted). Refuse a set
+  with a `dirty` note, as §7.4 already refuses to call one `published`: someone
+  installing it would hear callouts timed against audio that does not match the
+  words. Publishing uploads the note set as a new `pack_versions` row, pinned
+  to the map and reference versions it was written against.
+- [ ] Sync drafts across your own machines
+  A draft is a private row. Signed in, the editor saves locally and pushes. On
+  conflict, the later save wins, with the other kept as a copy, not merged:
+  there is one author per pack.
+- [ ] Imports record their source
+  `source.videoId`/`channel` already exist. A published pack made from a
+  YouTube guide says so and links to it. The words are rewritten, not
+  transcribed (§10), but the coach should still get the credit.
+
+**Step 3b — Versions**
+
+A pack gets better as its author drives it: a braking point moves 20 m, a line
+gets shorter, a corner that turned out to be easy loses its callout. Versions are
+how those improvements reach the people who installed it without anyone losing
+the version they already know.
+
+- [ ] Versions are numbered 1, 2, 3, … per pack, immutable once published
+  A plain counter, not semver. There is no API to break, and "v4" is what a
+  driver can remember and repeat on Discord. A published version is never
+  edited, only superseded. The row, its note set, its setups, and the map and
+  reference versions it was written against are fixed forever, so "I'm on v3"
+  always means the same callouts.
+- [ ] The draft is a working copy on top of the latest published version
+  "Edit" on a published pack opens the draft. "Publish update" turns it into the
+  next version, and the draft carries on from there. Publishing still refuses a
+  `dirty` note (Step 3). Only one draft per pack, because there is one author.
+- [ ] A changelog per version: the author's one line, plus a diff the app writes itself
+  Note ids are opaque handles that survive a move and a rewrite
+  (`note-id.ts`), so two versions diff exactly by id, with no guessing. Each
+  note is added, removed, reworded, or moved by N m. The author writes "moved T1
+  braking later, shortened the chicane"; the app lists the rest. Both are shown on
+  the pack page and in the update prompt.
+- [ ] Updating re-renders only what changed
+  Audio is cached by `(note id, text hash, voice)`, not by pack version, so a
+  version that moves three notes and rewords one renders one clip, not the whole
+  set. Moved notes keep their audio: position does not change what is said
+  (§7.4's "moving a note does not make it stale").
+- [ ] Per-pack update policy for installers: automatic (default) or pinned
+  Automatic takes a new version when no session is running (§4.5: a session
+  is pinned up front). Pinned stays put and shows "v5 available". Either way,
+  every version stays installable, so going back to v3 is one click, and v3 is
+  still there to go back to, because versions are immutable.
+- [ ] The author can withdraw a version
+  For a version that is actually wrong, such as a callout at the wrong corner.
+  Withdrawn versions are hidden from new installs and never auto-installed.
+  Anyone on one gets "the author withdrew this version" and an offer to
+  move to the latest. Not deleted, so a pinned install keeps working offline.
+- [ ] Setups are versioned with the pack
+  A version lists its setup files. An unchanged file is stored once, by content
+  hash, and referenced from each version that has it. A new setup for a new
+  season is a new version, like a callout change.
+- [ ] A new version may target a newer map version
+  A pack's positions are pct, which holds across map re-cuts (§4.4), so this is
+  normally just a matter of recording what the author was looking at. It matters
+  when turn numbers were renumbered between map versions: the pack page shows
+  numbers from the map version the pack was written against.
+- [ ] Forks remember the version they came from
+  "Based on <pack> v3." When the original publishes v4, the fork's author gets
+  "upstream has v4" with the same diff, and can pull individual changes by note
+  id. That is not merging: each note is either kept or taken.
+- [ ] Stars belong to the pack, downloads to the version
+  A star is "I rate this author's work on this track", the way a GitHub star is
+  about a repo and not a commit, so it carries across versions. Downloads are
+  counted per version and summed for the pack, so the author can see how many
+  people are still on v2.
+
+**Step 4 — My packs (the Track Coach tab)**
+
+- [ ] Split the list: "Mine" and "Installed"
+  Mine: drafts and published, with version, stars and downloads. Installed: other
+  people's packs, the version pinned, "update available" when there is a newer
+  one. The per-track rows from this session (a mapped track with no notes, with
+  Import… and Write manually) stay.
+- [ ] Install renders locally, with the pack's voice
+  Piper and the voice model download on first use, as import already does. Clips
+  are cached per `(pack version, voice)`. If the pack's voice is unavailable, fall
+  back to the user's voice with a note that timing may differ slightly: durations
+  are re-measured anyway, so it is correct, just not identical.
+- [ ] Update, roll back, uninstall
+  Following Step 3b's policy. An update installs the new version beside the old
+  one and switches only when not in a session: changing callouts mid-stint would
+  break §4.5's rule about pinning a session up front. The installed row shows the
+  version, "v5 available" with its changelog, and a version picker for going
+  back.
+- [ ] "Follow the sim" picks among installed packs too
+  `noteSetByTrack` already remembers the last set per track. Installed packs join
+  that pool, filtered by the car class actually being driven (`carWarnings`
+  already knows it).
+
+**Step 5 — Content (new tab)**
+
+Named for what sim racers already call it: Assetto Corsa's Content Manager made
+"content" the word for things other people made that you install. This tab is
+everyone else's packs. Your own and the ones you installed stay in Track Coach
+(Step 4).
+
+- [ ] Filter by sim, track, layout and car or class, pre-set to the current session's combo
+  The question someone opens this tab with is "what is there for what I am
+  about to drive". A pack names a car *class*, so filtering by a car shows
+  packs for its class, labelled as such. Also this week's official races (the
+  schedule is already fetched for the importer), for tracks not driven yet.
+- [ ] The filters live in the tab's state, so anything can open it pre-filtered
+  One entry point, `openContent({ sim, trackId, configId, carClass })`, used
+  by the quick link below, share links, and the Track Coach rows. It is the
+  same shape as the importer's preset from this session's "Import…" button.
+- [ ] Quick link when you are on a combo you have no callouts for
+  At connect the session already knows track, layout and car, and
+  `noteSetForTrack` already knows there is no installed pack for them. Instead
+  of starting silent, the control window shows "No callouts for Snetterton 300
+  in the MX-5. 4 packs in Content", linking to the tab with those filters set.
+  The count is one cheap `count(*)` query, and the line is left out offline or
+  when the count is zero. With zero it is "Nothing yet. Write the first one",
+  pointing at Import… and Write manually. The mapped-track rows in Track Coach
+  get the same "Find in Content" button beside Import… and Write manually.
+- [ ] Stars, like GitHub
+  A star button on every pack card, on the pack detail, and on installed packs in
+  Track Coach, with the count beside it. Signed in only, one per user per pack,
+  and toggling it off un-stars. A "Starred" filter in Content lists yours.
+  Stored as `pack_stars (user_id, pack_id, created_at)`, primary key on the
+  pair, insert and delete limited to your own rows by RLS.
+- [ ] Downloads, counted by the server rather than trusted from the client
+  One row per install in `pack_downloads (pack_version_id, installation_id,
+  user_id?, created_at)`, unique per installation and version, so reinstalling
+  or updating in a loop cannot inflate it. `installation_id` is a random uuid
+  made on first run and kept in settings, so signed-out installs count too
+  (Step 1 says browsing and installing need no account). Recorded through an
+  RPC. Clients never write counters.
+- [ ] Counters on `packs`, maintained by triggers, indexed for sorting
+  `star_count` and `download_count` are updated by triggers on the two tables
+  above, and are not client-writable (RLS denies the columns), so the Content
+  list sorts on an index instead of counting rows per request. The rows stay the
+  source of truth; a nightly job re-derives the counters if a trigger ever
+  misses.
+- [ ] Sort by most stars (default), most downloads, recently updated, and newest; text search
+  "Most stars" is the popularity sort people expect from GitHub. "Recently
+  updated" surfaces packs whose authors are still driving the track. Postgres
+  full-text search on title, description and track name is enough, with no
+  search service.
+- [ ] Layout like VS Code's Extensions view: a search sidebar on the left, the selected item's page on the right
+  **Sidebar:** a search box at the top, the filters under it (sim, track,
+  layout, car or class, kind, "Starred", "Installed"), and a sort control. Then
+  the results as compact rows: icon, title, author, one-line summary, stars,
+  downloads, and an Install button right on the row, so the common case needs
+  no second click. The list scrolls on its own, and the page does not reload
+  when the selection changes.
+  **Page:** a header with the icon, title, author, version, stars, downloads
+  and last updated, and the actions: Install / Update / Uninstall, Star, a
+  version picker, and Share. Under it, tabs:
+  - **Details**: the author's description, as Markdown with pictures (below);
+  - **Callouts**: every callout's text in lap order, readable before installing;
+  - **Map**: the track with every callout point on it (the editor's SVG,
+    read-only), hovering a point shows its text;
+  - **Changelog**: versions, the author's line and the app's diff (Step 3b);
+  - **Setups**: the files, what each is for, where they will be installed.
+
+  Beside the tabs, a narrow column of facts, as VS Code does: track and layout,
+  car class, callout count, voice, source video, map version, published date,
+  and the author's other content.
+- [ ] The description is a README: Markdown with pictures
+  Written in the publish dialog with a live preview. It is a separate field,
+  not the note set, and it can change without a new version, like a store page.
+  Each item also gets an icon (a square image, falling back to the track
+  outline drawn from the map) and up to 8 screenshots, uploaded to Storage and
+  shown in the Details tab.
+- [ ] Render the Markdown safely
+  Rendered in the renderer with raw HTML off and the output sanitised: a
+  README is a stranger's text inside the app. Images load only from our own
+  Storage bucket, enforced by the window's Content Security Policy, not just
+  by the renderer. A remote image in a README is a tracking pixel that fires
+  every time someone looks at the page. Links open in the browser, never in
+  the app.
+- [ ] Image limits, enforced by a Storage policy
+  PNG, JPEG or WebP only. There is a size cap per file and a count cap per item,
+  and images are re-encoded on upload (an Edge Function) so what is served has
+  been decoded once by us and carries no metadata. That strips the GPS
+  coordinates in a phone photo of someone's rig. Themes get their rendered
+  preview (M9 Step 3) as the first screenshot automatically.
+- [ ] Preview a callout before installing
+  One clip rendered on demand, so "is this any good" does not need a full
+  install.
+- [ ] Share link: `exxeed://pack/<id>`, falling back to a web page
+  Opens the app on the pack's detail in Content. The web fallback is a static
+  page built from the same row, for someone who does not have the app yet.
+
+**Step 6 — Setups in a pack**
+
+- [ ] `pack_setups`: files in a Storage bucket, with car and optional track
+  iRacing setups are `.sto` files under `Documents/iRacing/setups/<car>/`. A
+  pack can carry several (race, qualifying, wet), each labelled. Install copies
+  them into that folder under a subfolder named for the pack, so they show up
+  in the sim's garage without touching anyone's own setups. Keyed per sim,
+  because the format and the folder are both iRacing's.
+- [ ] Size limit and type check on upload
+  A `.sto` is a few KB, so anything large is not a setup. Storage policy: owner
+  write, public read of published versions only.
+- [ ] Rights attestation, and a report button
+  Setup shops sell theirs, and a paid setup re-shared is the most likely
+  takedown request this feature will ever get. The uploader confirms it is
+  theirs to share, and reports go to moderation (Step 7).
+
+**Step 7 — Trust and moderation**
+
+- [ ] No written reviews yet
+  Stars and downloads (Step 5) are the whole of the social signal for now.
+  Reviews are a moderation surface, and there is nobody to moderate them.
+- [ ] Report a pack, a map or a setup; an `admin` role that can unlist and replace
+  RLS gives admins what the service role would, without shipping the service
+  role. A bad map needs the most care: a new map version is published, and packs
+  written against the old one keep working because they hold pct, not corner
+  indices.
+- [ ] Fork
+  "Make my own copy" of a public pack starts a draft that credits the
+  original. It is the natural way to fix one callout in someone else's set,
+  which is otherwise the gap M4's "revisit if the duplication hurts" was
+  about.
+
+*Done when:* someone who has never driven Snetterton signs in on a fresh install,
+follows the "4 packs in Content" link, stars and installs the most-starred one,
+and hears it on their first lap, with the map drawn and the setup in their
+garage. Meanwhile the
+author of that pack published it from a different machine than the one they
+drove it on. When the author publishes v2 with one braking point moved, the
+installer gets it before their next session with a one-line changelog and one
+clip re-rendered, and can go back to v1 if they preferred it.
+
+Open questions for this milestone:
+
+- **Map disagreements.** Two people cut the same layout and get different corner
+  lists, because detection varies by lap (§5.2: T1/T2 at Daytona merge or split
+  by 1 m). First-wins avoids churn, but the first may be the worse map. Is
+  "admin replaces" enough, or do maps need votes?
+- **Voice parity.** Is re-rendering with a different voice than the author's
+  acceptable, or should a pack pin its voice and refuse to install without it?
+  Durations are re-measured either way, so this is about sound, not timing.
+- **Hosted audio later?** If a cloud voice ever replaces Piper, audio has to be
+  hosted, because nobody can render it locally. Opus at ~24 kbps is about 16 KB
+  per note against 250 KB as WAV, decoded to WAV on download. That keeps §12's
+  no-decoding-at-trigger rule, since clips are already decoded once at session
+  start.
+- **Licensing of the text itself.** A pack derived from a coach's video is a
+  rewrite with attribution. Is that enough, or should imports be private by
+  default until the author marks them public?
+
+## M9 — Themes
+
+Themes like VS Code's: a theme is a file of named colors and a few shape and
+type settings, picked in preferences, and publishable to Content alongside
+callout packs. Four ship built in: Exxeed (the current look), iRacing, Gran
+Turismo, and Synthwave. Looks modelled on other overlay apps are community
+themes in Content, not built-ins.
+
+**Why tokens-only, like VS Code, and not custom CSS.** A theme is data, not
+code. A CSS file from a stranger can load remote URLs (a tracking pixel in every
+overlay), hide a panel, or push text off-screen, and it breaks every time a
+panel's markup changes. A fixed set of tokens cannot do any of that, can be
+validated, and survives every redesign of a panel. That is exactly why VS Code
+themes are JSON.
+
+**Steps 0-2 need no backend** and can ship before M8. Step 3 is where themes
+join Content.
+
+**Step 0 — One set of tokens for everything**
+
+- [ ] Define the token vocabulary, in `@exxeed/overlays` as a typed list with defaults
+  `overlay.css` already has most of it (`--card`, `--text`, `--text-2`,
+  `--green`, `--red`, `--radius`, `--font`…). Tokens are named by *role*, not by
+  hue: `brake`, `throttle`, `delta-gain`, `delta-loss`, `class-1…4`, `flag-*`,
+  `accent`, `warning`. A synthwave theme's brake can be hot pink, and
+  `--red` would then be a lie. Three groups:
+  - **surface**: backgrounds, cards, lines, text levels, accent, for both app
+    windows and overlays;
+  - **data**: the colors that carry meaning at speed (pedals, delta, sectors,
+    shift lights, class colors, flags);
+  - **shape and type**: radius, gap, card opacity, font family (from a bundled
+    list), number weight, and **glow**, which synthwave needs and nothing else
+    should have to fake.
+- [ ] Move the app windows onto the tokens
+  control, editor and preferences hard-code ~80 colors between them, and
+  `importer.html` has its own separate set of variables (`--bg`, `--panel`,
+  `--accent`…). One shared `theme.css` of variables, and every window uses it.
+  Mechanical, but it is the bulk of this step.
+- [ ] Move the canvas panels onto the tokens, read once per theme change, never per frame
+  `panels/util.js` already reads colors through `token()`, but only once at load,
+  and `driving.js` still hard-codes some (the shift-light ramp, the pedal
+  gradients, trace grid lines). Re-read the palette on theme change and draw
+  from a cached object. §7.0's rule is that nothing on the 60 Hz path queries
+  the DOM.
+- [ ] Live switching
+  Main sends the resolved theme to every window over IPC. Each window sets
+  variables on `:root` and refreshes its canvas palette. Changing theme never
+  restarts the overlays: they hold decoded audio and reference arrays (the
+  reason `setVisible` hides rather than closes).
+
+**Step 1 — The theme format and the four built-ins**
+
+- [ ] `ThemeSchema` (Zod, §4 style): `id`, `name`, `author`, `version`, `base`, `tokens`
+  `base: "dark" | "light"` fills every token the theme leaves out, so a theme
+  can be six lines, as in VS Code. Validation rejects anything that is not a
+  color, length or listed font, so there are no `url()` and no free-form CSS
+  anywhere.
+- [ ] **Exxeed**, the current look (default)
+  Today's `overlay.css`, which the header comment says was modelled on GO
+  Fast's overlay suite: stacked near-black cards, big light numbers, pill bars,
+  gradients bleeding in from the left edge. This becomes the reference theme
+  that every token's default comes from.
+- [ ] **iRacing**, in the style of the sim's own UI
+  Flatter and squarer (small radius), more opaque panels, iRacing's blue as
+  accent, a condensed sans. The point is overlays that look native beside the
+  sim's own black boxes.
+- [ ] **Gran Turismo**, in the style of its menus
+  Light base, lots of white space, thin type, a single accent color, soft
+  shadows instead of lines. It is the one light theme, which also proves `base:
+  "light"` works end to end.
+- [ ] **Synthwave**
+  A deep purple-to-navy card gradient, magenta and cyan data colors, glow on
+  numbers and bars, a grid motif on the map background.
+- [ ] Built-ins may be named after games, never after other overlay products
+  Naming a theme after the sim or game whose look it echoes is fine. Naming one
+  after a competing overlay app is not something we ship. A theme that
+  deliberately recreates another overlay suite belongs in Content as a
+  community theme, published and named by its author, not in the app. That is
+  also why the default is called Exxeed and not after what it was modelled on.
+  Either way we bundle only fonts we are licensed to ship (OFL), so there are no
+  GT or iRacing fonts, and no logos.
+- [ ] Theme picker in preferences, and optionally per overlay profile
+  An overlay profile can override the app theme. Someone might want iRacing
+  overlays for racing and Synthwave for streaming, and profiles already exist
+  for exactly that kind of split.
+
+**Step 2 — Legibility guard rails**
+
+A theme on an overlay is read in a glance at 250 km/h, over whatever the sim is
+showing behind it. "Pretty" is not enough, so the validator warns, and publishing
+(Step 3) refuses the worst cases:
+
+- [ ] Contrast for text on cards, checked against a light *and* a dark sim backdrop
+  Card opacity is part of the theme, so a transparent card over snow or sky
+  needs checking against both. WCAG 4.5:1 for small text, 3:1 for the big numbers.
+- [ ] Brake and throttle must stay distinguishable, including for color-blind drivers
+  Checked under simulated deuteranopia and protanopia, the common ones. Red
+  against green is the default, and exactly the pair that fails. A theme that
+  makes them indistinguishable is refused, not warned about.
+- [ ] Delta gain and loss, and sector colors, the same check
+- [ ] Theme editor, JSON first, like VS Code's `settings.json`
+  A theme *is* a JSON file, so editing it as JSON is the core, and a form comes
+  later as a convenience over the same file. Never the other way round, where
+  the form is the model and the JSON an export.
+  - **Files:** user themes live in `<userData>/themes/<id>.json`. "New theme"
+    copies a built-in as a starting point; built-ins themselves are read-only,
+    like VS Code's defaults.
+  - **Schema:** the Zod `ThemeSchema` also emits a JSON Schema
+    (`zod-to-json-schema`), shipped with the app and referenced by `$schema`
+    in every theme file. That one artefact gives autocomplete, hover docs per
+    token (from the same descriptions as the typed token list) and
+    red-squiggle validation, both in our editor and in VS Code for anyone who
+    would rather edit there.
+  - **In-app editor:** CodeMirror 6 with a JSON language and the schema, an
+    inline color swatch beside every color value, and click-to-pick. Not
+    Monaco: it is several MB and wants web workers, which is a lot to take on
+    for one JSON file. CodeMirror is also a set of ES modules that expect a
+    bundler, which the app does not have yet (see the Vue question in M3).
+    Either vendor a single prebuilt bundle of the handful of packages needed,
+    or treat this as the moment that question gets answered.
+  - **Live preview:** the file is watched, not only saved from our editor, so an
+    edit made in VS Code updates the preview too. `overlay-preview.ts` already
+    drives every panel with a synthetic lap for arranging overlays, and the
+    preview reuses it, so every token change is seen on moving data. An invalid
+    file keeps the last valid theme on screen and shows the errors.
+  - **Guard-rail warnings** (the checks above) appear as diagnostics on the
+    offending token's line, the same way the schema errors do.
+- [ ] Later: a visual editor view over the same file
+  The token list grouped by surface, data, and shape and type, with color
+  pickers and font and radius controls. It reads and writes the JSON, so the two
+  views never disagree, and a "Open JSON" button sits in the corner, as VS
+  Code's settings UI has. Built when people ask for it; the JSON view is
+  complete without it.
+
+**Step 3 — Themes in Content**
+
+Needs M8.
+
+- [ ] Content items get a `kind`: `callouts` or `theme`
+  One set of machinery for both: versions (Step 3b), stars, downloads, forks,
+  reports. A theme has no track key, so the catalog filters simply do not apply
+  to it. Generalise `packs` into `content` with kind-specific version payloads,
+  rather than building a second copy of everything.
+- [ ] Themes in the Content sidebar's kind filter, with a rendered preview as their first screenshot
+  The preview is rendered locally at publish time from the preview harness
+  (delta, inputs and standings panels on the sample lap) and uploaded with the
+  version. A theme's page swaps the Callouts, Map and Setups tabs for a
+  **Preview** tab, and "Try it" applies the theme temporarily, with "Keep" or
+  "Revert".
+- [ ] Publishing runs the Step 2 validator server-side too
+  The client check is for the author's convenience. The server check is the one
+  that counts, because a client can be modified. It is an Edge Function doing a
+  pure function over JSON, which is the right shape for one, unlike ingest (§8.1).
+
+*Done when:* someone switches to Synthwave mid-session without the overlays
+blinking, makes a variant with a different accent in the theme editor, publishes
+it, and a second person finds it in Content under Themes, previews it on their
+own overlays, stars it and keeps it.
+
+## Screens
+
+Every screen or dialog the open items above need, grouped by where it lives.
+The milestone is in brackets. "New" means a new window, tab or dialog; everything
+else changes something that exists. Today the app has the control window (tabs
+Overlays and Track Coach), Preferences, the note editor, the YouTube importer,
+the overlay panels and the tray menu.
+
+Every screen here has to be designed for its **empty, loading, offline and
+signed-out states** too, not only the happy path. Those are what a first-time
+user sees first.
+
+**Control window: frame**
+
+- [ ] Account area, top right [M8.1]: "Sign in" when signed out; avatar with
+  a menu (profile, sign out) when signed in.
+- [ ] Session banner under the top bar [M8.5]: "No callouts for <track> in
+  <car>. N packs in Content", or "Nothing yet. Write the first one". Also
+  reused for "Update available for <pack>" and "the author withdrew this
+  version" [M8.3b].
+- [ ] Tab bar grows to Overlays · Track Coach · Content · Races [M8.5, M7].
+
+**Control window: Track Coach tab (changes)**
+
+- [ ] Split into **Mine** and **Installed** [M8.4]. Mine: drafts and published,
+  with version, stars and downloads, plus Edit, Publish or Publish update.
+  Installed: the pinned version, "vN available", an update policy toggle,
+  a version picker, and Uninstall.
+- [ ] Mapped tracks with no callouts [done this session]: add **Find in Content**
+  beside Import… and Write manually [M8.5].
+- [ ] Star button on installed packs [M8.5].
+
+**Control window: Content tab (new) [M8.5, M9.3]**
+
+- [ ] Sidebar: search, filters (sim, track, layout, car or class, kind,
+  Starred, Installed), sort, and the result list with an Install button on
+  each row.
+- [ ] Item page, callout pack: header (icon, title, author, version, stars,
+  downloads, updated; Install / Update / Uninstall, Star, version picker,
+  Share), tabs **Details** (README with screenshots), **Callouts**, **Map**,
+  **Changelog**, **Setups**, and the facts column.
+- [ ] Item page, theme: the same header, tabs **Details**, **Preview**,
+  **Changelog**, and "Try it" with a Keep / Revert bar.
+- [ ] Screenshot lightbox (click a screenshot to see it full size, arrow keys
+  to step through).
+- [ ] Callout preview player: play one clip, rendered on demand, from the
+  Callouts tab.
+- [ ] Install progress: download, Piper and voice install on first use, and
+  rendering N of M clips, shown on the row and on the page [M8.4].
+- [ ] Author page: an author's display name, avatar and published content,
+  reached from the facts column [M8.1].
+- [ ] Report dialog: reason and details, for packs, maps and setups [M8.6, M8.7].
+
+**Control window: Races tab (new) [M7]**
+
+- [ ] Race history list: date, combo, finish, iRating change, filterable by
+  combo, from `RaceSummaryRepository`; opens a summary.
+- [ ] Per-combo view: this week and all-time best lap, average clean lap,
+  finishes, incidents, and the rating history chart [M7.6].
+
+**Race summary window (new) [M7.3-7.6]**
+
+- [ ] Opens automatically at the end of a race, and can be reopened from Races
+  or a menu.
+- [ ] Result block: position, class position, positions gained, incidents, best
+  lap.
+- [ ] Rating block: estimate, then official. The iRating counter animation,
+  SR bar, licence promotion moment, and "waiting for official results".
+- [ ] Lap chart: every lap, clean laps distinguished, best marked.
+- [ ] Where the time went: corners ranked by time lost, each with its reason
+  ("braking 12 m early"), theoretical best, and consistency.
+- [ ] Compared with other races: this week and all-time in the combo, most
+  improved and most regressed corner.
+
+**Publish flow (new dialogs) [M8.3, M8.3b, M8.6]**
+
+- [ ] Publish dialog: title, summary line, README editor with live preview,
+  icon and screenshots upload, car class, visibility, source attribution.
+  Refuses dirty notes, with a link to render.
+- [ ] Publish update dialog: the automatic diff since the last version, the
+  author's changelog line, and the target map version.
+- [ ] Setups section of the publish dialog: add `.sto` files with a label and
+  the rights attestation checkbox [M8.6].
+- [ ] Version management for the author: the list of versions, with Withdraw on
+  each [M8.3b].
+- [ ] Fork dialog: "Make my own copy", naming the copy and crediting the
+  original. Later, an "upstream has vN" review listing the upstream diff note
+  by note, with Keep / Take on each [M8.3b, M8.7].
+- [ ] Draft sync conflict notice: "edited on another machine; kept both"
+  [M8.3].
+
+**Sign-in (new) [M8.1]**
+
+- [ ] Sign-in dialog: Discord, Google, email magic link. Waiting on the browser,
+  and an error state.
+- [ ] "Check your email" state for the magic link.
+- [ ] First sign-in: choose a display name and avatar (the `profiles` row).
+- [ ] Sign-in landing page, a static web page shown in the browser after the
+  OAuth redirect: "You can close this tab".
+
+**Preferences (changes)**
+
+- [ ] Theme picker with a swatch per theme [M9.1], plus the per-overlay-profile
+  override, in the Overlays tab's profile row.
+- [ ] iRacing account connection for official results (OAuth) [M7.4]. It is
+  separate from the Exxeed sign-in and says why.
+- [ ] Content settings: default update policy, cache size and a clear-cache
+  button, where installed setups go [M8.4, M8.6].
+
+**Theme editor (new window) [M9.2]**
+
+- [ ] JSON view (the core): CodeMirror with schema autocomplete, hover docs,
+  inline color swatches, and errors and guard-rail warnings shown on their
+  lines.
+- [ ] Live preview beside it: the overlay panels on the sample lap
+  (`overlay-preview.ts`), plus a mock control window, and a backdrop switcher
+  (light sky, dark night, busy grandstand). Follows the file on disk, so
+  external edits show up too.
+- [ ] Toolbar: New from…, Open in external editor, Reveal file, Apply, Publish.
+- [ ] Later: the visual view over the same file, token list with pickers and an
+  "Open JSON" button.
+
+**Importer (changes) [M5 stage 4]**
+
+- [ ] Cross-check flags in the callout list before import: "says brake, no
+  brake onset at this turn" and "landmark 60 m from the measured onset".
+
+**Note editor (changes)**
+
+- [ ] Publish / Publish update in the header, a version badge, and the draft's
+  sync state [M8.3].
+- [ ] Read-only mode, used by the Content page's Map tab [M8.5].
+
+**First run (new) [M6]**
+
+- [ ] Welcome: what Exxeed does, in one screen.
+- [ ] Borderless-windowed warning, with a picture of the iRacing setting. The
+  number one support question, so it gets a screen of its own.
+- [ ] Voice setup: Piper and the voice download with progress, or skip.
+- [ ] Overlay layout: pick a profile and arrange, reusing the edit mode.
+- [ ] Optional sign-in, with "you can do this later".
+- [ ] Done: "start iRacing and drive". Where callouts come from: installed
+  packs, Content, or writing your own.
+
+**Overlays (changes)**
+
+- [ ] Everything re-themed [M9.0]. There are no new panels, but every panel has
+  to be checked in all four built-in themes.
+
+**Tray (changes)**
+
+- [ ] "Update available" and "Race summary ready" items [M8.4, M7.3].
+
+**Moderation (new, admin role only) [M8.7]**
+
+- [ ] Reports queue: the reported item, the reason and the reporter, with Unlist,
+  Dismiss, and, for maps, "Publish replacement map version". Could start as a
+  saved view in the Supabase dashboard and become a screen once reports are
+  frequent enough to need one.
+
+**Web (new, outside the app) [M8.5]**
+
+- [ ] Share page for `exxeed://pack/<id>`: the item's README, screenshots, stars
+  and an "Open in Exxeed" button, with a download link for people without the
+  app.
+- [ ] The OAuth landing page (listed under Sign-in).
+
 ## Open questions (§13)
 
 - [x] ~~**Landmark inventory bootstrap.**~~ **Settled: not needed yet.**

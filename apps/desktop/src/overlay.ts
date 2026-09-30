@@ -74,6 +74,11 @@ export const FULLSCREEN_WARNING =
  */
 const closing = new WeakSet<BrowserWindow>();
 
+/** Every overlay window, so the dock can tell them from ordinary windows. */
+const overlays = new WeakSet<BrowserWindow>();
+
+export const isOverlayWindow = (window: BrowserWindow): boolean => overlays.has(window);
+
 export function markClosing(window: BrowserWindow): void {
   closing.add(window);
 }
@@ -282,7 +287,12 @@ export class OverlayLayout {
     // "screen-saver" is the level that actually sits above a fullscreen game;
     // plain alwaysOnTop is not enough.
     window.setAlwaysOnTop(true, "screen-saver");
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // skipTransformProcessType: without it, macOS makes the whole app an
+    // "accessory" process the moment this runs, which removes its dock icon —
+    // for the control window and the editor too, not just the overlays. The
+    // dock is managed deliberately instead (`syncDock` in main.ts).
+    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+    overlays.add(window);
     // Deliberately NOT click-through by default. An overlay you cannot grab is
     // an overlay you cannot arrange, and making "move it" a two-step ritual
     // behind a shortcut turned the common case into the awkward one. The

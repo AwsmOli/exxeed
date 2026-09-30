@@ -9,15 +9,34 @@ const PAD = 46;
 /** Server truth, and the edits sitting on top of it. */
 let payload = null;
 const edits = new Map();
+/** Notes created here and not yet saved — id → a stand-in for the server's EditorNote. */
+const added = new Map();
+/** Server notes marked for deletion on the next save. */
+const deleted = new Set();
 let selectedId = null;
 let dragging = null;
 
-const noteById = (id) => payload?.notes.find((n) => n.id === id) ?? null;
+const noteById = (id) => payload?.notes.find((n) => n.id === id) ?? added.get(id) ?? null;
+
+/** Every note that will exist after a save, in no particular order. */
+const allNotes = () => [
+  ...(payload?.notes ?? []).filter((n) => !deleted.has(n.id)),
+  ...added.values(),
+];
 
 /** A note as it currently stands: what the server sent, plus any local edit. */
 const current = (id) => ({ ...noteById(id), ...(edits.get(id) ?? {}) });
 
-const dirty = () => edits.size > 0;
+const dirty = () => edits.size > 0 || deleted.size > 0;
+
+/** Six base-36 characters, the same shape core's newNoteId mints (note-id.ts). */
+function mintId() {
+  const taken = new Set(allNotes().map((n) => n.id));
+  for (;;) {
+    const id = Math.floor(Math.random() * 36 ** 6).toString(36).padStart(6, "0");
+    if (!taken.has(id) && !deleted.has(id)) return id;
+  }
+}
 
 const el = (name, attrs = {}) => {
   const node = document.createElementNS(SVG_NS, name);
@@ -98,7 +117,7 @@ function draw() {
   const [sx, sy] = pointAt(0);
   svg.append(el("rect", { x: sx - 5, y: sy - 5, width: 10, height: 10, class: "sf" }));
 
-  for (const base of payload.notes) {
+  for (const base of allNotes()) {
     const note = current(base.id);
     const selected = note.id === selectedId;
 
@@ -209,7 +228,9 @@ function renderPanel() {
 
   $("stat-lead").textContent = payload.hasReference ? `${base.leadS.toFixed(2)}s` : "—";
   $("stat-window").textContent = payload.hasReference ? `${base.windowM.toFixed(0)}m back` : "—";
-  $("stat-audio").textContent = `${base.durationMs}ms / ${base.shortDurationMs}ms`;
+  $("stat-audio").textContent = added.has(selectedId)
+    ? "not rendered yet"
+    : `${base.durationMs}ms / ${base.shortDurationMs}ms`;
   $("stat-pct").textContent = note.pct.toFixed(5);
 
   const suggestion = base.suggestedLeadAdjustS;
@@ -246,8 +267,70 @@ function refresh() {
   renderPanel();
   $("save").disabled = !dirty();
   $("revert").disabled = !dirty();
-  $("dirty-count").textContent = dirty() ? `${edits.size} unsaved` : "";
+  $("dirty-count").textContent = dirty() ? `${edits.size + deleted.size} unsaved` : "";
 }
+
+// --- adding and deleting ----------------------------------------------------
+
+/**
+ * A new callout at a lap position, selected with its text ready to type over.
+ *
+ * Saved like any edit. Its speaking window cannot be drawn until it has been
+ * saved and rendered — the window comes from the audio's duration, and there is
+ * no audio yet — so it sits as a bare point until then.
+ */
+function addAt(p) {
+  const id = mintId();
+  const pctAt = (((p % 1) + 1) % 1);
+  added.set(id, {
+    id, pct: pctAt, text: "New callout", textShort: "New callout",
+    priority: 1, leadAdjustS: 0, dirty: true,
+    durationMs: 0, shortDurationMs: 0, overlaps: [],
+    startPct: pctAt, runtimeStartPct: pctAt, leadS: 0, windowM: 0,
+    suggestedLeadAdjustS: 0, nearestOnsetPct: null,
+  });
+  selectedId = id;
+  edit(id, {});
+  $("text").focus();
+  $("text").select();
+}
+
+/**
+ * Where "Add callout" puts one: the first corner, in lap order, that nothing is
+ * already said about — a note from 300 m before its entry up to its apex counts.
+ * Failing that, a little past the selected note, or the start of the lap.
+ */
+function nextFreeSpot() {
+  const L = payload.lengthM;
+  const ahead = (from, to) => ((((to - from) % 1) + 1) % 1) * L;
+  const notes = allNotes().map((n) => current(n.id).pct);
+  const corners = [...payload.corners].sort((a, b) => a.entryPct - b.entryPct);
+  for (const c of corners) {
+    const reach = 300 + ahead(c.entryPct, c.apexPct);
+    if (!notes.some((p) => ahead(p, c.apexPct) <= reach)) return c.entryPct;
+  }
+  return selectedId !== null ? current(selectedId).pct + 200 / L : 0;
+}
+
+$("add").addEventListener("click", () => {
+  if (payload !== null) addAt(nextFreeSpot());
+});
+
+$("map").addEventListener("dblclick", (event) => {
+  if (payload === null || payload.x.length === 0) return;
+  if (event.target?.dataset?.id !== undefined) return;
+  const [vx, vy] = toView(event);
+  addAt(nearestPct(vx, vy));
+});
+
+$("delete").addEventListener("click", () => {
+  if (selectedId === null) return;
+  if (added.has(selectedId)) added.delete(selectedId);
+  else deleted.add(selectedId);
+  edits.delete(selectedId);
+  selectedId = null;
+  refresh();
+});
 
 // --- editing ----------------------------------------------------------------
 
@@ -395,15 +478,23 @@ function setStatus(text, ok) {
 
 $("revert").addEventListener("click", () => {
   edits.clear();
+  added.clear();
+  deleted.clear();
+  if (selectedId !== null && noteById(selectedId) === null) selectedId = null;
   refresh();
 });
 
 async function save() {
-  const patches = [...edits.entries()].map(([id, patch]) => ({ id, ...patch }));
+  const patches = [
+    ...[...edits.entries()].map(([id, patch]) => ({ id, ...patch })),
+    ...[...deleted].map((id) => ({ ...current(id), id, deleted: true })),
+  ];
   const next = await window.exxeed.saveNotes(patches);
   if (next !== null) {
     payload = next;
     edits.clear();
+    added.clear();
+    deleted.clear();
   }
   refresh();
 }
@@ -421,6 +512,17 @@ window.exxeed.loadNotes().then((data) => {
   $("title").textContent =
     `${payload.title} · ${payload.notes.length} callouts · ${payload.status}` +
     (payload.hasReference ? "" : " · no reference lap, so no speaking windows");
+
+  // Maps are per machine (data/tracks is gitignored), so a note set can arrive
+  // without the track it was written for. Say so rather than show an empty panel.
+  if (payload.x.length === 0) {
+    $("no-map").hidden = false;
+    $("no-map").textContent =
+      `There's no track map for ${payload.title} on this machine, so there's nothing to draw ` +
+      `the ${payload.notes.length} callouts on. Drive a clean lap there with Exxeed running and ` +
+      `the map is cut automatically — or copy the track's folders from data/tracks and ` +
+      `data/reflaps on the machine that has them.`;
+  }
 
   if (!payload.canRender) {
     $("render").disabled = true;

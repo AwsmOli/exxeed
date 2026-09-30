@@ -1039,58 +1039,47 @@ the swap is a DI change and nothing else.
 
 ### 8.1 Supabase — the v2 target
 
-Postgres + PostgREST + Storage + Auth covers everything this needs. Split by size,
-not by habit:
+Postgres + PostgREST + Storage + Auth covers everything this needs. The schema
+is in `supabase/migrations/` and its rules are tested in `supabase/tests/`
+(`pnpm db:test`). What lives where, measured at Daytona:
 
-| Artefact | Where | Why |
+| Artefact | Where | Size |
 |---|---|---|
-| `TrackMap` | Postgres, `jsonb` | small (a few KB), queried by key |
-| `LandmarkInventory` | Postgres, `jsonb` | small |
-| `NoteSet` | Postgres, `jsonb` | ~20–50 KB, needs filtering and listing |
-| `ReferenceLap` | **Storage** + metadata row | 2000 × 6 floats ≈ 96 KB as JSON, 48 KB as `Float32Array`. Store binary, not `jsonb` |
-| `AudioPack` | **Storage** + metadata row | WAV files, CDN-served |
+| Catalog (sims, layouts, car classes, cars) | Postgres | rows |
+| `TrackMap` | Postgres `jsonb`, `track_maps` keyed by TrackRef | ~106 KB, 41 KB gzipped |
+| `ReferenceLap` | Postgres `jsonb`, `reference_laps` keyed by TrackKey + car slug | ~218 KB, 62 KB gzipped |
+| `NoteSet` (published) | Postgres `jsonb`, `content_versions.payload` | ~6 KB for 5 notes |
+| Icons, screenshots | Storage, `content-media` bucket | ≤ 4 MiB each |
+| Setups (`.sto`) | Storage, `setups` bucket | ≤ 512 KiB each |
+| `AudioPack` | **Not stored.** Rendered on the installing machine (M8) | ~250 KB per note as WAV |
 
-```sql
--- documents keyed by TrackRef
-create table track_maps (
-  sim text not null, track_id int not null,
-  config_id text not null, map_version int not null,
-  length_m real not null, data jsonb not null,
-  primary key (sim, track_id, config_id, map_version)
-);
+This supersedes an earlier draft of this section that is worth noting because
+four things changed. Note sets are keyed by **TrackKey**, not TrackRef: they hold
+lap positions, not corner indices (§4.4), so there is no `map_version` on them;
+the version they were authored against is recorded, not keyed on. Car ids are the
+sim's **slug** (`mx5-mx52016`), not an int. A map is ~100 KB, not "a few KB".
+And a reference lap is a JSON document, not a `Float32Array` blob in Storage: at
+62 KB gzipped, Postgres serves it fine, and one representation beats two.
 
-create table note_sets (
-  id text primary key,
-  sim text not null, track_id int not null,
-  config_id text not null, map_version int not null,
-  car_class text not null,
-  status text not null check (status in ('draft','review','published')),
-  source_video_id text, source_url text, source_channel text, source_title text,
-  data jsonb not null,
-  created_by uuid references auth.users, created_at timestamptz default now()
-);
-create index on note_sets (sim, track_id, config_id, map_version, car_class)
-  where status = 'published';
+Note sets are published as **content**: `content_items` (the identity, with a
+`kind` so M9's themes reuse all of it) and immutable `content_versions` numbered
+1, 2, 3. See TODO.md M8 for the product side.
 
--- reference_laps keyed by TrackKey + car (NO map_version — see §4.0)
-create table reference_laps (
-  sim text not null, track_id int not null, config_id text not null,
-  car_id int not null,
-  lap_time_s real not null, grid_size int not null,
-  storage_path text not null,          -- Float32Array blob in Storage
-  derived_for_map_version int, per_corner jsonb,
-  primary key (sim, track_id, config_id, car_id)
-);
-```
+**Writes that carry rules go through RPCs, not table grants.** `submit_map`
+(first map per layout wins), `submit_reference_lap` (only a faster lap
+replaces), `publish_version` (numbers versions under a row lock, refuses a
+dirty note or a note set for another track), `withdraw_version`,
+`record_download` (once per installation), `report_session` (catalog
+insert-if-absent). Counters are maintained by triggers and RPCs and are not
+client-writable: RLS decides which rows, **column grants** decide which
+columns.
 
-Storage layout: `audio/{noteSetId}/{voiceId}/{noteId}.wav` and
-`reflaps/{sim}/{trackId}/{configId}/{carId}.bin`.
-
-**Row Level Security, on from the first migration.** Published note sets readable
-by anyone; drafts readable and writable only by `created_by`. Track maps and
-landmark inventories are read-only to clients — writes come from the ingest CLI
-under the service role. Turning RLS on later, after data exists, is how people
-ship public write access by accident.
+**Row Level Security, on from the first migration.** Published, listed content
+readable by anyone, signed out included; drafts and private items readable and
+writable only by their owner. Track maps and reference laps are read-only as
+tables: signed-in drivers contribute them through the RPCs above, which enforce
+first-map-wins, and replacing a map is an admin action. Turning RLS on later,
+after data exists, is how people ship public write access by accident.
 
 **The Electron app gets the anon key and nothing else.** The service role key
 never ships in the client — it bypasses RLS entirely, and an Electron bundle is a
@@ -1102,17 +1091,18 @@ TTS calls that run for minutes; Edge Functions are the wrong shape for that. Kee
 `services/ingest` as the standalone Node CLI it already is and let it write to
 Supabase directly.
 
-**Generate the DB types, then wrap them.** Run
-`supabase gen types typescript --local > packages/repo/src/db.generated.ts` as
-part of the build. Those generated row types stay **inside** `packages/repo` —
-they're a database shape, not a domain shape, and `packages/core` must never
-import them. The repo layer maps rows to the §4 domain types at the boundary.
+**Generate the DB types, then wrap them.** `pnpm db:types` writes
+`packages/repo/src/cloud/db.generated.ts` from the local database. Those
+generated row types stay **inside** `packages/repo` — they're a database shape,
+not a domain shape, and `packages/core` must never import them. The repo layer
+maps rows to the §4 domain types at the boundary.
 
-**Cache to disk, and mean it.** The Supabase repositories wrap the local-file ones
-as a write-through cache. Everything for the loaded track is fetched and pinned at
-session start, so a network blip mid-stint cannot silently stop the callouts.
-Offline with a previously-driven track must keep working — that isn't a nice-to-
-have, it's someone in the middle of a race.
+**Cache to disk, and mean it.** Local files stay the runtime's source of truth;
+the cloud is a sync service that pulls into them and pushes from them. An
+installed pack is an ordinary note set on disk, and everything for the loaded
+track is pulled before the session starts, so a network blip mid-stint cannot
+silently stop the callouts. Offline with a previously-driven track must keep
+working — that isn't a nice-to-have, it's someone in the middle of a race.
 
 ---
 

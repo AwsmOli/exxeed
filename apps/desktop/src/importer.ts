@@ -69,6 +69,8 @@ const PAGE = fileURLToPath(new URL("../static/importer.html", import.meta.url));
 
 export const IMPORTER_CHANNEL = "exxeed:importer";
 export const IMPORTER_PROGRESS_CHANNEL = "exxeed:importer-progress";
+/** Main → an already-open importer window: switch to this track. */
+export const IMPORTER_PRESET_CHANNEL = "exxeed:importer-preset";
 
 /** Beside data/piper, for the same reason: fetched, not authored, and ignored by git. */
 const TOOLS_DIR = `${REPO_ROOT}/data/tools`;
@@ -459,7 +461,10 @@ async function handle(deps: ImporterDeps, request: Request, sender: Electron.Web
   switch (request.op) {
     case "context": {
       const identity = deps.identity();
+      const preset = pendingPreset;
+      pendingPreset = null;
       return {
+        preset,
         session:
           identity?.trackKey == null
             ? null
@@ -616,8 +621,21 @@ function allowEmbeds(): void {
 
 let embedsAllowed = false;
 
-export function openImporter(preload: string): BrowserWindow {
+/** A track to open on, from the control window's "Import" on a mapped track. */
+export interface ImporterPreset {
+  readonly trackId: number;
+  readonly trackName: string;
+  readonly configName: string;
+}
+
+/** Handed to the window with its first `context`, then forgotten. */
+let pendingPreset: ImporterPreset | null = null;
+
+export function openImporter(preload: string, preset?: ImporterPreset): BrowserWindow {
   if (importer !== null && !importer.isDestroyed()) {
+    // Already open: point it at the track without reloading, which would throw
+    // away a search or a transcript in progress.
+    if (preset !== undefined) importer.webContents.send(IMPORTER_PRESET_CHANNEL, preset);
     importer.show();
     importer.focus();
     return importer;
@@ -627,6 +645,7 @@ export function openImporter(preload: string): BrowserWindow {
     allowEmbeds();
     embedsAllowed = true;
   }
+  pendingPreset = preset ?? null;
 
   importer = new BrowserWindow({
     width: 1440,

@@ -31,9 +31,20 @@ import {
 import { PiperEngine, renderNoteSet } from "@exxeed/tts";
 
 import { resolveRenderSetup } from "./voices.js";
-import type { Note, NoteSet, ReferenceLap, TrackMap } from "@exxeed/core";
-import { aheadM, metres, nearestBrakeOnset, pct, triggerWindow } from "@exxeed/core";
+import { pullForTrack } from "./cloud-sync.js";
+import type { Note, NoteSet, ReferenceLap, TrackKey, TrackMap } from "@exxeed/core";
+import {
+  aheadM,
+  classOf,
+  metres,
+  nearestBrakeOnset,
+  NOTE_ID_PATTERN,
+  pct,
+  placeholderMs,
+  triggerWindow,
+} from "@exxeed/core";
 import { localRepositories } from "@exxeed/repo";
+import { slug } from "@exxeed/telemetry";
 
 import { toMapView } from "./map-view.js";
 
@@ -50,6 +61,12 @@ async function load(dataDir: string, noteSetId: string): Promise<Loaded> {
 
   const noteSet = await repos.noteSets.get(noteSetId);
   if (noteSet === null) throw new Error(`no note set "${noteSetId}" under ${dataDir}`);
+
+  // A note set can arrive without its map — maps are per machine, and this one
+  // may never have driven the track. Someone may have shared it (M8 step 2).
+  if ((await repos.trackMaps.latestVersion(noteSet.trackKey)) === null) {
+    await pullForTrack(dataDir, noteSet.trackKey, (line) => process.stdout.write(line));
+  }
 
   const mapVersion = await repos.trackMaps.latestVersion(noteSet.trackKey);
   const map =
@@ -137,7 +154,9 @@ async function buildPayload(
 
   return {
     noteSetId: loaded.noteSet.id,
-    title: loaded.map?.trackName ?? loaded.noteSet.trackKey.configId,
+    title:
+      loaded.map?.trackName ??
+      `track ${loaded.noteSet.trackKey.trackId} (${loaded.noteSet.trackKey.configId})`,
     lengthM: loaded.noteSet.lengthM,
     status: loaded.noteSet.status,
     x: view?.x ?? [],
@@ -249,7 +268,27 @@ export function installEditorIpc(
     if (noteSet === null) return null;
 
     const byId = new Map(patches.map((p) => [p.id, p]));
-    const notes: Note[] = noteSet.notes.map((note) => {
+    const existing = new Set(noteSet.notes.map((n) => n.id));
+
+    // New notes: ids the set does not have yet. Stale by definition — nothing
+    // has been spoken — with a placeholder duration until the render measures
+    // one, the same as an import (core/import.ts).
+    const added: Note[] = patches
+      .filter((p) => !existing.has(p.id) && p.deleted !== true && NOTE_ID_PATTERN.test(p.id))
+      .map((p) => ({
+        id: p.id,
+        pct: p.pct,
+        text: p.text.trim() || "New callout",
+        textShort: p.textShort.trim() || p.text.trim() || "New callout",
+        priority: 1,
+        leadAdjustS: p.leadAdjustS,
+        audio: { file: `manual/${p.id}.wav`, durationMs: placeholderMs(p.text) },
+        audioShort: { file: `manual/${p.id}_short.wav`, durationMs: placeholderMs(p.textShort) },
+        dirty: true,
+      }));
+
+    const kept = noteSet.notes.filter((note) => byId.get(note.id)?.deleted !== true);
+    const notes: Note[] = kept.map((note) => {
       const patch = byId.get(note.id);
       if (patch === undefined) return note;
 
@@ -268,6 +307,7 @@ export function installEditorIpc(
       };
     });
 
+    notes.push(...added);
     // Keep the file in track order, which is the order it is read and heard in.
     notes.sort((a, b) => a.pct - b.pct);
 
@@ -279,6 +319,42 @@ export function installEditorIpc(
       await canRender(settings),
     );
   });
+}
+
+/**
+ * An empty, hand-authored note set for a mapped track — what "write manually"
+ * starts from. The map supplies the length; the car class comes from whichever
+ * car drove the reference lap, since that is the car the notes will be timed
+ * against. Returns the new set's id.
+ */
+export async function createManualNoteSet(dataDir: string, key: TrackKey): Promise<string> {
+  const repos = localRepositories(dataDir);
+  const version = await repos.trackMaps.latestVersion(key);
+  const map = version === null ? null : await repos.trackMaps.get({ ...key, mapVersion: version });
+  if (map === null) throw new Error(`no track map for track ${key.trackId}/${key.configId}`);
+
+  const carId = (await repos.referenceLaps.listCars(key))[0];
+  const registry = await repos.cars.get(key.sim);
+  const carClass = (carId === undefined ? null : classOf(registry, carId)) ?? (carId ? slug(carId) : "unknown");
+
+  // Unique among what is on disk: a second "write manually" for the same track
+  // is a second set, never an overwrite of the first.
+  const taken = new Set((await repos.noteSets.listAll()).map((s) => s.id));
+  const base = slug(`${map.trackName}-${key.configId}-${carClass}-manual`);
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+
+  await repos.noteSets.put({
+    id,
+    trackKey: key,
+    lengthM: map.lengthM,
+    carClass,
+    source: { type: "manual" },
+    status: "draft",
+    createdAt: new Date().toISOString(),
+    notes: [],
+  });
+  return id;
 }
 
 let editor: BrowserWindow | null = null;
@@ -301,8 +377,13 @@ export function requestRender(preload: string): void {
   }
 }
 
-export function openEditor(preload: string): BrowserWindow {
+/**
+ * `reload` when the note set being edited has just changed: the window loads its
+ * set once, so an open editor would otherwise go on showing the previous one.
+ */
+export function openEditor(preload: string, options: { readonly reload?: boolean } = {}): BrowserWindow {
   if (editor !== null && !editor.isDestroyed()) {
+    if (options.reload === true) editor.webContents.reload();
     editor.show();
     editor.focus();
     return editor;
