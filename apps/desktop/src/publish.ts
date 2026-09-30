@@ -12,7 +12,7 @@
  * before the round trip, not for safety.
  */
 
-import { ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain, nativeImage, type WebContents } from "electron";
 
 import { describeDiff, diffNoteSets, type NoteSet, type TrackKey } from "@exxeed/core";
 import {
@@ -26,8 +26,12 @@ import {
   createCalloutItem,
   getItem,
   getVersionPayload,
+  listMedia,
   listVersions,
   LocalContentIndex,
+  MAX_SCREENSHOTS,
+  removeMedia,
+  uploadMedia,
   localRepositories,
   publishVersion,
   saveDraft,
@@ -98,7 +102,7 @@ async function state(deps: PublishDeps): Promise<PublishState> {
   const client = cloudClient();
   const item = await getItem(client, link.itemId);
   if (item === null) return { ...base, published: null };
-  const versions = await listVersions(client, item.id);
+  const [versions, media] = await Promise.all([listVersions(client, item.id), listMedia(client, item.id)]);
 
   // What an installer of the latest version would get if this were published now.
   let changes: string[] = [];
@@ -125,8 +129,76 @@ async function state(deps: PublishDeps): Promise<PublishState> {
         downloads: v.downloadCount,
       })),
       changes,
+      media: media.map((m) => ({ id: m.id, kind: m.kind, url: m.url })),
     },
   };
+}
+
+/** Largest side, in pixels: a screenshot at full HD is plenty; an icon is shown at 72. */
+const MAX_SIDE = { icon: 256, screenshot: 1920 } as const;
+/** The storage bucket's limit (supabase/migrations/…_buckets.sql). */
+const MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Let the author pick an image, and upload it re-encoded. Decoding and
+ * encoding again here is what drops EXIF — a phone photo of a rig carries
+ * where it was taken — and what makes the file a plain PNG or JPEG whatever it
+ * started as. That protects the uploader, so doing it on their machine is
+ * enough; the bucket's type and size limits are the server's half.
+ */
+async function addMedia(deps: PublishDeps, sender: WebContents, kind: "icon" | "screenshot"): Promise<PublishState> {
+  if (!accountView().signedIn) throw new Error("sign in to add images");
+  const settings = deps.getSettings();
+  const dataDir = deps.resolveDataDir(settings);
+  const link = settings.noteSetId === null ? null : await new LocalContentIndex(dataDir).get(settings.noteSetId);
+  if (link === null || link.origin !== "mine") throw new Error("publish the pack first, then add images to its page");
+
+  const client = cloudClient();
+  if (kind === "screenshot" && (await listMedia(client, link.itemId)).filter((m) => m.kind === "screenshot").length >= MAX_SCREENSHOTS) {
+    throw new Error(`a page has at most ${MAX_SCREENSHOTS} screenshots`);
+  }
+
+  const window = BrowserWindow.fromWebContents(sender);
+  const options = {
+    title: kind === "icon" ? "Choose an icon" : "Choose a screenshot",
+    properties: ["openFile" as const],
+    filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
+  };
+  const picked = window === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options);
+  const path = picked.filePaths[0];
+  if (picked.canceled || path === undefined) return state(deps);
+
+  let image = nativeImage.createFromPath(path);
+  if (image.isEmpty()) throw new Error("that file is not an image this app can read");
+  const { width, height } = image.getSize();
+  const scale = Math.min(1, MAX_SIDE[kind] / Math.max(width, height));
+  if (scale < 1) image = image.resize({ width: Math.round(width * scale), height: Math.round(height * scale), quality: "best" });
+
+  let bytes: Uint8Array = kind === "icon" ? image.toPNG() : image.toJPEG(85);
+  let type: "image/png" | "image/jpeg" = kind === "icon" ? "image/png" : "image/jpeg";
+  if (bytes.byteLength > MAX_BYTES) {
+    bytes = image.toJPEG(70);
+    type = "image/jpeg";
+  }
+  if (bytes.byteLength > MAX_BYTES) throw new Error("that image is too large even after shrinking it");
+
+  await uploadMedia(client, link.itemId, kind, bytes, type);
+  checkUpdatesNow();
+  return state(deps);
+}
+
+async function deleteMedia(deps: PublishDeps, mediaId: string): Promise<PublishState> {
+  const settings = deps.getSettings();
+  const link = settings.noteSetId === null ? null : await new LocalContentIndex(deps.resolveDataDir(settings)).get(settings.noteSetId);
+  if (link === null || link.origin !== "mine") throw new Error("not your pack");
+  const client = cloudClient();
+  const media = (await listMedia(client, link.itemId)).find((m) => m.id === mediaId);
+  if (media !== undefined) {
+    await removeMedia(client, media);
+    // The icon column still names the file; clear it so pages fall back to initials.
+    if (media.kind === "icon") await client.from("content_items").update({ icon_path: null }).eq("id", link.itemId);
+  }
+  return state(deps);
 }
 
 function checkFields(fields: PublishFields): void {
@@ -216,7 +288,7 @@ export async function pushDraft(dataDir: string, noteSetId: string): Promise<voi
 }
 
 export function installPublishIpc(deps: PublishDeps): void {
-  ipcMain.handle(PUBLISH_CHANNEL, async (_event, request: PublishRequest) => {
+  ipcMain.handle(PUBLISH_CHANNEL, async (event, request: PublishRequest) => {
     try {
       switch (request.op) {
         case "state":
@@ -226,6 +298,10 @@ export function installPublishIpc(deps: PublishDeps): void {
         case "withdraw":
           await withdrawVersion(cloudClient(), request.versionId);
           return { ok: true, value: await state(deps) };
+        case "addMedia":
+          return { ok: true, value: await addMedia(deps, event.sender, request.kind) };
+        case "removeMedia":
+          return { ok: true, value: await deleteMedia(deps, request.mediaId) };
       }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

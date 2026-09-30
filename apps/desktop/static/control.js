@@ -241,6 +241,9 @@ function trackRow(pack) {
         button("Write manually", "Start an empty note set for this track and open it in the editor", () => {
           window.exxeed?.sendSessionCommand({ kind: "newNoteSet", ...track });
         }),
+        button("Find in Content", "See packs other drivers have published for this track", () => {
+          openContent({ sim: "iracing", ...track }, null);
+        }),
       ),
     ),
   );
@@ -255,6 +258,27 @@ const group = (title, rows, emptyText) =>
   );
 
 let lastStatus = null;
+
+/** Switch to Content with its filters set (content.js listens). */
+const openContent = (trackKey, carClass) =>
+  document.dispatchEvent(new CustomEvent("open-content", { detail: { trackKey, carClass } }));
+
+/** The banner for a session on a combo with no callouts (M8 step 5). */
+function renderContentHint(s) {
+  const hint = s.contentHint ?? null;
+  el("content-hint").hidden = hint === null;
+  if (hint === null) return;
+  el("content-hint-text").textContent =
+    hint.count > 0
+      ? `No callouts for ${hint.label}. ${hint.count} pack${hint.count === 1 ? "" : "s"} in Content.`
+      : `No callouts for ${hint.label}, and nobody has published any yet.`;
+  el("content-hint-go").hidden = hint.count === 0;
+  el("content-hint-write").hidden = hint.count > 0;
+  el("content-hint-go").onclick = () => openContent(hint.trackKey, hint.carClass);
+  el("content-hint-write").onclick = () => {
+    window.exxeed?.sendSessionCommand({ kind: "newNoteSet", trackId: hint.trackKey.trackId, configId: hint.trackKey.configId });
+  };
+}
 
 const renderPacks = (s) => {
   lastStatus = s;
@@ -303,6 +327,7 @@ const render = (s) => {
     s.pinnedNoteSetId == null ? "" : `pinned: ${s.pinnedNoteSetId}`;
 
   renderPacks(s);
+  renderContentHint(s);
 };
 
 el("power").addEventListener("click", () => {

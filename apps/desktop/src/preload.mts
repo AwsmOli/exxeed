@@ -46,6 +46,7 @@ const IMPORTER_PRESET_CHANNEL = "exxeed:importer-preset";
 const ACCOUNT_CHANNEL = "exxeed:account";
 const PUBLISH_CHANNEL = "exxeed:publish";
 const LIBRARY_CHANNEL = "exxeed:library";
+const CONTENT_CHANNEL = "exxeed:content";
 const ACCOUNT_CHANGED_CHANNEL = "exxeed:account-changed";
 
 contextBridge.exposeInMainWorld("exxeed", {
@@ -116,6 +117,9 @@ contextBridge.exposeInMainWorld("exxeed", {
 
   /** Installing, updating and removing packs (M8): `{ ok, value }` or `{ ok: false, error }`. */
   library: (request: unknown): Promise<unknown> => ipcRenderer.invoke(LIBRARY_CHANNEL, request),
+
+  /** Browsing Content (M8): `{ ok, value }` or `{ ok: false, error }`. */
+  content: (request: unknown): Promise<unknown> => ipcRenderer.invoke(CONTENT_CHANNEL, request),
 
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:

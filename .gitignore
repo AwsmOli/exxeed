@@ -72,3 +72,6 @@ data/profile/*
 # Third-party video transcripts. Ingest input (§10), not our content — §10's
 # provenance rule is to record the source, not to redistribute the material.
 *transcript*.txt
+
+# Browser libraries copied from node_modules at build time (scripts/vendor.mjs).
+apps/desktop/static/vendor/

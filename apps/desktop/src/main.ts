@@ -59,7 +59,7 @@ import {
   type TelemetrySource,
 } from "@exxeed/telemetry";
 
-import { audioKey, LocalContentIndex, localRepositories, type TrackSummary } from "@exxeed/repo";
+import { audioKey, countForCombo, LocalContentIndex, localRepositories, type TrackSummary } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, isOverlayWindow, OverlayLayout, sendTo } from "./overlay.js";
@@ -67,10 +67,11 @@ import { OverlayProfileStore } from "./overlay-profiles.js";
 import { startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
 import { createManualNoteSet, installEditorIpc, openEditor, requestRender } from "./editor.js";
 import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
-import { installAccount, onAccountChange } from "./account.js";
+import { cloudClient, installAccount, onAccountChange } from "./account.js";
 import { shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
 import { installPublishIpc } from "./publish.js";
 import { checkUpdatesNow, installLibrary, knownItem, remoteMinePacks } from "./library.js";
+import { installContentIpc } from "./content.js";
 import { installImporterIpc, openImporter } from "./importer.js";
 import {
   installSettingsIpc,
@@ -259,6 +260,24 @@ async function noteSetForTrack(
   };
 }
 
+/** The "N packs in Content" banner for a combo with no callouts (M8 step 5). */
+async function hintContent(identity: SessionIdentity | null): Promise<void> {
+  const key = identity?.trackKey;
+  if (identity === null || key == null) return;
+  const registry = await localRepositories(resolveDataDir(settings().get())).cars.get(key.sim).catch(() => null);
+  const carClass = classOf(registry, identity.carId);
+  const count = await countForCombo(cloudClient(), key, carClass).catch(() => null);
+  if (count === null || sessionStatus.phase !== "running") return;
+  broadcastStatus({
+    contentHint: {
+      trackKey: key,
+      carClass,
+      label: `${identity.trackName}${identity.trackConfig === "" ? "" : ` ${identity.trackConfig}`} in the ${identity.carName}`,
+      count,
+    },
+  });
+}
+
 /** Persist which note set was used here, so a track with several keeps its choice. */
 function rememberNoteSet(identity: SessionIdentity | null, noteSetId: string | null): void {
   if (noteSetId === null || identity?.trackKey == null) return;
@@ -429,6 +448,7 @@ let sessionStatus: SessionStatus = {
   pinnedNoteSetId: null,
   remoteMine: [],
   libraryBusy: null,
+  contentHint: null,
 };
 
 /** A long library operation in progress (library.ts), shown in Track Coach. */
@@ -710,7 +730,12 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     noteSetId: chosen.id,
     detail: chosen.detail,
     recordingTo: recorder?.path ?? null,
+    contentHint: null,
   });
+  // No callouts for this combo: say how many packs Content has for it, rather
+  // than starting silent. After the session is up, so a slow network never
+  // delays it.
+  if (chosen.id === null) void hintContent(identity);
 
   const lapTimer = new LapTimer();
   const raceView = new RaceViewBuilder();
@@ -1338,6 +1363,7 @@ async function supervise(): Promise<void> {
     if (!wantRunning) {
       broadcastStatus({
         phase: "stopped",
+        contentHint: null,
         detail: null,
         trackName: null,
         carName: null,
@@ -1417,6 +1443,7 @@ void app.whenReady().then(() => {
   installAccount();
   installEditorIpc(() => settings().get(), resolveDataDir);
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
+  installContentIpc({ getSettings: () => settings().get(), resolveDataDir });
   installLibrary({
     getSettings: () => settings().get(),
     resolveDataDir,
@@ -1592,7 +1619,7 @@ void app.whenReady().then(() => {
     startSession();
   } else {
     process.stdout.write("autostart off — press Start in the Exxeed window\n");
-    broadcastStatus({ phase: "stopped" });
+    broadcastStatus({ phase: "stopped", contentHint: null });
   }
 
   // A changed note set, voice, car, data folder or lead adjust means a different

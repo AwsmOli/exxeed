@@ -20,9 +20,11 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- img-src: avatars come from the sign-in provider's CDN. Named hosts, not
-         "https:", so nothing else can load an image into this window. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: https://cdn.discordapp.com https://*.googleusercontent.com" />
+    <!-- img-src: avatars from the sign-in provider's CDN, and Content icons and
+         screenshots from our own storage (hosted, and the local dev stack).
+         Named hosts, not "https:": a pack description is a stranger's text,
+         and a remote image in it would be a tracking pixel. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: https://cdn.discordapp.com https://*.googleusercontent.com https://mxxexxhcftzjvaihhaph.supabase.co http://127.0.0.1:54321" />
     <title>Exxeed</title>
     <style>
       :root { color-scheme: dark; }
@@ -155,6 +157,96 @@
       }
       button.solid:disabled { opacity: 0.5; cursor: default; }
       .form-status { min-height: 16px; font-size: 11.5px; color: #8b949e; }
+
+      /* Session banner (M8): a combo with no callouts. */
+      .banner {
+        display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+        background: rgba(56,139,253,0.1); border-bottom: 1px solid rgba(56,139,253,0.3);
+        font-size: 12px; color: #c9d1d9;
+      }
+      .banner span { flex: 1; }
+
+      /* Content (M8): VS Code's Extensions view — search on the left, the page on the right. */
+      #view-content.active { display: block; height: 100%; }
+      main:has(#view-content.active) { padding: 0; overflow: hidden; }
+      .c-wrap { display: grid; grid-template-columns: 300px 1fr; height: 100%; min-height: 0; }
+      .c-side {
+        border-right: 1px solid #21262d; display: flex; flex-direction: column; min-height: 0;
+        padding: 10px; gap: 8px;
+      }
+      .c-side input[type="search"], .c-side select {
+        width: 100%; box-sizing: border-box; background: #0d1117; color: #e6edf3;
+        border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; font: 12px/1.2 inherit;
+      }
+      .c-filters { display: flex; flex-direction: column; gap: 6px; }
+      .c-row { display: flex; gap: 10px; align-items: center; font-size: 11.5px; color: #8b949e; }
+      .c-row label { display: flex; gap: 4px; align-items: center; white-space: nowrap; cursor: pointer; }
+      .c-row select { flex: 1; width: auto; }
+      #c-results { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+      #c-results li {
+        display: grid; grid-template-columns: 40px 1fr; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
+      }
+      #c-results li:hover { background: #161b22; }
+      #c-results li.selected { background: #1f2937; }
+      .c-icon {
+        width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #21262d;
+        display: grid; place-items: center; color: #8b949e; font: 600 14px/1 inherit; overflow: hidden;
+      }
+      .c-icon.big { width: 72px; height: 72px; font-size: 24px; border-radius: 10px; }
+      .c-title { color: #e6edf3; font-weight: 600; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .c-meta { color: #6e7681; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .c-summary { color: #8b949e; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .c-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+      .c-line button { padding: 3px 8px; font-size: 11px; }
+      .c-status { font-size: 11.5px; color: #8b949e; min-height: 14px; }
+      .c-status.bad { color: #f85149; }
+
+      .c-page { overflow-y: auto; min-height: 0; padding: 18px 22px; }
+      .c-empty { color: #6e7681; margin-top: 40px; text-align: center; }
+      .c-head { display: flex; gap: 16px; align-items: flex-start; }
+      .c-head h1 { margin: 0; font-size: 20px; color: #e6edf3; }
+      .c-head .c-byline { color: #8b949e; font-size: 12px; margin: 3px 0 8px; }
+      .c-stats { display: flex; gap: 14px; color: #8b949e; font-size: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+      .c-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      .c-actions select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 5px 6px; font: 11.5px/1 inherit; }
+      button.star.on { color: #e3b341; border-color: rgba(227,179,65,0.5); }
+      .c-tabs { display: flex; gap: 2px; border-bottom: 1px solid #21262d; margin: 18px 0 14px; }
+      .c-tabs button {
+        appearance: none; background: none; border: 0; border-bottom: 2px solid transparent;
+        color: #8b949e; padding: 8px 12px; font: 500 12.5px/1 inherit; cursor: pointer;
+      }
+      .c-tabs button.on { color: #e6edf3; border-bottom-color: #58a6ff; }
+      .c-body { display: grid; grid-template-columns: 1fr 220px; gap: 24px; }
+      .c-facts { font-size: 11.5px; color: #8b949e; display: flex; flex-direction: column; gap: 10px; }
+      .c-facts dt { color: #6e7681; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; }
+      .c-facts dd { margin: 2px 0 0; color: #c9d1d9; overflow-wrap: anywhere; }
+      .c-readme { color: #c9d1d9; font-size: 13px; line-height: 1.6; user-select: text; overflow-wrap: anywhere; }
+      .c-readme h1, .c-readme h2, .c-readme h3 { color: #e6edf3; border-bottom: 1px solid #21262d; padding-bottom: 4px; }
+      .c-readme a { color: #58a6ff; }
+      .c-readme code { background: #161b22; padding: 1px 4px; border-radius: 4px; }
+      .c-readme img { max-width: 100%; }
+      .c-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-top: 16px; }
+      .c-shots img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 6px; cursor: zoom-in; border: 1px solid #21262d; }
+      .c-callouts { list-style: none; margin: 0; padding: 0; user-select: text; }
+      .c-callouts li { display: grid; grid-template-columns: 60px 1fr; gap: 10px; padding: 7px 0; border-bottom: 1px solid #161b22; font-size: 12.5px; }
+      .c-callouts .m { color: #6e7681; font-variant-numeric: tabular-nums; }
+      .c-callouts .short { color: #6e7681; font-size: 11.5px; }
+      .c-map { width: 100%; max-width: 640px; aspect-ratio: 1; }
+      .c-map .road { fill: none; stroke: rgba(255,255,255,0.22); stroke-width: 6; stroke-linejoin: round; }
+      .c-map .pt { fill: #58a6ff; }
+      .c-map .pt:hover { fill: #fff; }
+      .c-map .sf { fill: #f0883e; }
+      .c-changelog .v { border-left: 2px solid #30363d; padding: 0 0 12px 12px; }
+      .c-changelog .v.withdrawn { opacity: 0.5; }
+      .c-changelog .v strong { color: #e6edf3; }
+      .c-changelog ul { margin: 4px 0 0; padding-left: 18px; color: #8b949e; font-size: 12px; }
+
+      .lightbox {
+        position: fixed; inset: 0; z-index: 50; background: rgba(1,4,9,0.9);
+        display: grid; place-items: center; cursor: zoom-out;
+      }
+      .lightbox img { max-width: 92vw; max-height: 86vh; border-radius: 6px; }
+      .lightbox-hint { position: fixed; bottom: 14px; color: #8b949e; font-size: 11.5px; }
       .form-status.bad { color: #f85149; }
 
       main { overflow-y: auto; padding: 12px 14px; min-height: 0; }
@@ -278,6 +370,14 @@
             <path d="M5 4h13l-3 4 3 4H5" />
           </svg>
         </button>
+        <button class="section-btn" data-section="content" type="button" title="Content — packs from other drivers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <rect x="3.5" y="3.5" width="7" height="7" rx="1.2" />
+            <rect x="13.5" y="3.5" width="7" height="7" rx="1.2" />
+            <rect x="3.5" y="13.5" width="7" height="7" rx="1.2" />
+            <path d="M17 13.5v7M13.5 17h7" stroke-linecap="round" />
+          </svg>
+        </button>
       </nav>
     </aside>
 
@@ -295,6 +395,12 @@
           </div>
         </div>
       </nav>
+
+      <div class="banner" id="content-hint" hidden>
+        <span id="content-hint-text"></span>
+        <button class="ghost" id="content-hint-go" type="button">Open Content</button>
+        <button class="ghost" id="content-hint-write" type="button" hidden>Write the first one</button>
+      </div>
 
       <main>
         <section class="view active" id="view-overlays">
@@ -327,6 +433,33 @@
           <div class="library-busy" id="library-busy" hidden></div>
           <div class="library-status" id="library-status"></div>
           <div id="packs"></div>
+        </section>
+        <section class="view" id="view-content">
+          <div class="c-wrap">
+            <aside class="c-side">
+              <input type="search" id="c-search" placeholder="Search packs" spellcheck="false" />
+              <div class="c-filters">
+                <select id="c-track"><option value="">Any track</option></select>
+                <select id="c-class"><option value="">Any car class</option></select>
+                <div class="c-row">
+                  <label><input type="checkbox" id="c-starred" /> Starred</label>
+                  <label><input type="checkbox" id="c-installed" /> Installed</label>
+                  <select id="c-sort" title="Sort">
+                    <option value="stars">Most stars</option>
+                    <option value="downloads">Most downloads</option>
+                    <option value="updated">Recently updated</option>
+                    <option value="new">Newest</option>
+                  </select>
+                </div>
+              </div>
+              <ul id="c-results"></ul>
+              <button class="ghost" id="c-more" type="button" hidden>Load more</button>
+              <div class="c-status" id="c-status"></div>
+            </aside>
+            <div class="c-page" id="c-page">
+              <div class="c-empty">Pick a pack on the left to see what it says, where, and who made it.</div>
+            </div>
+          </div>
         </section>
       </main>
 
@@ -371,6 +504,12 @@
     </dialog>
 
     <script type="module" src="./control.js"></script>
+    <div class="lightbox" id="lightbox" hidden>
+      <img id="lightbox-img" alt="" />
+      <div class="lightbox-hint">← → to step through · Esc to close</div>
+    </div>
+
     <script type="module" src="./account.js"></script>
+    <script type="module" src="./content.js"></script>
   </body>
 </html>

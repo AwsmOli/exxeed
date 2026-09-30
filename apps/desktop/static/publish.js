@@ -63,6 +63,8 @@ function fill(s) {
     );
   }
 
+  renderMedia(s);
+
   $("pub-history").hidden = !(p && p.versions.length > 0);
   if (p) {
     $("pub-versions").replaceChildren(
@@ -112,6 +114,41 @@ function fill(s) {
   } else {
     go.disabled = false;
     setStatus("");
+  }
+}
+
+/** The page's icon and screenshots — only once the pack exists on the server. */
+function renderMedia(s) {
+  const p = s.published;
+  $("pub-media-section").hidden = p === null;
+  if (p === null) return;
+  $("pub-media").replaceChildren(
+    ...p.media.map((m) => {
+      const img = document.createElement("img");
+      img.src = m.url;
+      img.alt = "";
+      if (m.kind === "icon") img.className = "icon";
+      const remove = document.createElement("button");
+      remove.textContent = "×";
+      remove.title = m.kind === "icon" ? "Remove the icon" : "Remove this screenshot";
+      remove.addEventListener("click", () => void mediaOp({ op: "removeMedia", mediaId: m.id }));
+      const figure = document.createElement("figure");
+      figure.append(img, remove);
+      return figure;
+    }),
+  );
+  $("pub-shot").disabled = p.media.filter((m) => m.kind === "screenshot").length >= 8;
+}
+
+async function mediaOp(request) {
+  setStatus(request.op === "addMedia" ? "Uploading…" : "Removing…");
+  try {
+    state = await call(request);
+    renderBadge(state);
+    renderMedia(state);
+    setStatus("");
+  } catch (err) {
+    setStatus(err.message, "bad");
   }
 }
 
@@ -178,6 +215,8 @@ async function doWithdraw(version, button) {
 }
 
 $("publish-open").addEventListener("click", () => void open());
+$("pub-icon").addEventListener("click", () => void mediaOp({ op: "addMedia", kind: "icon" }));
+$("pub-shot").addEventListener("click", () => void mediaOp({ op: "addMedia", kind: "screenshot" }));
 $("pub-cancel").addEventListener("click", () => $("publish").close());
 $("pub-go").addEventListener("click", () => void doPublish());
 

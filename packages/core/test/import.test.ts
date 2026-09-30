@@ -37,9 +37,13 @@ describe("resolveProfile", () => {
 
     expect(notes).toHaveLength(1);
     expect(notes[0]!.pct).toBeCloseTo(0.14, 6);
-    // The id is a handle, not a description. Nothing about the turn reaches it.
+    // The id is a handle, not a description. Nothing about the turn reaches it:
+    // the same callout resolved twice gets two different ids, which an id
+    // derived from the turn could not. (Checking the id for a "2" was flaky —
+    // a random six-character id contains one about one time in seven.)
     expect(notes[0]!.id).toMatch(NOTE_ID_PATTERN);
-    expect(notes[0]!.id).not.toMatch(/2/);
+    const again = resolveProfile(profile([{ turn: 2, text: "Turn two, brake at the lamp post", priority: 1 }]), map);
+    expect(again.notes[0]!.id).not.toBe(notes[0]!.id);
   });
 
   it("anchors a range at its first turn", () => {

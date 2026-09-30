@@ -1040,16 +1040,16 @@ Named for what sim racers already call it: Assetto Corsa's Content Manager made
 everyone else's packs. Your own and the ones you installed stay in Track Coach
 (Step 4).
 
-- [ ] Filter by sim, track, layout and car or class, pre-set to the current session's combo
+- [x] Filter by sim, track, layout and car or class, pre-set to the current session's combo
   The question someone opens this tab with is "what is there for what I am
   about to drive". A pack names a car *class*, so filtering by a car shows
   packs for its class, labelled as such. Also this week's official races (the
   schedule is already fetched for the importer), for tracks not driven yet.
-- [ ] The filters live in the tab's state, so anything can open it pre-filtered
+- [x] The filters live in the tab's state, so anything can open it pre-filtered
   One entry point, `openContent({ sim, trackId, configId, carClass })`, used
   by the quick link below, share links, and the Track Coach rows. It is the
   same shape as the importer's preset from this session's "Import…" button.
-- [ ] Quick link when you are on a combo you have no callouts for
+- [x] Quick link when you are on a combo you have no callouts for
   At connect the session already knows track, layout and car, and
   `noteSetForTrack` already knows there is no installed pack for them. Instead
   of starting silent, the control window shows "No callouts for Snetterton 300
@@ -1058,31 +1058,31 @@ everyone else's packs. Your own and the ones you installed stay in Track Coach
   when the count is zero. With zero it is "Nothing yet. Write the first one",
   pointing at Import… and Write manually. The mapped-track rows in Track Coach
   get the same "Find in Content" button beside Import… and Write manually.
-- [ ] Stars, like GitHub
+- [x] Stars, like GitHub
   A star button on every pack card, on the pack detail, and on installed packs in
   Track Coach, with the count beside it. Signed in only, one per user per pack,
   and toggling it off un-stars. A "Starred" filter in Content lists yours.
   Stored as `pack_stars (user_id, pack_id, created_at)`, primary key on the
   pair, insert and delete limited to your own rows by RLS.
-- [ ] Downloads, counted by the server rather than trusted from the client
+- [x] Downloads, counted by the server rather than trusted from the client
   One row per install in `pack_downloads (pack_version_id, installation_id,
   user_id?, created_at)`, unique per installation and version, so reinstalling
   or updating in a loop cannot inflate it. `installation_id` is a random uuid
   made on first run and kept in settings, so signed-out installs count too
   (Step 1 says browsing and installing need no account). Recorded through an
   RPC. Clients never write counters.
-- [ ] Counters on `packs`, maintained by triggers, indexed for sorting
+- [x] Counters on `packs`, maintained by triggers, indexed for sorting
   `star_count` and `download_count` are updated by triggers on the two tables
   above, and are not client-writable (RLS denies the columns), so the Content
   list sorts on an index instead of counting rows per request. The rows stay the
   source of truth; a nightly job re-derives the counters if a trigger ever
   misses.
-- [ ] Sort by most stars (default), most downloads, recently updated, and newest; text search
+- [x] Sort by most stars (default), most downloads, recently updated, and newest; text search
   "Most stars" is the popularity sort people expect from GitHub. "Recently
   updated" surfaces packs whose authors are still driving the track. Postgres
   full-text search on title, description and track name is enough, with no
   search service.
-- [ ] Layout like VS Code's Extensions view: a search sidebar on the left, the selected item's page on the right
+- [x] Layout like VS Code's Extensions view: a search sidebar on the left, the selected item's page on the right
   **Sidebar:** a search box at the top, the filters under it (sim, track,
   layout, car or class, kind, "Starred", "Installed"), and a sort control. Then
   the results as compact rows: icon, title, author, one-line summary, stars,
@@ -1102,20 +1102,20 @@ everyone else's packs. Your own and the ones you installed stay in Track Coach
   Beside the tabs, a narrow column of facts, as VS Code does: track and layout,
   car class, callout count, voice, source video, map version, published date,
   and the author's other content.
-- [ ] The description is a README: Markdown with pictures
+- [x] The description is a README: Markdown with pictures — **no live preview in the publish dialog yet**
   Written in the publish dialog with a live preview. It is a separate field,
   not the note set, and it can change without a new version, like a store page.
   Each item also gets an icon (a square image, falling back to the track
   outline drawn from the map) and up to 8 screenshots, uploaded to Storage and
   shown in the Details tab.
-- [ ] Render the Markdown safely
+- [x] Render the Markdown safely
   Rendered in the renderer with raw HTML off and the output sanitised: a
   README is a stranger's text inside the app. Images load only from our own
   Storage bucket, enforced by the window's Content Security Policy, not just
   by the renderer. A remote image in a README is a tracking pixel that fires
   every time someone looks at the page. Links open in the browser, never in
   the app.
-- [ ] Image limits, enforced by a Storage policy
+- [x] Image limits, enforced by a Storage policy — **re-encoded on the uploader's machine, not by an Edge Function**
   PNG, JPEG or WebP only. There is a size cap per file and a count cap per item,
   and images are re-encoded on upload (an Edge Function) so what is served has
   been decoded once by us and carries no metadata. That strips the GPS
@@ -1124,7 +1124,7 @@ everyone else's packs. Your own and the ones you installed stay in Track Coach
 - [ ] Preview a callout before installing
   One clip rendered on demand, so "is this any good" does not need a full
   install.
-- [ ] Share link: `exxeed://pack/<id>`, falling back to a web page
+- [ ] Share link: `exxeed://pack/<id>`, falling back to a web page — **Copy link done; the protocol is not registered and there is no web page yet** (Track Coach's install field accepts the link)
   Opens the app on the pack's detail in Content. The web fallback is a static
   page built from the same row, for someone who does not have the app yet.
 

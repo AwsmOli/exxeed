@@ -41,6 +41,8 @@ export default tseslint.config(
       ".venv/**",
       "voices/**",
       "data/**",
+      // Third-party browser libraries copied at build time (apps/desktop/scripts/vendor.mjs).
+      "apps/desktop/static/vendor/**",
     ],
   },
   js.configs.recommended,
@@ -82,6 +84,7 @@ export default tseslint.config(
         Promise: "readonly",
         confirm: "readonly",
         navigator: "readonly",
+        CustomEvent: "readonly",
       },
     },
   },

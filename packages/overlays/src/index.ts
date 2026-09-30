@@ -314,13 +314,18 @@ export interface PublishState {
     }[];
     /** What changed since the latest published version, one line each. */
     readonly changes: readonly string[];
+    /** The page's icon and screenshots (M8 step 5). */
+    readonly media: readonly { readonly id: string; readonly kind: "icon" | "screenshot"; readonly url: string }[];
   } | null;
 }
 
 export type PublishRequest =
   | { readonly op: "state" }
   | { readonly op: "publish"; readonly fields: PublishFields; readonly changelog: string }
-  | { readonly op: "withdraw"; readonly versionId: string };
+  | { readonly op: "withdraw"; readonly versionId: string }
+  /** Pick an image file, re-encode it (dropping its metadata) and add it to the page. */
+  | { readonly op: "addMedia"; readonly kind: "icon" | "screenshot" }
+  | { readonly op: "removeMedia"; readonly mediaId: string };
 
 /** Renderer → main, invoke: sign in, sign out, edit the profile (M8). */
 export const ACCOUNT_CHANNEL = "exxeed:account";
@@ -405,6 +410,92 @@ export interface RemotePack {
   readonly latestVersion: number | null;
 }
 
+/** Renderer → main, invoke: browse Content and read an item's page (M8). */
+export const CONTENT_CHANNEL = "exxeed:content";
+
+export type ContentSort = "stars" | "downloads" | "updated" | "new";
+
+export interface ContentTrackKey {
+  readonly sim: "iracing";
+  readonly trackId: number;
+  readonly configId: string;
+}
+
+/** What the Content sidebar filters by. Everything optional; empty lists everything. */
+export interface ContentFilters {
+  readonly text: string;
+  readonly trackKey: ContentTrackKey | null;
+  readonly carClass: string | null;
+  readonly starred: boolean;
+  readonly installed: boolean;
+  readonly sort: ContentSort;
+}
+
+/** Where this machine stands with an item. */
+export interface ContentLocal {
+  readonly noteSetId: string;
+  readonly origin: "mine" | "installed";
+  readonly version: number | null;
+  readonly policy: "auto" | "pinned";
+}
+
+export interface ContentRow {
+  readonly id: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly authorName: string;
+  readonly trackLabel: string;
+  readonly carClass: string | null;
+  readonly stars: number;
+  readonly downloads: number;
+  readonly latestVersion: number | null;
+  readonly updatedAt: string;
+  readonly iconUrl: string | null;
+  readonly starred: boolean;
+  readonly local: ContentLocal | null;
+}
+
+export interface ContentPage extends ContentRow {
+  readonly readme: string;
+  readonly trackKey: ContentTrackKey | null;
+  readonly isOwner: boolean;
+  readonly shareLink: string;
+  readonly screenshots: readonly string[];
+  readonly versions: readonly LibraryVersion[];
+  /** The latest version's callouts, in lap order. */
+  readonly callouts: readonly { readonly id: string; readonly text: string; readonly textShort: string; readonly metresFromStart: number }[];
+  /** Null when no map of the layout has been shared yet. */
+  readonly map: TrackMapView | null;
+  readonly facts: {
+    readonly callouts: number;
+    readonly mapVersion: number | null;
+    readonly source: { readonly title: string | null; readonly url: string | null; readonly channel: string | null } | null;
+    readonly publishedAt: string | null;
+  };
+}
+
+export type ContentRequest =
+  | { readonly op: "facets" }
+  | { readonly op: "browse"; readonly filters: ContentFilters; readonly offset: number }
+  | { readonly op: "page"; readonly itemId: string }
+  | { readonly op: "star"; readonly itemId: string; readonly on: boolean }
+  /** A link in a description or a source video: opened in the browser, never in the app. */
+  | { readonly op: "openExternal"; readonly url: string };
+
+export interface ContentFacets {
+  readonly layouts: readonly { readonly trackKey: ContentTrackKey; readonly label: string }[];
+  readonly carClasses: readonly { readonly id: string; readonly name: string }[];
+  readonly signedIn: boolean;
+}
+
+/** On a combo with no callouts: how many packs Content has for it (M8 step 5). */
+export interface ContentHint {
+  readonly trackKey: ContentTrackKey;
+  readonly carClass: string | null;
+  readonly label: string;
+  readonly count: number;
+}
+
 /** Renderer → main, invoke: install, update, uninstall packs (M8). */
 export const LIBRARY_CHANNEL = "exxeed:library";
 
@@ -446,6 +537,8 @@ export interface SessionStatus {
   readonly remoteMine: readonly RemotePack[];
   /** A long-running library operation, for the Track Coach tab to show. */
   readonly libraryBusy: string | null;
+  /** Set while a session runs with no callouts for its combo (M8 step 5). */
+  readonly contentHint: ContentHint | null;
   /**
    * The pack pinned by hand, or null to follow whatever track the sim loads.
    *
