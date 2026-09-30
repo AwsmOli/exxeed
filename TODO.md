@@ -752,6 +752,40 @@ its own, and the web API comes last because its auth is the slowest part.
   improvement is the dopamine; the regression is the useful half.
 - [ ] Rating history chart per combo, once step 4 has filled enough records
 
+**Step 7 — Season standing, iRating brackets, and today's points**
+
+Makes the summary about the season, not just the race: where this race moved
+you in the championship, among drivers of your own level, and who is climbing
+fastest today. All of it needs the Data API (step 4's OAuth client), and the
+daily part needs our own backend (M8).
+
+- [ ] Season rank change on the summary: rank and points before, after, and the difference
+  From the series' season standings for your car class, read shortly before
+  the race and again after `ResultsOfficial`. **Not computed from this race's
+  points:** iRacing counts only some weeks, and within a week an average of
+  your best races, so points do not simply add up. Comparing two snapshots is
+  the only reliable answer.
+- [ ] iRating brackets, 500 wide: 0–500, 501–1000, … 4001–4500, 4501+
+  Your rank within your bracket, beside your overall rank. Being 40th of 300
+  among drivers of your level says more than 4,000th of 20,000. Our grouping,
+  not iRacing's divisions. Needs each driver's iRating next to their standing:
+  the standings rows if they carry it (verify), otherwise the per-race results,
+  which do (`oldi_rating`/`newi_rating`). Which iRating decides the bracket
+  (current, or at season start so nobody moves bracket mid-season) is a
+  decision to make; season start is steadier.
+- [ ] Today's points: a daily leaderboard, overall and per bracket
+  Not an iRacing feature as far as is known, so built on our side: a scheduled
+  job on Supabase (pg_cron + an Edge Function, the backend's first server-side
+  job, and the first holder of iRacing API credentials) snapshots the standings
+  of the series people actually race, from `report_session` and race
+  summaries, every hour or so. Points gained today = now − the snapshot at
+  midnight GMT, which is iRacing's day. Keeps the API calls in proportion to
+  what is driven, not to every series iRacing runs.
+- [ ] Check iRacing's Data API terms before showing anyone else's data
+  Storing and showing other drivers' standings to everyone redistributes
+  iRacing's data. Showing only your own rank and points needs none of that, and
+  is the version to ship first if the terms say no.
+
 *Done when:* finishing a race at Daytona opens a summary with the official
 result, the real iRating and SR change, the three corners costing the most time,
 and how it compares to the last race in the same car.
@@ -1308,6 +1342,209 @@ blinking, makes a variant with a different accent in the theme editor, publishes
 it, and a second person finds it in Content under Themes, previews it on their
 own overlays, stars it and keeps it.
 
+## M10 — Profiles, medals and achievements
+
+The Strava idea: people log their driving because seeing what they did feels
+good. Medals for podiums shown beside a name (like Stack Overflow's badges),
+points, achievements, and an activity feed. Depends on M7 (the iRacing OAuth
+client) and M8 (accounts, profiles, the backend).
+
+**The rule: rewards come from iRacing's data, by either of two routes, with
+safeguards on the second** (decided). Points, medals and achievements are
+granted only by our server, never written by the app.
+
+- **The Data API**, fetched by our server: race results, lap times, iRating
+  and SR, licences. Authoritative, but rate-limited and minutes late, and it
+  has nothing per corner and no test drives.
+- **The sim's telemetry**, summarised by the app after each session and
+  uploaded: laps (practice included), distance, corners, overtakes, and
+  anything else the SDK reports. Also iRacing's data, and far richer, but it
+  passes through the app on the way, so a modified app could lie about it.
+  Hence the safeguards below. Leaning on it also keeps us independent of how
+  much the Data API's rate limits allow.
+
+What that means in practice:
+- **Only official sessions count, for now** (decided): the session info says
+  so (`WeekendInfo.Official`), and where the Data API is available the server
+  confirms it. Official races, practice, qualifying and time trials. Hosted
+  and league sessions and test drives earn nothing: a private race with
+  friends who finish behind you is too easy to stage.
+- **Rewards from API data arrive minutes after the race**, once results are
+  official; ones from telemetry as soon as the upload is checked.
+
+**Safeguards on telemetry uploads.** None makes forgery impossible, since the
+app cannot keep a secret from its own user, but together they make it pointless
+at the scale of a hobby leaderboard:
+- **Identity:** a session summary is accepted only from an account linked to
+  an iRacing account (step 1), and only if the driver's `CustID` in the session
+  info matches the linked one.
+- **One summary per session:** keyed by `SubSessionID` and customer id, so a
+  session is counted once however often it is uploaded.
+- **Anchored to iRacing where the API can:** for races, the server looks the
+  subsession up (it needs the results anyway, for medals) and caps telemetry
+  numbers by iRacing's own: laps by laps completed, overtakes by positions
+  gained plus positions lost, the car and track must match. Practice sessions
+  are checked against the API too if it has them.
+- **Plausible on their own:** distance within a few per cent of laps × the
+  layout's length; corners = laps × the map's corner count; no lap faster than
+  a margin under the car's reference lap; no more laps than the session's
+  length allows; overtakes no more than laps × field size.
+- **Revocable:** the ledger is append-only, so a grant found to be wrong is
+  reversed by a later row, never edited away. Outliers (a total far above
+  everyone else's) are flagged for an admin, not auto-granted.
+- **Labelled:** a stat's source (API or telemetry) is kept per row and shown on
+  the profile, so anyone can see what a number rests on.
+
+Points and medals go into an append-only ledger with a reason, the source and
+the iRacing subsession id on every row. Server functions write it; clients
+cannot. **Medals come from the API only**: a podium is the one thing that must
+never be in doubt, and the API has it.
+
+**Step 1 — Link the iRacing account**
+
+- [ ] Sign in with iRacing (OAuth) to link a customer id to the Exxeed account
+  Proves the account is yours. The sim's `CustID` alone could be typed in by
+  anyone, and rewards are only as honest as this link. The same OAuth client
+  as M7 step 4, so it shares that blocker (iRacing may have paused new client
+  ids). One iRacing account per Exxeed account.
+- [ ] Profile page: name, avatar, linked iRacing name and licence, medals, points, achievements
+  Public by default, with a switch to make it private. The medal count sits
+  beside the name everywhere a name appears: pack author, Content,
+  leaderboards.
+
+**Step 2 — The server job that pulls from iRacing**
+
+- [ ] A scheduled job (pg_cron + an Edge Function) that fetches each linked driver's new sessions
+  Recent races per linked account, then `results/get` and `results/lap_data`
+  for each subsession not yet processed. The same machinery as M7 step 7's
+  standings snapshots, so build it once. It is the only holder of iRacing API
+  credentials, and it respects the `x-ratelimit-*` headers.
+- [ ] Process each subsession exactly once, and make every grant idempotent
+  Keyed by (subsession id, customer id, rule). A re-run after a crash or a
+  second fetch must never grant twice. This is what makes the ledger
+  trustworthy.
+- [ ] Rules evaluated server-side, as data
+  A table of rules (id, name, description, icon, tier, points, condition), so
+  adding an achievement is a row plus, at most, a small function. Evaluated when
+  a new subsession arrives, and once over history when an account is first
+  linked, so nobody starts at zero.
+
+**Step 2b — Stats: record everything, so achievements can be added later without re-fetching**
+
+Every achievement is a question asked of these stats, so they are recorded
+broadly from the start. An achievement invented later then works over
+everyone's history on day one.
+
+- [ ] One fact row per driver per session, extracted from each subsession the job fetches
+  `driver_sessions`: subsession, simsession type (practice, qualifying, time
+  trial, race), official or hosted, series, season, week, track layout, car, car
+  class, date, start and finish position (overall and class), laps completed,
+  laps led, incidents, best lap, average clean lap, DNF and reason, iRating and
+  SR before and after, licence before and after, strength of field, field
+  size, split number. The raw iRacing JSON is kept beside it, so a stat
+  nobody thought of can be back-filled without calling iRacing again.
+- [ ] Derived stats, computed from iRacing data plus our catalog, still verified
+  - **distance:** laps × the layout's length, in km, per car, track, combo and
+    overall;
+  - **corners taken:** laps × the layout's corner count from the shared map
+    (M8 step 2);
+  - **time on track:** sum of lap times;
+  - **overtakes:** from telemetry (below), which sees real passes. iRacing's
+    lap-by-lap position chart is the cross-check, not the source: it cannot
+    tell a pass from someone else pitting or crashing.
+- [ ] Aggregates by dimension: overall, per car, per track, per combo, per series, per season
+  Starts per session type, finishes, DNFs, wins, podiums, top 5s, poles, front
+  rows, laps, laps led, km, corners, incidents, incidents per 100 corners,
+  clean races, positions gained, time on track, distinct cars, tracks and
+  series, longest streaks (days raced, clean races in a row). Maintained on
+  insert, so reading a profile is one row per dimension, not a scan.
+- [ ] Which session types iRacing actually returns
+  Official practice, qualifying and time trial are believed to be in `results`
+  as event types alongside races; test drives are believed not to be. Verify
+  before promising "practice laps" as a verified stat.
+- [ ] Session summaries from telemetry, uploaded after each official session
+  The app already reads every car's `CarIdxPosition`, `CarIdxLap`,
+  `CarIdxLapDistPct`, `CarIdxOnPitRoad` and `CarIdxTrackSurface` (the
+  standings and relative overlays show them), so a real on-track pass can be
+  told apart from a car that pitted, went off or is being towed, which
+  iRacing's lap chart cannot do. The summary: session and subsession id, type,
+  official flag, track, car, laps, distance, corners, overtakes and times
+  overtaken, incidents seen, best and average lap. Checked against the
+  safeguards above, then written to the same stats as the API's, with its
+  source recorded.
+- [ ] Private telemetry stats, never uploaded and never rewards
+  Test-drive and hosted-session laps, top speed, time off track, full-throttle
+  share, braking points hit, callouts heard, corner PRs. Coaching data, not
+  competition: shown on your own profile and race summary only.
+
+**Step 3 — Medals from podiums**
+
+- [ ] Gold, silver and bronze for P1, P2 and P3, per car class
+  From `results/get`, after `ResultsOfficial`. Counted per class in multi-class
+  races.
+- [ ] Decide whether a bottom-split podium counts the same as a top-split one
+  Options: count all equally (simple, generous), weight by strength of field,
+  or medal within your iRating bracket (M7 step 7), which is fair to everyone
+  and ties the two features together. **Bracket medals are the recommendation.**
+- [x] ~~Decide whether hosted races count~~ — **official only** (see the rule above)
+
+**Step 4 — Points and achievements**
+
+- [ ] Points for effort iRacing can confirm
+  Races finished, clean races (zero incidents), podiums, wins, laps completed.
+  **Daily rewards for opening the app are not recommended**: they cannot be
+  verified by iRacing, and they reward attendance rather than driving. A
+  streak of days raced, from the session dates iRacing reports, keeps the idea
+  and the rule.
+- [ ] Achievements from verified data, for example
+  - first race, first clean race, first podium, first win;
+  - 10 / 100 / 1,000 races; laps milestones;
+  - an iRating milestone (every 500, matching the brackets) and a licence
+    promotion (from the before and after values in results);
+  - a streak of consecutive race days, or consecutive clean races;
+  - a new personal best race lap at a track and car, from `results/lap_data`,
+    which gives lap times per lap, so a PR iRacing recorded can be a reward even
+    though corner times cannot;
+  - a race at every track of a series' season;
+  - distance: 1,000 / 10,000 / 100,000 km, overall and in one car ("10,000 km
+    in the MX-5");
+  - corners: 10,000 / 100,000 corners taken; "every corner of the Nordschleife";
+  - positions gained: +10 in one race, a lifetime total;
+  - variety: 10 / 50 cars driven, every track in a licence class raced;
+  - qualifying: first pole, pole-to-win;
+  - consistency: incidents per 100 corners under a threshold across a season;
+  - community ones our own backend verifies: a pack others installed, stars
+    received, a map shared.
+- [ ] Corner PRs and coaching stats stay private stats, not rewards
+  "Braked within 5 m of the reference all lap" or "T1 PR" come from the app's
+  own telemetry. They are shown to you on the race summary and your own
+  profile, never on a leaderboard, and they earn nothing.
+
+**Step 5 — Activity feed and following**
+
+- [ ] One entry per race iRacing reports: track, car, result, medals, achievements, points
+  Built by the server job, so the feed is verified by construction. Your own
+  private stats can be attached to your entries for you alone.
+- [ ] Follow other drivers; give kudos
+  Kudos is a star on an activity, with the same rules as pack stars (M8): signed
+  in, one per person, server-counted.
+
+Open questions:
+
+- **Session types:** which ones does `results` return (official, hosted,
+  league)? Decides what can trigger anything.
+- **Privacy defaults:** public profile by default like Strava, or private until
+  switched on?
+- **iRacing's terms** again (see M7 step 7): showing other drivers' results on
+  their profiles and in feeds is redistribution.
+
+*Done when:* someone links their iRacing account and their history is
+evaluated, so they start with medals; they finish on the podium of their
+bracket in an official race, and a few minutes later the medal appears beside
+their name, with an entry in their feed that a friend gives kudos to. The
+overtakes counted from their telemetry show up in their stats, and a summary
+claiming more than iRacing's result allows is refused.
+
 ## Screens
 
 Every screen or dialog the open items above need, grouped by where it lives.
@@ -1381,6 +1618,9 @@ user sees first.
   ("braking 12 m early"), theoretical best, and consistency.
 - [ ] Compared with other races: this week and all-time in the combo, most
   improved and most regressed corner.
+- [ ] Season block [M7.7]: championship rank and points before and after
+  (animated like the iRating counter), your rank within your iRating bracket,
+  and today's points leaderboard around you, overall and in your bracket.
 
 **Publish flow (new dialogs) [M8.3, M8.3b, M8.6]**
 
@@ -1460,6 +1700,24 @@ user sees first.
 **Tray (changes)**
 
 - [ ] "Update available" and "Race summary ready" items [M8.4, M7.3].
+
+**Profiles and achievements (new) [M10]**
+
+- [ ] Profile page: avatar, name, linked iRacing name and licence, medal
+  counts (gold, silver, bronze), points, achievements grid, recent activity.
+  Privacy switch.
+- [ ] Medal count beside every name the app shows (pack author, Content,
+  leaderboards), Stack Overflow style.
+- [ ] Achievement unlocked toast, when the server job grants one (minutes after
+  the race), and a "rewards pending until results are official" state on the
+  race summary.
+- [ ] Activity feed: your sessions and those of people you follow, with PRs,
+  medals and kudos.
+- [ ] Private stats on your own profile and race summary: corner PRs and
+  coaching stats from telemetry, clearly separate from the verified rewards
+  (M10 step 4).
+- [ ] Link iRacing account, in Preferences next to the M7 iRacing connection
+  (the same OAuth).
 
 **Moderation (new, admin role only) [M8.7]**
 
