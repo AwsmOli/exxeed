@@ -25,8 +25,7 @@ import {
   browseRow,
   fetchMap,
   getVersionPayload,
-  listCarClasses,
-  listLayouts,
+  listFacets,
   listMedia,
   listVersions,
   LocalContentIndex,
@@ -70,6 +69,8 @@ const toRow = (row: BrowseRow, starred: Set<string>, local: Map<string, ContentL
   title: row.title,
   summary: row.summary,
   authorName: row.authorName,
+  visibility: row.visibility,
+  isOwner: row.authorId === accountView().userId,
   trackLabel: row.trackLabel,
   carClass: row.carClass,
   stars: row.stars,
@@ -82,8 +83,7 @@ const toRow = (row: BrowseRow, starred: Set<string>, local: Map<string, ContentL
 });
 
 async function facets(): Promise<ContentFacets> {
-  const client = cloudClient();
-  const [layouts, carClasses] = await Promise.all([listLayouts(client), listCarClasses(client)]);
+  const { layouts, carClasses } = await listFacets(cloudClient(), accountView().userId);
   return {
     layouts: layouts.map((l) => ({ trackKey: l.trackKey as ContentFacets["layouts"][number]["trackKey"], label: l.label })),
     carClasses,
@@ -107,6 +107,7 @@ async function list(deps: ContentDeps, filters: ContentFilters, offset: number):
     trackKey: filters.trackKey as TrackKey | null,
     carClass: filters.carClass,
     itemIds,
+    ownerId: accountView().userId,
     sort: filters.sort,
     limit: PAGE_SIZE,
     offset,
@@ -149,7 +150,6 @@ async function page(deps: ContentDeps, itemId: string): Promise<ContentPage> {
     ...toRow(row, starred, local),
     readme: (readme.data as { readme?: string } | null)?.readme ?? "",
     trackKey: row.trackKey as ContentPage["trackKey"],
-    isOwner: row.authorId === accountView().userId,
     shareLink: shareLinkFor(itemId),
     screenshots: media.filter((m) => m.kind === "screenshot").map((m) => m.url),
     versions: versions.map((v) => ({

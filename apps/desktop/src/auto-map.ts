@@ -56,7 +56,7 @@ const fmtLap = (s: number): string => {
  * same folder the repository files the map under, so an override written for a
  * hand cut applies to an automatic one too.
  */
-async function readOverrides(dataDir: string, key: TrackKey): Promise<CornerOverrides | undefined> {
+export async function readOverrides(dataDir: string, key: TrackKey): Promise<CornerOverrides | undefined> {
   const path = join(dataDir, "tracks", key.sim, String(key.trackId), key.configId, "corners.override.json");
   let text: string;
   try {

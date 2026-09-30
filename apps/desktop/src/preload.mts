@@ -47,6 +47,7 @@ const ACCOUNT_CHANNEL = "exxeed:account";
 const PUBLISH_CHANNEL = "exxeed:publish";
 const LIBRARY_CHANNEL = "exxeed:library";
 const CONTENT_CHANNEL = "exxeed:content";
+const LAP_IMPORT_CHANNEL = "exxeed:lap-import";
 const ACCOUNT_CHANGED_CHANNEL = "exxeed:account-changed";
 
 contextBridge.exposeInMainWorld("exxeed", {
@@ -120,6 +121,9 @@ contextBridge.exposeInMainWorld("exxeed", {
 
   /** Browsing Content (M8): `{ ok, value }` or `{ ok: false, error }`. */
   content: (request: unknown): Promise<unknown> => ipcRenderer.invoke(CONTENT_CHANNEL, request),
+
+  /** Importing a lap file (a Garage 61 CSV) as a map and reference lap. */
+  lapImport: (request: unknown): Promise<unknown> => ipcRenderer.invoke(LAP_IMPORT_CHANNEL, request),
 
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:

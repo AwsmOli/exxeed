@@ -48,7 +48,7 @@ interface Args {
   readonly dryRun: boolean;
 }
 
-const USAGE = `usage: exxeed-trackmap <lap.ndjson> --track-id N --config <id> [options]
+const USAGE = `usage: exxeed-trackmap <lap.ndjson | garage61-lap.csv> --track-id N --config <id> [options]
 
   --track-id N        iRacing TrackID (WeekendInfo.TrackID)
   --config <id>       layout id, e.g. road_course
@@ -162,7 +162,7 @@ async function main(): Promise<number> {
   const out = process.stdout;
   out.write(`${built.map.trackName} — ${built.map.configName}\n`);
   out.write(`  lap        ${d.frames} frames, ${d.lapTimeS.toFixed(2)}s, coverage ${(d.coverage * 100).toFixed(1)}%\n`);
-  out.write(`  length     ${d.lengthM.toFixed(1)}m ${args.lengthM === null ? "(inferred from lapDistM)" : "(given)"}\n`);
+  out.write(`  length     ${d.lengthM.toFixed(1)}m ${args.lengthM === null ? "(measured from the lap)" : "(given)"}\n`);
   out.write(`  centreline path ${d.pathLengthM.toFixed(0)}m, closure ${d.closureErrorM.toFixed(2)}m, `);
   out.write(`yaw ${d.yawSign > 0 ? "+" : "-"}1, orientation ${(d.orientationAgreement * 100).toFixed(1)}%\n`);
   out.write(`  corners    ${built.detected.length} detected -> ${built.corners.length} after overrides\n`);

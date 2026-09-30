@@ -12,6 +12,8 @@
     <title>Exxeed — Preferences</title>
     <style>
       :root { color-scheme: dark; }
+      /* The browser's own [hidden] rule loses to any class that sets display. */
+      [hidden] { display: none !important; }
       body {
         margin: 0; padding: 22px 26px 28px;
         background: #101215; color: #e6e9ee;

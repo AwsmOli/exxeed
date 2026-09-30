@@ -18,8 +18,10 @@ import { createHash } from "node:crypto";
 import {
   applyOverrides,
   buildCentreline,
+  buildCentrelineFromPositions,
   CornerOverridesSchema,
   detectCorners,
+  hasPositions,
   metres,
   perCornerMetrics,
   resampleLap,
@@ -113,13 +115,31 @@ export function buildTrackMap(frames: readonly TelemetryFrame[], options: BuildO
   }
 
   const gridSize = options.gridSize ?? 2000;
-  const lengthM = metres(options.lengthM ?? inferLengthM(frames));
+
+  // Real positions (from .ibt, or an export built on it such as Garage 61's)
+  // draw the track directly; the live SDK has none, so it is dead reckoning
+  // from the car's velocities (§4.1.1).
+  const positions = hasPositions(frames);
+  const fromPositions = positions
+    ? buildCentrelineFromPositions(frames, gridSize, { steerSignRight: STEER_SIGN_RIGHT })
+    : null;
+
+  // Length from the sim's own lapDistM where the lap has it; a position export
+  // has no such channel, and there the drawn loop is the measurement.
+  const lengthM = metres(
+    options.lengthM ??
+      (frames.some((f) => f.lapDistM > 0) || fromPositions === null
+        ? inferLengthM(frames)
+        : fromPositions.pathLengthM + fromPositions.closureErrorM),
+  );
 
   const { lap, coverage, warnings } = resampleLap(frames, gridSize, lengthM);
 
-  const centreline = buildCentreline(frames, gridSize, lengthM, {
-    steerSignRight: STEER_SIGN_RIGHT,
-  });
+  const centreline =
+    fromPositions ??
+    buildCentreline(frames, gridSize, lengthM, {
+      steerSignRight: STEER_SIGN_RIGHT,
+    });
 
   const detected = detectCorners(lap, { steerSignRight: STEER_SIGN_RIGHT });
   const overrides = options.overrides ?? CornerOverridesSchema.parse({ schema: 1, operations: [] });

@@ -16,3 +16,4 @@ export * from "./iracing.js";
 export * from "./race.js";
 export * from "./laps.js";
 export * from "./map-build.js";
+export * from "./garage61.js";

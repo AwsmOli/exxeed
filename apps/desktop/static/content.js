@@ -105,10 +105,48 @@ const initials = (row, big) =>
     textContent: row.title.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join(""),
   });
 
-/** Install / Update / Installed, as the row and the page both show it. */
+/**
+ * Open one of your own packs in the note editor. If it is on your account but
+ * not on this machine yet (published from the other one), fetch it first —
+ * the same Download as Track Coach's "on your account" rows.
+ */
+async function editMine(row, button) {
+  if (button) button.disabled = true;
+  try {
+    let noteSetId = row.local?.noteSetId ?? null;
+    if (noteSetId === null) {
+      setStatus("Downloading your pack…");
+      setStatus(await library({ op: "downloadMine", itemId: row.id }));
+      // Refresh what is on screen, which is also how the new local id is learned.
+      await refreshAfterChange(row.id);
+      noteSetId = (state.page?.id === row.id ? state.page : state.rows.find((r) => r.id === row.id))?.local?.noteSetId ?? null;
+    }
+    if (noteSetId === null) throw new Error("could not find the pack on this machine after downloading it");
+    window.exxeed?.sendSessionCommand({ kind: "editNoteSet", id: noteSetId });
+  } catch (err) {
+    setStatus(err.message, true);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+/** Install / Update / Installed / Edit, as the row and the page both show it. */
 function installButton(row) {
   const local = row.local;
-  if (local?.origin === "mine") return make("span", { className: "chip", textContent: "yours" });
+  // Yours: on this machine, or only on your account.
+  if (local?.origin === "mine" || (local === null && row.isOwner === true)) {
+    const edit = make("button", {
+      className: "ghost primary",
+      type: "button",
+      textContent: "Edit",
+      title: local === null ? "Download your pack to this machine and open it in the note editor" : "Open in the note editor — publish updates from there",
+    });
+    edit.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void editMine(row, edit);
+    });
+    return edit;
+  }
   if (local?.origin === "installed") {
     const behind = row.latestVersion !== null && local.version !== null && row.latestVersion > local.version;
     if (!behind) return make("span", { className: "chip", textContent: `v${local.version} installed` });
@@ -135,7 +173,12 @@ function resultRow(row) {
     make(
       "div",
       {},
-      make("div", { className: "c-title", textContent: row.title }),
+      make(
+        "div",
+        { className: "c-title" },
+        row.title,
+        row.visibility !== "public" ? make("span", { className: "chip vis", textContent: row.visibility }) : null,
+      ),
       make("div", { className: "c-meta", textContent: `${row.authorName} · ${row.trackLabel}${row.carClass ? ` · ${row.carClass.toUpperCase()}` : ""}` }),
       make("div", { className: "c-summary", textContent: row.summary }),
       make(
@@ -156,7 +199,7 @@ function renderResults() {
     const f = filters();
     const narrowed = f.text !== "" || f.trackKey !== null || f.carClass !== null || f.starred || f.installed;
     el("c-results").append(
-      make("li", { className: "c-empty", textContent: narrowed ? "Nothing matches. Try fewer filters." : "No packs published yet." }),
+      make("li", { className: "c-empty", textContent: narrowed ? "Nothing matches. Try fewer filters." : "No packs yet. Unlisted packs by other drivers open by link." }),
     );
   }
 }
@@ -451,7 +494,18 @@ function renderPage() {
       make(
         "div",
         {},
-        make("h1", { textContent: page.title }),
+        make(
+          "h1",
+          {},
+          page.title,
+          page.visibility !== "public"
+            ? make("span", {
+                className: "chip vis",
+                textContent: page.visibility,
+                title: page.visibility === "unlisted" ? "Only people with the link can find it. Change it in the editor's Publish dialog." : "Only you can see it.",
+              })
+            : null,
+        ),
         make("div", { className: "c-byline", textContent: `by ${page.authorName} · ${page.trackLabel}${page.carClass ? ` · ${page.carClass.toUpperCase()}` : ""}` }),
         make(
           "div",
@@ -497,7 +551,7 @@ document.addEventListener("keydown", (e) => {
  * Content", and later share links. `{ trackKey, carClass }` from anywhere.
  */
 document.addEventListener("open-content", async (e) => {
-  const { trackKey = null, carClass = null } = e.detail ?? {};
+  const { trackKey = null, carClass = null, label = null } = e.detail ?? {};
   // The menus first, or their first load would reset the filters set below.
   if (!loaded) {
     loaded = true;
@@ -507,9 +561,10 @@ document.addEventListener("open-content", async (e) => {
   el("c-starred").checked = false;
   el("c-installed").checked = false;
   el("c-track").value = keyOf(trackKey);
-  // A layout the catalog did not list yet: add it, so the filter still holds.
+  // A track with no packs yet is not in the menu (it lists tracks that have
+  // some): add it, so the filter still holds and says what it is.
   if (trackKey !== null && el("c-track").value === "") {
-    el("c-track").append(make("option", { value: keyOf(trackKey), textContent: `Track ${trackKey.trackId}` }));
+    el("c-track").append(make("option", { value: keyOf(trackKey), textContent: label ?? `Track ${trackKey.trackId}` }));
     el("c-track").value = keyOf(trackKey);
   }
   el("c-class").value = carClass ?? "";

@@ -12,6 +12,7 @@ import {
   countForCombo,
   createCalloutItem,
   fetchMap,
+  listFacets,
   listLayouts,
   listMedia,
   myStars,
@@ -89,6 +90,16 @@ describe.skipIf(!stackUp)("browsing Content", () => {
     expect((await browseRow(anonClient(), hidden))?.id).toBe(hidden);
   });
 
+  it("lists an author's own unlisted pack for them, and only for them", async () => {
+    const authorId = drivers[0]!;
+    const forAuthor = await browse(author, { trackKey, ownerId: authorId, sort: "new", limit: 20, offset: 0 });
+    expect(forAuthor.map((r) => r.id).sort()).toEqual([listed, hidden].sort());
+    expect(forAuthor.find((r) => r.id === hidden)?.visibility).toBe("unlisted");
+    // Someone else passing their own id still sees only public packs.
+    const forFan = await browse(fan, { trackKey, ownerId: fanId, sort: "new", limit: 20, offset: 0 });
+    expect(forFan.map((r) => r.id)).toEqual([listed]);
+  });
+
   it("counts packs for a combo, for the session banner", async () => {
     expect(await countForCombo(anonClient(), trackKey, "gt3")).toBe(1);
     expect(await countForCombo(anonClient(), trackKey, "mx5")).toBe(0);
@@ -105,6 +116,14 @@ describe.skipIf(!stackUp)("browsing Content", () => {
 
   it("returns an empty list, not everything, when filtering by an empty set of ids", async () => {
     expect(await browse(anonClient(), { itemIds: [], sort: "stars", limit: 20, offset: 0 })).toEqual([]);
+  });
+
+  it("builds the filter menus from the packs that exist, the author's unlisted ones only for the author", async () => {
+    const forAnyone = await listFacets(anonClient(), null);
+    expect(forAnyone.layouts.some((l) => l.trackKey.trackId === trackId)).toBe(true);
+    expect(forAnyone.carClasses.some((c) => c.id === "gt3")).toBe(true);
+    // A layout with no packs at all is not offered.
+    expect(forAnyone.layouts.some((l) => l.trackKey.configId === "no-packs-here")).toBe(false);
   });
 
   it("lists layouts for the filter menu, and fetches a layout's map without storing it", async () => {

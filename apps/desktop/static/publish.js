@@ -45,12 +45,16 @@ function fill(s) {
   $("pub-changelog").value = "";
 
   const isUpdate = p !== null && p.latestVersion !== null;
-  $("pub-heading").textContent = isUpdate ? `Publish v${p.latestVersion + 1}` : "Publish callout pack";
-  $("pub-lead").textContent = isUpdate
+  // Published, and no callout has changed: saving only updates the page.
+  const pageOnly = isUpdate && p.changes.length === 0;
+  $("pub-heading").textContent = pageOnly ? "Edit the pack's page" : isUpdate ? `Publish v${p.latestVersion + 1}` : "Publish callout pack";
+  $("pub-lead").textContent = pageOnly
+    ? `No callout has changed since v${p.latestVersion}, so this only updates the pack's page — title, description and who can find it.`
+    : isUpdate
     ? "Installers get this version before their next session, with the list below as its changelog."
     : `${s.noteCount} callouts. Published versions can't be edited — improving the pack means publishing the next version.`;
 
-  $("pub-update").hidden = !isUpdate;
+  $("pub-update").hidden = !isUpdate || pageOnly;
   if (isUpdate) {
     $("pub-latest").textContent = `v${p.latestVersion}`;
     const lines = p.changes.length > 0 ? p.changes : ["No callout has changed — publishing now only updates the page."];
@@ -95,7 +99,7 @@ function fill(s) {
 
   // Say up front what would stop a publish, rather than after the click.
   const go = $("pub-go");
-  go.textContent = isUpdate ? `Publish v${p.latestVersion + 1}` : "Publish";
+  go.textContent = pageOnly ? "Save page" : isUpdate ? `Publish v${p.latestVersion + 1}` : "Publish";
   if (!s.signedIn) {
     go.disabled = true;
     setStatus("Sign in from the main window to publish.", "bad");
@@ -172,6 +176,7 @@ async function open() {
 
 async function doPublish() {
   const go = $("pub-go");
+  const pageOnly = state?.published?.latestVersion != null && state.published.changes.length === 0;
   go.disabled = true;
   setStatus("Publishing…");
   try {
@@ -187,7 +192,7 @@ async function doPublish() {
     });
     renderBadge(state);
     fill(state);
-    setStatus(`Published v${state.published?.latestVersion}.`, "ok");
+    setStatus(pageOnly ? "Page saved." : `Published v${state.published?.latestVersion}.`, "ok");
   } catch (err) {
     setStatus(err.message, "bad");
     go.disabled = false;

@@ -72,6 +72,7 @@ import { shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
 import { installPublishIpc } from "./publish.js";
 import { checkUpdatesNow, installLibrary, knownItem, remoteMinePacks } from "./library.js";
 import { installContentIpc } from "./content.js";
+import { installLapImport } from "./lap-import.js";
 import { installImporterIpc, openImporter } from "./importer.js";
 import {
   installSettingsIpc,
@@ -169,36 +170,29 @@ const resolveDataDir = (s: { dataDir: string | null }): string =>
   s.dataDir ?? (app.isPackaged ? join(app.getPath("userData"), "data") : `${REPO_ROOT}/data`);
 
 /**
- * Pick a source. iRacing when the platform can support it, otherwise replay a
- * recording — which is how the whole app is developed on macOS (§9).
- *
- * EXXEED_REPLAY overrides, so a recording can be replayed on Windows too. That
- * matters more than it sounds: replaying a real lap is the only way to iterate on
- * callout timing without driving.
+ * Test mode: replay a lap through the whole app — overlays, callouts, the lot —
+ * without the sim. Only ever by choice (the Test mode button, or EXXEED_REPLAY
+ * from a script). Starting the app never does it by itself: a window full of
+ * overlays talking about Daytona while you read email is not a feature.
+ */
+let testMode = process.env["EXXEED_REPLAY"] !== undefined && process.env["EXXEED_REPLAY"] !== "";
+
+/**
+ * Pick a source: the sim, or in test mode a replay — the recording chosen in
+ * the debug settings, or the built-in lap. Outside test mode, a platform with
+ * no iRacing has nothing to connect to, and says so rather than replaying.
  */
 function createSource(): TelemetrySource {
   const { debug } = settings().get();
 
-  // Debug settings only bite while the debug flag is on. They persist, so a
-  // replay file set once stays set — and without this, someone who set one and
-  // then started normally would have a sim that never connects and no visible
-  // panel to explain it.
-  if (!debugEnabled()) {
-    if (isIRacingSupported()) return new IRacingAdapter({ hz: 60 });
-    return new ReplayAdapter(FIXTURE, { speed: 1, loop: true });
-  }
-
-  if (debug.replayPath !== null) {
-    return new ReplayAdapter(resolveReplayPath(debug.replayPath), {
-      speed: debug.replaySpeed,
-      loop: debug.loopReplay,
-    });
+  if (testMode) {
+    const chosen = debugEnabled() ? debug.replayPath : null;
+    return chosen !== null
+      ? new ReplayAdapter(resolveReplayPath(chosen), { speed: debug.replaySpeed, loop: debug.loopReplay })
+      : new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: true });
   }
   if (isIRacingSupported()) return new IRacingAdapter({ hz: 60 });
-
-  // Nothing to connect to and nothing chosen: the built-in synthetic lap, so the
-  // window shows something rather than sitting blank.
-  return new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: debug.loopReplay });
+  throw new Error("iRacing runs on Windows only — use Test mode to replay a lap here");
 }
 
 /** `sim:trackId:configId` — the key `noteSetByTrack` remembers a choice under. */
@@ -449,6 +443,7 @@ let sessionStatus: SessionStatus = {
   remoteMine: [],
   libraryBusy: null,
   contentHint: null,
+  testMode: false,
 };
 
 /** A long library operation in progress (library.ts), shown in Track Coach. */
@@ -554,6 +549,7 @@ function broadcastStatus(patch: Partial<SessionStatus>): void {
     packs: packs.map((p) => ({ ...p, active: p.id === next.noteSetId })),
     remoteMine: remoteMinePacks(),
     libraryBusy,
+    testMode,
   };
   currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
   controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
@@ -786,7 +782,9 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
           const key = audioKey(event.noteId, event.variant);
           process.stdout.write(`PLAY ${key} (${event.durationMs}ms)\n`);
 
-          if (session.audio?.clips.has(key) === true) {
+          // Silent while the sim is not the window in front, like the overlays:
+          // a callout about T1 is noise over a browser.
+          if (session.audio?.clips.has(key) === true && !mutedForFocus()) {
             const command: AudioPlayCommand = {
               key,
               noteId: event.noteId,
@@ -1276,6 +1274,10 @@ function syncOverlayVisibility(): void {
   overlayLayout?.setVisible(overlayEditingActive || (sessionLive && (!gated || simFocused)));
 }
 
+/** Live iRacing, the setting on, and the sim not in front: no callouts. */
+const mutedForFocus = (): boolean =>
+  focusGated && settings().get().hideOverlaysWhenSimUnfocused && !simFocused;
+
 function setSessionLive(live: boolean, gateOnSimFocus = false): void {
   if (sessionLive === live) return;
   sessionLive = live;
@@ -1310,7 +1312,19 @@ let supervising = false;
 /** Set when the running loop was ended to reload settings, so the next one starts at once. */
 let restartRequested = false;
 
-const sleepMs = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Ends the supervisor's current wait early — a mode change should not sit out a retry delay. */
+let wakeSupervisor: (() => void) | null = null;
+
+const sleepMs = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(done, ms);
+    function done(): void {
+      clearTimeout(timer);
+      wakeSupervisor = null;
+      resolve();
+    }
+    wakeSupervisor = done;
+  });
 
 /**
  * Keep a session running for as long as the app is meant to be on.
@@ -1356,7 +1370,9 @@ async function supervise(): Promise<void> {
         restartRequested = false;
         continue;
       }
-      await sleepMs(2000);
+      // No sim on this platform: nothing will change by retrying every two
+      // seconds, only by switching test mode on, which restarts this loop.
+      await sleepMs(!testMode && !isIRacingSupported() ? 30_000 : 2000);
     }
   } finally {
     supervising = false;
@@ -1384,8 +1400,31 @@ function startSession(): void {
   void supervise();
 }
 
+/**
+ * Switch test mode, and restart whatever was running so the new source takes
+ * over. Turning it on also turns the app on: pressing Test mode means "show
+ * me", not "arm it for later".
+ */
+function setTestMode(on: boolean): void {
+  if (testMode === on) return;
+  testMode = on;
+  broadcastStatus({});
+  if (on && !wantRunning) {
+    startSession();
+    return;
+  }
+  // Ends the running loop at its next frame, or the supervisor's wait between
+  // attempts; either way the supervisor starts the new source straight after.
+  restartRequested = true;
+  loopToken++;
+  setSessionLive(false);
+  wakeSupervisor?.();
+  void supervise();
+}
+
 function stopSession(): void {
   wantRunning = false;
+  testMode = false;
   // Bumping the token makes any running loop stop at its next frame.
   loopToken++;
   setSessionLive(false);
@@ -1444,6 +1483,7 @@ void app.whenReady().then(() => {
   installEditorIpc(() => settings().get(), resolveDataDir);
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
   installContentIpc({ getSettings: () => settings().get(), resolveDataDir });
+  installLapImport({ getSettings: () => settings().get(), resolveDataDir, changed: () => void refreshPacks() });
   installLibrary({
     getSettings: () => settings().get(),
     resolveDataDir,
@@ -1506,6 +1546,7 @@ void app.whenReady().then(() => {
     const command = raw as SessionCommand;
     if (command.kind === "start") startSession();
     else if (command.kind === "stop") stopSession();
+    else if (command.kind === "testMode") setTestMode(command.value);
     else if (command.kind === "autoStart") {
       settings().updateQuietly({ autoStart: command.value });
       broadcastStatus({});

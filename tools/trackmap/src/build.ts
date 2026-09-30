@@ -8,9 +8,10 @@
  */
 
 import { createReadStream } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 
-import { parseFrame, type TelemetryFrame } from "@exxeed/telemetry";
+import { parseFrame, parseGarage61Csv, type TelemetryFrame } from "@exxeed/telemetry";
 
 export {
   buildTrackMap,
@@ -22,6 +23,11 @@ export {
 
 /** Read an NDJSON recording into frames, ignoring the header line. */
 export async function readFrames(path: string): Promise<TelemetryFrame[]> {
+  // A Garage 61 lap export: one lap as CSV, with real positions (garage61.ts).
+  if (path.toLowerCase().endsWith(".csv")) {
+    return parseGarage61Csv(await readFile(path, "utf8"));
+  }
+
   const lines = createInterface({
     input: createReadStream(path, { encoding: "utf8" }),
     crlfDelay: Number.POSITIVE_INFINITY,

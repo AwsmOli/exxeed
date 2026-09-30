@@ -12,6 +12,13 @@
  * velocities against heading over one clean Daytona lap closes the loop to 1.9 m
  * over 5701 m, far below anything a schematic map or the note editor (§7.4) can
  * show.
+ *
+ * **Lat/Lon did come back, from outside the live SDK.** iRacing's disk telemetry
+ * (`.ibt`) records them, and so do exports built from it, such as Garage 61's
+ * lap CSVs. For those, `buildCentrelineFromPositions` projects the positions
+ * directly — §4.1.1's primary path — with no drift to correct and no yaw sense
+ * to guess, so no mirrored map. The steering check still runs, as a check on the
+ * data rather than a way to pick an orientation.
  */
 
 import type { Metres, Pct } from "./units.js";
@@ -242,15 +249,34 @@ export function buildCentreline(
     corrY[i] = best.y[i]! - driftY * share;
   }
 
-  // Onto the pct grid, so the map, the corners, the landmarks and the traces all
-  // share one index space (§4.1.1).
+  const centreline = toGrid(corrX, corrY, best.pct, gridSize);
+
+  return {
+    centreline,
+    closureErrorM: best.closureErrorM,
+    pathLengthM: best.pathLengthM,
+    yawSign,
+    orientationAgreement,
+  };
+}
+
+/**
+ * Put a drawn path onto the pct grid, so the map, the corners, the landmarks and
+ * the traces all share one index space (§4.1.1).
+ */
+function toGrid(
+  xs: readonly number[],
+  ys: readonly number[],
+  pcts: readonly number[],
+  gridSize: number,
+): { gridSize: number; x: number[]; y: number[] } {
   const gx = new Array<number>(gridSize).fill(Number.NaN);
   const gy = new Array<number>(gridSize).fill(Number.NaN);
-  for (let i = 0; i < n; i++) {
-    const cell = Math.min(gridSize - 1, Math.max(0, Math.floor(best.pct[i]! * gridSize)));
+  for (let i = 0; i < xs.length; i++) {
+    const cell = Math.min(gridSize - 1, Math.max(0, Math.floor(pcts[i]! * gridSize)));
     if (Number.isNaN(gx[cell]!)) {
-      gx[cell] = corrX[i]!;
-      gy[cell] = corrY[i]!;
+      gx[cell] = xs[i]!;
+      gy[cell] = ys[i]!;
     }
   }
 
@@ -266,12 +292,85 @@ export function buildCentreline(
       gy[i] = gy[prev]!;
     }
   }
+  return { gridSize, x: gx, y: gy };
+}
+
+/** A sample with a real position, for `buildCentrelineFromPositions`. */
+export interface PositionSample {
+  readonly lapDistPct: Pct;
+  /** Degrees, WGS84 as iRacing writes them. */
+  readonly lat: number;
+  readonly lon: number;
+  readonly steerRad: number;
+}
+
+/** Mean Earth radius, metres. The projection error over a circuit is centimetres. */
+const EARTH_RADIUS_M = 6371008.8;
+
+/** Does this lap carry real positions, rather than the zeros a live recording has? */
+export function hasPositions(samples: readonly { lat: number; lon: number }[]): boolean {
+  if (samples.length < 2) return false;
+  const real = samples.filter((s) => (s.lat !== 0 || s.lon !== 0) && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+  return real.length >= samples.length * 0.95;
+}
+
+/**
+ * A centreline from recorded positions — §4.1.1's primary path.
+ *
+ * An equirectangular projection about the lap's mean latitude: x east and y
+ * north in metres. At circuit scale that is exact to well under the width of a
+ * kerb. Nothing is integrated, so there is no drift to spread and no yaw sense to
+ * discover; closure is simply how far the last sample is from the first, which
+ * for one lap from the line is the distance covered in one sample.
+ */
+export function buildCentrelineFromPositions(
+  samples: readonly PositionSample[],
+  gridSize: number,
+  options: CentrelineOptions,
+): CentrelineResult {
+  if (!Number.isInteger(gridSize) || gridSize < 2) {
+    throw new CentrelineError(`gridSize must be an integer >= 2, got ${gridSize}`);
+  }
+  const real = samples.filter((s) => (s.lat !== 0 || s.lon !== 0) && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+  if (real.length < 2) throw new CentrelineError(`need at least 2 samples with positions, got ${real.length}`);
+
+  const lat0 = real.reduce((a, s) => a + s.lat, 0) / real.length;
+  const lon0 = real.reduce((a, s) => a + s.lon, 0) / real.length;
+  const rad = Math.PI / 180;
+  const kx = EARTH_RADIUS_M * Math.cos(lat0 * rad) * rad;
+  const ky = EARTH_RADIUS_M * rad;
+
+  const x = real.map((s) => (s.lon - lon0) * kx);
+  const y = real.map((s) => (s.lat - lat0) * ky);
+  let path = 0;
+  for (let i = 1; i < x.length; i++) path += Math.hypot(x[i]! - x[i - 1]!, y[i]! - y[i - 1]!);
+
+  const run: Integration = {
+    x,
+    y,
+    cumM: [],
+    pct: real.map((s) => s.lapDistPct),
+    steer: real.map((s) => s.steerRad),
+    pathLengthM: path,
+    closureErrorM: Math.hypot(x[x.length - 1]! - x[0]!, y[y.length - 1]! - y[0]!),
+  };
+
+  // Positions cannot be mirrored, so a low score here means the steering data or
+  // its sign convention is wrong — worth refusing just the same, because corner
+  // directions come from that same steering.
+  const orientationAgreement = agreement(run, options.steerSignRight, options.minSteerRad ?? 0.15);
+  if (orientationAgreement < 0.8) {
+    throw new CentrelineError(
+      `the recorded path agrees with the steering input only ${(orientationAgreement * 100).toFixed(0)}% ` +
+        "of the time. Positions cannot be mirrored, so the steering channel or its sign is wrong.",
+    );
+  }
 
   return {
-    centreline: { gridSize, x: gx, y: gy },
-    closureErrorM: best.closureErrorM,
-    pathLengthM: best.pathLengthM,
-    yawSign,
+    centreline: toGrid(x, y, run.pct, gridSize),
+    closureErrorM: run.closureErrorM,
+    pathLengthM: path,
+    yawSign: 1,
     orientationAgreement,
   };
 }

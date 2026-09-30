@@ -903,6 +903,29 @@ on one machine.
   carries no ids.
   **Half done:** `report_session` runs on connect when signed in. The Data API
   backfill waits on the iRacing OAuth client.
+  **Blocked (confirmed 2026-10-01):** iRacing's docs say creation of OAuth
+  client ids is paused "while we evaluate existing 3rd party usage of
+  iRacing's APIs and SDK", to be announced on the forums and in release notes
+  when it resumes. Until then Content's filter menus are built from the packs
+  that exist (`listFacets`), which is arguably better anyway: every option
+  finds something.
+  **When it resumes, a weekly sync:** a Supabase Edge Function on a `pg_cron`
+  schedule, Tuesdays after iRacing's weekly rollover, holding the client
+  credentials as server secrets. It calls `track/get`, `car/get` and
+  `carclass/get` and upserts, never deletes, so a failed or partial run cannot
+  empty the catalog. Field names from the unofficial OpenAPI spec at
+  json.racing/irdata-openapi (generated from real responses, with an API
+  change tracker):
+  - tracks: `track_id`, `track_name`, `config_name` (slugged to `config_id`
+    exactly like the SDK's `TrackConfigName`), `track_config_length` (unit
+    unconfirmed), `retired`, `category`, `is_oval`, `is_dirt`, and
+    `package_id`, which groups a physical track's layouts, so the Track filter
+    can nest layouts under their track;
+  - cars: `car_id`, `car_name`, `car_name_abbreviated`, `car_dirpath`
+    (slugged to match the SDK's `CarPath`, e.g. `mx5-mx52016`), `retired`;
+  - classes: `car_class_id`, `name`, `short_name`, `cars_in_class` (contents
+    unconfirmed). This settles §13's class-granularity question in data.
+  The first real run confirms the unconfirmed fields.
 - [x] Publish a map the first time anyone cuts one
   `AutoMapper` already cuts a map from the first clean lap. Signed in, it also
   uploads it if the layout has none. The first map wins and is not replaced by
@@ -1128,8 +1151,31 @@ everyone else's packs. Your own and the ones you installed stay in Track Coach
   Opens the app on the pack's detail in Content. The web fallback is a static
   page built from the same row, for someone who does not have the app yet.
 
-**Step 6 — Setups in a pack**
+**Step 6 — Files in a pack: setups and lap files**
 
+A pack is callouts plus attached files. Setups (`.sto`) and iRacing's lap files
+(`.blap` best lap, `.olap` optimal lap) are kinds of attachment, sharing one
+table, one bucket and one set of rules.
+
+- [ ] One table for attachments: `content_setups` becomes `content_files` with a `kind` (setup, blap, olap)
+  A migration renames it and adds the column; rows, rules and the bucket stay
+  as they are. Files belong to a version, stored once by content hash across
+  versions, readable when the version is.
+- [ ] Lap files: opt-in, with a backup, never on install
+  The sim compares you against one best-lap and one optimal-lap file per car
+  and track on its delta bar, believed to be under
+  `Documents/iRacing/lapfiles/` and named by car and track (**verify on the
+  rig**). Unlike a setup, which sits in its own subfolder beside yours, a lap
+  file only works under the one name the sim reads, so installing it means
+  replacing yours. So: "Use as my delta reference" backs up the current file,
+  puts the pack's in its place, and offers "Restore my own". Also to find out
+  on the rig: whether the sim writes its own file over a planted one on your
+  next faster lap, which would make the swap temporary by itself.
+  A lap file is the uploader's own driving, not something bought, so the
+  attestation is lighter: "this is my lap".
+  Later, if the format decodes (§13's `.blap` question), a shared lap file
+  can be the reference lap for the editor's speaking windows and the trace
+  overlay's ghost too.
 - [ ] `pack_setups`: files in a Storage bucket, with car and optional track
   iRacing setups are `.sto` files under `Documents/iRacing/setups/<car>/`. A
   pack can carry several (race, qualifying, wet), each labelled. Install copies
@@ -1752,7 +1798,49 @@ user sees first.
   id, and a note set names a car *class*. With one car and one track that gap is
   invisible; it will not stay that way.
 - [ ] **Reference lap source.** Live SDK recording for v1 — now automatic, the first clean lap and then the session's fastest (M1); `.ibt` and `.blap`/`.olap` import deferred.
-- [ ] Cheap first step on `.blap`: hex-dump a lap whose time you know, look for that time as a float, check whether file size scales with track length in a way that implies per-sample records. An hour of work tells you whether it's tractable at all.
+  **Garage 61 lap exports work (2026-10-01).** Their CSV has `Lat`/`Lon`, so
+  `buildCentrelineFromPositions` draws the map from positions, §4.1.1's
+  primary path (no drift, cannot mirror), and the rest makes a full reference
+  lap. `exxeed-trackmap <lap.csv>` reads them (`parseGarage61Csv`, 60 Hz rows,
+  no time column). Snetterton 300 built from one: closure 0.93 m, orientation
+  94.9 %, 10 corners detected against 12 official, so it wants a
+  `corners.override.json` like Daytona. **In the app too:** Track Coach →
+  Import lap… (`apps/desktop/src/lap-import.ts`) pre-fills track, layout and
+  car from the file name, never re-cuts an existing map, and only replaces a
+  reference lap with a faster one.
+  **Garage 61 API** (from their developer pages): personal access tokens for
+  your own data, OAuth2 apps for other users', "no API stability yet", rate
+  limited, and "don't use the internal endpoints used by the web application".
+  Documented: `/api/v1/me`, `/teams`, `/car-groups`, `/laps`, `/laps/{id}`,
+  `/laps/{id}/ghost.bin`. `/api/v1/tracks` and `/cars` exist but are not in the
+  documented list. A possible catalog source while iRacing's OAuth is paused,
+  **if** those endpoints carry iRacing ids and their terms allow reuse; parked
+  for now.
+- [x] Cheap first step on `.blap`: hex-dump a lap whose time you know, look for that time as a float, check whether file size scales with track length in a way that implies per-sample records. An hour of work tells you whether it's tractable at all.
+  **Done 2026-10-01, on a Tsukuba 2000 Full MX-5 lap (Sebastian Crex, 62.667 s).
+  Header: tractable. Map: no.** Little-endian throughout.
+  - `0x00` magic `BLAP`, `0x04` format version (3), `0x0c` the driver's customer
+    id (int32), `0x10` driver name (NUL-padded). `0x8c` car id (int32, 67 for the
+    MX-5), `0x90` car path `mx5\mx52016`. Paint colours as text after it. The
+    driver block repeats around `0x280`.
+  - `0x4fe` car path again, `0x53e` track path (`tsukuba\2kfull`), then three
+    build-date strings (`2026.09.10.02` …).
+  - `0x5b4` lap time (float32, 62.667), then the sector count (4) and a table
+    of sectors: start and end distance in metres (float32, 520.87 m apart, so
+    the lap is ~2,083.5 m) and the sector time (15.835 / 17.304 / 16.379 /
+    13.102 s, summing to the lap time).
+  - From `~0x640`: 28-byte records, each ending in `ff 00 ff 04`, 406 of them:
+    float32 time since the sector began, an unknown float (±3.4), **heading
+    (±π)**, two small floats (±0.04, likely pitch and roll), and zero.
+  - **Why no map:** there is no position and no distance per sample, and the
+    samples are neither evenly spaced in distance (108 / 71 / 117 / 110 per
+    equal-length sector) nor in time (steps of 0.045 s up to a 13.6 s gap).
+    A heading with no distance cannot be integrated into a track shape. Enough
+    to identify a file (driver, car, track, lap and sector times) and to show
+    it on a pack page, not enough to cut a map or feed the ghost trace.
+  - An `.ibt` (iRacing's full telemetry file) is the better import candidate:
+    it carries the channels the map builder already uses (`LapDist`,
+    velocities, `YawNorth`).
 - [x] ~~**Voice provider.**~~ **Settled: Piper**, `en_US-lessac-medium`.
   See M2. Cost did not decide it — the whole v1 corpus is ~126k characters, which
   fits inside most providers' free tiers — so quality is the only thing that would

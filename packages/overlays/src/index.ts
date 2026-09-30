@@ -444,6 +444,10 @@ export interface ContentRow {
   readonly title: string;
   readonly summary: string;
   readonly authorName: string;
+  /** Only ever not "public" on your own packs, which you see whatever their visibility. */
+  readonly visibility: "private" | "unlisted" | "public";
+  /** Yours — editable, whether or not it is on this machine. */
+  readonly isOwner: boolean;
   readonly trackLabel: string;
   readonly carClass: string | null;
   readonly stars: number;
@@ -458,7 +462,6 @@ export interface ContentRow {
 export interface ContentPage extends ContentRow {
   readonly readme: string;
   readonly trackKey: ContentTrackKey | null;
-  readonly isOwner: boolean;
   readonly shareLink: string;
   readonly screenshots: readonly string[];
   readonly versions: readonly LibraryVersion[];
@@ -495,6 +498,32 @@ export interface ContentHint {
   readonly label: string;
   readonly count: number;
 }
+
+/** Renderer → main, invoke: import a lap file (a Garage 61 CSV) as a map and reference lap. */
+export const LAP_IMPORT_CHANNEL = "exxeed:lap-import";
+
+/** A lap read from a file, waiting for the driver to confirm track and car. */
+export interface LapImportDraft {
+  /** Names the parsed lap held in main until `import` or a new `pick`. */
+  readonly token: string;
+  readonly fileName: string;
+  /** From the file name, when it follows Garage 61's pattern. */
+  readonly driver: string | null;
+  readonly carName: string | null;
+  readonly trackName: string | null;
+  readonly layoutName: string | null;
+  readonly lapTimeS: number;
+  readonly samples: number;
+  /** Every layout the app knows, the best name match first. */
+  readonly layouts: readonly { readonly trackKey: ContentTrackKey; readonly label: string; readonly hasMap: boolean }[];
+  readonly suggestedLayout: ContentTrackKey | null;
+  readonly cars: readonly { readonly carId: string; readonly name: string }[];
+  readonly suggestedCarId: string | null;
+}
+
+export type LapImportRequest =
+  | { readonly op: "pick" }
+  | { readonly op: "import"; readonly token: string; readonly trackKey: ContentTrackKey; readonly carId: string };
 
 /** Renderer → main, invoke: install, update, uninstall packs (M8). */
 export const LIBRARY_CHANNEL = "exxeed:library";
@@ -539,6 +568,8 @@ export interface SessionStatus {
   readonly libraryBusy: string | null;
   /** Set while a session runs with no callouts for its combo (M8 step 5). */
   readonly contentHint: ContentHint | null;
+  /** Replaying a lap by choice instead of connecting to the sim. */
+  readonly testMode: boolean;
   /**
    * The pack pinned by hand, or null to follow whatever track the sim loads.
    *
@@ -552,6 +583,8 @@ export interface SessionStatus {
 export type SessionCommand =
   | { readonly kind: "start" }
   | { readonly kind: "stop" }
+  /** Replay a lap through the app — overlays and callouts — instead of the sim. */
+  | { readonly kind: "testMode"; readonly value: boolean }
   | { readonly kind: "autoStart"; readonly value: boolean }
   | { readonly kind: "runAtLogin"; readonly value: boolean }
   | { readonly kind: "startMinimized"; readonly value: boolean }
@@ -636,10 +669,11 @@ export interface Settings {
    */
   readonly startMinimized: boolean;
   /**
-   * Hide the overlays while a live iRacing session is running but the sim is
-   * not the window in front — alt-tab to a browser and they go with the sim
-   * instead of floating always-on-top over it. Windows only; elsewhere there is
-   * no sim window to be in front, and this does nothing.
+   * Hide the overlays and mute the callouts while a live iRacing session is
+   * running but the sim is not the window in front — alt-tab to a browser and
+   * they go with the sim instead of floating always-on-top over it and talking.
+   * Windows only; elsewhere there is no sim window to be in front, and this
+   * does nothing. Test mode is never affected.
    */
   readonly hideOverlaysWhenSimUnfocused: boolean;
   /**

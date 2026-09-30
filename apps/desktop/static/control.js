@@ -10,6 +10,7 @@ const PHASES = {
 };
 
 let phase = "stopped";
+let testMode = false;
 
 // -- Sections -----------------------------------------------------------
 
@@ -242,7 +243,7 @@ function trackRow(pack) {
           window.exxeed?.sendSessionCommand({ kind: "newNoteSet", ...track });
         }),
         button("Find in Content", "See packs other drivers have published for this track", () => {
-          openContent({ sim: "iracing", ...track }, null);
+          openContent({ sim: "iracing", ...track }, null, pack.trackName);
         }),
       ),
     ),
@@ -260,8 +261,8 @@ const group = (title, rows, emptyText) =>
 let lastStatus = null;
 
 /** Switch to Content with its filters set (content.js listens). */
-const openContent = (trackKey, carClass) =>
-  document.dispatchEvent(new CustomEvent("open-content", { detail: { trackKey, carClass } }));
+const openContent = (trackKey, carClass, label = null) =>
+  document.dispatchEvent(new CustomEvent("open-content", { detail: { trackKey, carClass, label } }));
 
 /** The banner for a session on a combo with no callouts (M8 step 5). */
 function renderContentHint(s) {
@@ -274,7 +275,7 @@ function renderContentHint(s) {
       : `No callouts for ${hint.label}, and nobody has published any yet.`;
   el("content-hint-go").hidden = hint.count === 0;
   el("content-hint-write").hidden = hint.count > 0;
-  el("content-hint-go").onclick = () => openContent(hint.trackKey, hint.carClass);
+  el("content-hint-go").onclick = () => openContent(hint.trackKey, hint.carClass, hint.label);
   el("content-hint-write").onclick = () => {
     window.exxeed?.sendSessionCommand({ kind: "newNoteSet", trackId: hint.trackKey.trackId, configId: hint.trackKey.configId });
   };
@@ -323,12 +324,20 @@ const render = (s) => {
   power.textContent = s.phase === "stopped" ? "Start" : "Stop";
   power.classList.toggle("on", s.phase !== "stopped");
 
+  testMode = s.testMode === true;
+  el("test-mode").classList.toggle("on", testMode);
+  el("test-mode").textContent = testMode ? "Test mode: on" : "Test mode";
+
   el("pinned").textContent =
     s.pinnedNoteSetId == null ? "" : `pinned: ${s.pinnedNoteSetId}`;
 
   renderPacks(s);
   renderContentHint(s);
 };
+
+el("test-mode").addEventListener("click", () => {
+  window.exxeed?.sendSessionCommand({ kind: "testMode", value: !testMode });
+});
 
 el("power").addEventListener("click", () => {
   window.exxeed?.sendSessionCommand({ kind: phase === "stopped" ? "start" : "stop" });
@@ -344,6 +353,86 @@ const installFromField = async () => {
 el("install-go").addEventListener("click", () => void installFromField());
 el("install-ref").addEventListener("keydown", (e) => e.key === "Enter" && void installFromField());
 el("check-updates").addEventListener("click", (e) => void act({ op: "checkUpdates" }, e.currentTarget));
+
+// -- Import a lap (Garage 61 CSV) ---------------------------------------------
+
+let lapDraft = null;
+const keyValue = (k) => `${k.sim}:${k.trackId}:${k.configId}`;
+const lapStatus = (text, bad = false) => {
+  el("lap-import-status").textContent = text;
+  el("lap-import-status").className = `form-status${bad ? " bad" : ""}`;
+};
+const fmtLapTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, "0")}`;
+
+function explainLapTarget() {
+  if (lapDraft === null) return;
+  const chosen = lapDraft.layouts.find((l) => keyValue(l.trackKey) === el("lap-import-layout").value);
+  el("lap-import-note").textContent =
+    chosen === undefined
+      ? "Pick the track and layout this lap was driven on."
+      : chosen.hasMap
+        ? "This track is already mapped. The map stays as it is, so callouts keep their corners; the lap becomes the reference lap if it is faster than yours."
+        : "No map here yet: this lap becomes the map (drawn from its recorded positions) and the reference lap.";
+}
+
+el("import-lap").addEventListener("click", async () => {
+  let draft;
+  try {
+    const response = await window.exxeed.lapImport({ op: "pick" });
+    if (!response.ok) throw new Error(response.error);
+    draft = response.value;
+  } catch (err) {
+    setLibraryStatus(err.message, true);
+    return;
+  }
+  if (draft === null) return; // cancelled
+  lapDraft = draft;
+
+  const who = draft.driver ? ` by ${draft.driver}` : "";
+  const where = draft.trackName ? ` at ${draft.trackName}${draft.layoutName ? ` (${draft.layoutName})` : ""}` : "";
+  el("lap-import-lead").textContent = `${fmtLapTime(draft.lapTimeS)}${who}${where} · ${draft.samples} samples.`;
+
+  const layout = el("lap-import-layout");
+  layout.replaceChildren(
+    make("option", { value: "", textContent: draft.suggestedLayout ? "—" : "Choose…" }),
+    ...draft.layouts.map((l) => make("option", { value: keyValue(l.trackKey), textContent: `${l.label}${l.hasMap ? " · mapped" : ""}` })),
+  );
+  layout.value = draft.suggestedLayout ? keyValue(draft.suggestedLayout) : "";
+
+  const car = el("lap-import-car");
+  car.replaceChildren(
+    make("option", { value: "", textContent: "Choose…" }),
+    ...draft.cars.map((c) => make("option", { value: c.carId, textContent: c.name })),
+  );
+  car.value = draft.suggestedCarId ?? "";
+
+  lapStatus(draft.suggestedLayout ? "" : "The file name did not match a known layout; pick it from the list.");
+  explainLapTarget();
+  el("lap-import").showModal();
+});
+
+el("lap-import-layout").addEventListener("change", explainLapTarget);
+el("lap-import-cancel").addEventListener("click", () => el("lap-import").close());
+el("lap-import-go").addEventListener("click", async () => {
+  const chosen = lapDraft?.layouts.find((l) => keyValue(l.trackKey) === el("lap-import-layout").value);
+  const carId = el("lap-import-car").value;
+  if (!chosen || carId === "") {
+    lapStatus("Choose the track and the car first.", true);
+    return;
+  }
+  el("lap-import-go").disabled = true;
+  lapStatus("Building the map…");
+  try {
+    const response = await window.exxeed.lapImport({ op: "import", token: lapDraft.token, trackKey: chosen.trackKey, carId });
+    if (!response.ok) throw new Error(response.error);
+    el("lap-import").close();
+    setLibraryStatus(response.value);
+  } catch (err) {
+    lapStatus(err.message, true);
+  } finally {
+    el("lap-import-go").disabled = false;
+  }
+});
 
 el("import-yt").addEventListener("click", () => {
   window.exxeed?.sendSessionCommand({ kind: "openImporter" });

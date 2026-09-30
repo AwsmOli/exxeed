@@ -28,6 +28,9 @@
     <title>Exxeed</title>
     <style>
       :root { color-scheme: dark; }
+      /* The browser's own [hidden] rule loses to any class that sets display, so
+         a hidden banner or lightbox would show anyway. This makes hidden mean hidden. */
+      [hidden] { display: none !important; }
       html, body { height: 100%; }
       body {
         margin: 0;
@@ -72,7 +75,9 @@
       /* Everything else. */
       .shell {
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        /* top bar, session banner (usually hidden), content, status line */
+        grid-template-rows: auto auto 1fr auto;
+        height: 100vh;
         min-width: 0;
         min-height: 0;
       }
@@ -96,6 +101,8 @@
       }
       button.power:hover { filter: brightness(1.08); }
       button.power.on { background: #f85149; color: #1a0505; }
+      button.test { padding: 7px 12px; font-size: 12px; }
+      button.test.on { color: #d29922; border-color: rgba(210,153,34,0.6); background: rgba(210,153,34,0.08); }
       nav.top .spacer { flex: 1; }
       nav.top .pinned { color: #6e7681; font-size: 11.5px; }
 
@@ -157,6 +164,20 @@
       }
       button.solid:disabled { opacity: 0.5; cursor: default; }
       .form-status { min-height: 16px; font-size: 11.5px; color: #8b949e; }
+      dialog#lap-import { width: 420px; }
+      .field-label { display: block; font-size: 11.5px; color: #8b949e; margin: 10px 0 4px; }
+      .modal-select {
+        width: 100%; box-sizing: border-box; background: #0d1117; color: #e6edf3;
+        border: 1px solid #30363d; border-radius: 6px; padding: 7px 8px; font: 12.5px/1.2 inherit;
+      }
+
+      /* Each part pinned to its row. A hidden banner leaves the grid entirely,
+         and without this everything after it moves up one: the status line
+         lands in the 1fr row and grows to fill the window. */
+      .shell > nav.top { grid-row: 1; }
+      .shell > .banner { grid-row: 2; }
+      .shell > main { grid-row: 3; }
+      .shell > footer { grid-row: 4; }
 
       /* Session banner (M8): a combo with no callouts. */
       .banner {
@@ -169,24 +190,34 @@
       /* Content (M8): VS Code's Extensions view — search on the left, the page on the right. */
       #view-content.active { display: block; height: 100%; }
       main:has(#view-content.active) { padding: 0; overflow: hidden; }
-      .c-wrap { display: grid; grid-template-columns: 300px 1fr; height: 100%; min-height: 0; }
+      .c-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); height: 100%; min-height: 0; }
       .c-side {
         border-right: 1px solid #21262d; display: flex; flex-direction: column; min-height: 0;
         padding: 10px; gap: 8px;
+        /* Drag the right edge to make it wider, as in VS Code's sidebar. */
+        width: 320px; min-width: 260px; max-width: 60vw; resize: horizontal; overflow: hidden;
+        box-sizing: border-box;
       }
       .c-side input[type="search"], .c-side select {
         width: 100%; box-sizing: border-box; background: #0d1117; color: #e6edf3;
         border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; font: 12px/1.2 inherit;
       }
       .c-filters { display: flex; flex-direction: column; gap: 6px; }
-      .c-row { display: flex; gap: 10px; align-items: center; font-size: 11.5px; color: #8b949e; }
+      .c-row { display: flex; gap: 10px; align-items: center; font-size: 11.5px; color: #8b949e; flex-wrap: wrap; }
       .c-row label { display: flex; gap: 4px; align-items: center; white-space: nowrap; cursor: pointer; }
-      .c-row select { flex: 1; width: auto; }
+      /* Shrinks into what the checkboxes leave, and wraps below them when that is too little. */
+      .c-row select { flex: 1 1 110px; width: auto; min-width: 0; }
       #c-results { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
       #c-results li {
-        display: grid; grid-template-columns: 40px 1fr; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
+        /* minmax(0, 1fr), not 1fr: a plain 1fr column will not shrink below its
+           longest unwrapped line, so a long title pushed the row off the edge. */
+        display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer;
       }
+      #c-results li > div { min-width: 0; }
       #c-results li:hover { background: #161b22; }
+      /* The empty-list message is not a result: no icon column, centred. */
+      #c-results li.c-empty { display: block; text-align: center; cursor: default; margin-top: 24px; }
+      #c-results li.c-empty:hover { background: none; }
       #c-results li.selected { background: #1f2937; }
       .c-icon {
         width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: #21262d;
@@ -196,9 +227,12 @@
       .c-title { color: #e6edf3; font-weight: 600; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .c-meta { color: #6e7681; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .c-summary { color: #8b949e; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-      .c-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+      .c-line { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-width: 0; }
+      .c-line > .c-meta { min-width: 0; }
+      .c-line > button, .c-line > .chip { flex: none; }
       .c-line button { padding: 3px 8px; font-size: 11px; }
       .c-status { font-size: 11.5px; color: #8b949e; min-height: 14px; }
+      .chip.vis { margin-left: 6px; color: #8b949e; border-color: #30363d; font-weight: 400; vertical-align: middle; }
       .c-status.bad { color: #f85149; }
 
       .c-page { overflow-y: auto; min-height: 0; padding: 18px 22px; }
@@ -384,6 +418,7 @@
     <div class="shell">
       <nav class="top">
         <button class="power" id="power">Start</button>
+        <button class="ghost test" id="test-mode" type="button" title="Replay a lap through the overlays and callouts, without the sim">Test mode</button>
         <span class="spacer"></span>
         <span class="pinned" id="pinned"></span>
         <div class="account">
@@ -415,7 +450,7 @@
           </div>
           <label class="ov-option">
             <input type="checkbox" id="ov-hide-unfocused" />
-            Hide overlays when iRacing isn't the window in front
+            Hide overlays and mute callouts when iRacing isn't the window in front
           </label>
         </section>
 
@@ -424,6 +459,7 @@
             <span>Track Coach</span>
             <label class="auto"><input type="radio" name="pick" id="pick-auto" /> follow the sim</label>
             <button class="ghost" id="import-yt" type="button" title="Find a track guide and turn it into callouts (Ctrl+I)">Import from YouTube</button>
+            <button class="ghost" id="import-lap" type="button" title="Make a map and reference lap from a Garage 61 lap export (.csv)">Import lap…</button>
           </div>
           <div class="install-row">
             <input type="text" id="install-ref" placeholder="Paste a pack link or id to install it" spellcheck="false" />
@@ -490,6 +526,21 @@
       </div>
       <div class="form-status" id="signin-status"></div>
       <div class="actions"><button class="ghost" id="signin-cancel" type="button">Close</button></div>
+    </dialog>
+
+    <dialog class="modal" id="lap-import">
+      <h2>Import a lap</h2>
+      <p class="lead" id="lap-import-lead"></p>
+      <label class="field-label" for="lap-import-layout">Track and layout</label>
+      <select id="lap-import-layout" class="modal-select"></select>
+      <label class="field-label" for="lap-import-car">Car</label>
+      <select id="lap-import-car" class="modal-select"></select>
+      <p class="lead" id="lap-import-note"></p>
+      <div class="form-status" id="lap-import-status"></div>
+      <div class="actions">
+        <button class="ghost" id="lap-import-cancel" type="button">Cancel</button>
+        <button class="solid" id="lap-import-go" type="button">Import</button>
+      </div>
     </dialog>
 
     <dialog class="modal" id="profile">

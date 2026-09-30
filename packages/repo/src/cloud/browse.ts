@@ -27,6 +27,12 @@ export interface BrowseQuery {
   readonly carClass?: string | null;
   /** Only these items — the starred or installed filter, resolved by the caller. */
   readonly itemIds?: readonly string[] | null;
+  /**
+   * The signed-in driver: their own packs are listed whatever their
+   * visibility, so an unlisted or private pack can still be found by its
+   * author. Everyone else's must be public.
+   */
+  readonly ownerId?: string | null;
   readonly sort: BrowseSort;
   readonly limit: number;
   readonly offset: number;
@@ -38,6 +44,7 @@ export interface BrowseRow {
   readonly summary: string;
   readonly authorId: string;
   readonly authorName: string;
+  readonly visibility: "private" | "unlisted" | "public";
   readonly trackLabel: string;
   readonly trackKey: TrackKey | null;
   readonly carClass: string | null;
@@ -63,6 +70,7 @@ type Row = {
   title: string;
   summary: string;
   owner: string;
+  visibility: string;
   track_label: string;
   sim: string | null;
   track_id: number | null;
@@ -87,6 +95,7 @@ const toRow = (client: CloudClient, r: Row): BrowseRow => ({
   summary: r.summary,
   authorId: r.owner,
   authorName: r.author?.display_name ?? "unknown",
+  visibility: r.visibility as BrowseRow["visibility"],
   trackLabel: r.track_label,
   trackKey:
     r.sim === null || r.track_id === null || r.config_id === null
@@ -103,9 +112,9 @@ const toRow = (client: CloudClient, r: Row): BrowseRow => ({
 });
 
 const COLUMNS =
-  "id, title, summary, owner, track_label, sim, track_id, config_id, car_class, star_count, download_count, latest_version, latest_version_id, updated_at, created_at, icon_path, author:profiles!content_items_owner_fkey(display_name)";
+  "id, title, summary, owner, visibility, track_label, sim, track_id, config_id, car_class, star_count, download_count, latest_version, latest_version_id, updated_at, created_at, icon_path, author:profiles!content_items_owner_fkey(display_name)";
 
-/** Listed callout packs: public, published, not taken down. */
+/** Listed callout packs: public, published, not taken down — plus the caller's own, whatever their visibility. */
 export async function browse(client: CloudClient, query: BrowseQuery): Promise<BrowseRow[]> {
   if (query.itemIds !== undefined && query.itemIds !== null && query.itemIds.length === 0) return [];
 
@@ -113,9 +122,14 @@ export async function browse(client: CloudClient, query: BrowseQuery): Promise<B
     .from("content_items")
     .select(COLUMNS)
     .eq("kind", "callouts")
-    .eq("visibility", "public")
     .eq("removed", false)
     .not("latest_version", "is", null);
+  // The owner id is a uuid from the session, never typed text, so it is safe
+  // to put in the filter string.
+  request =
+    query.ownerId != null && /^[0-9a-f-]{36}$/i.test(query.ownerId)
+      ? request.or(`visibility.eq.public,owner.eq.${query.ownerId}`)
+      : request.eq("visibility", "public");
 
   if (query.text !== undefined && query.text.trim() !== "") {
     request = request.textSearch("search", query.text.trim(), { type: "websearch", config: "simple" });
@@ -189,25 +203,92 @@ export async function setStar(client: CloudClient, itemId: string, on: boolean):
 }
 
 // ---------------------------------------------------------------------------
-// Catalog, for the filter menus
+// Filter menus
+// ---------------------------------------------------------------------------
+
+export interface Facets {
+  readonly layouts: readonly LayoutOption[];
+  readonly carClasses: readonly { id: string; name: string }[];
+}
+
+/**
+ * The tracks and car classes that have listed packs — so every option in the
+ * menus finds something. Built from the packs rather than the whole catalog: a
+ * filter for a track nobody has written callouts for can only say "nothing
+ * matches". (The full iRacing catalog also needs the Data API, whose OAuth
+ * client ids iRacing has paused — see TODO M8.)
+ */
+export async function listFacets(client: CloudClient, ownerId: string | null): Promise<Facets> {
+  let request = client
+    .from("content_items")
+    .select("sim, track_id, config_id, track_label, car_class")
+    .eq("kind", "callouts")
+    .eq("removed", false)
+    .not("latest_version", "is", null);
+  request =
+    ownerId !== null && /^[0-9a-f-]{36}$/i.test(ownerId)
+      ? request.or(`visibility.eq.public,owner.eq.${ownerId}`)
+      : request.eq("visibility", "public");
+  const [{ data, error }, classes] = await Promise.all([request.abortSignal(timeout()), listCarClasses(client)]);
+  if (error !== null) fail("facets", error.message);
+
+  const layouts = new Map<string, LayoutOption>();
+  const classIds = new Set<string>();
+  for (const r of data ?? []) {
+    if (r.sim !== null && r.track_id !== null && r.config_id !== null) {
+      const key = `${r.sim}:${r.track_id}:${r.config_id}`;
+      if (!layouts.has(key)) {
+        layouts.set(key, {
+          trackKey: { sim: r.sim as TrackKey["sim"], trackId: r.track_id, configId: r.config_id },
+          label: r.track_label || `Track ${r.track_id}`,
+        });
+      }
+    }
+    if (r.car_class !== null) classIds.add(r.car_class);
+  }
+  const named = new Map(classes.map((c) => [c.id, c.name]));
+  return {
+    layouts: [...layouts.values()].sort((a, b) => a.label.localeCompare(b.label)),
+    carClasses: [...classIds]
+      .map((id) => ({ id, name: named.get(id) ?? id.toUpperCase() }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
 // ---------------------------------------------------------------------------
 
 export interface LayoutOption {
   readonly trackKey: TrackKey;
   readonly label: string;
+  readonly trackName?: string;
+  readonly configName?: string;
+  /** Metres, as the catalog has it; null when nobody reported one. */
+  readonly lengthM?: number | null;
 }
 
 export async function listLayouts(client: CloudClient): Promise<LayoutOption[]> {
   const { data, error } = await client
     .from("track_layouts")
-    .select("sim, track_id, config_id, track_name, config_name")
+    .select("sim, track_id, config_id, track_name, config_name, length_m")
     .order("track_name")
     .abortSignal(timeout());
   if (error !== null) fail("layouts", error.message);
   return (data ?? []).map((r) => ({
     trackKey: { sim: r.sim as TrackKey["sim"], trackId: r.track_id, configId: r.config_id },
     label: r.config_name === "" ? r.track_name : `${r.track_name} — ${r.config_name}`,
+    trackName: r.track_name,
+    configName: r.config_name,
+    lengthM: r.length_m,
   }));
+}
+
+/** Every car the catalog knows, for matching an imported lap's car by name. */
+export async function listCatalogCars(client: CloudClient): Promise<{ carId: string; name: string; classId: string | null }[]> {
+  const { data, error } = await client.from("cars").select("car_id, name, class_id").order("name").abortSignal(timeout());
+  if (error !== null) fail("cars", error.message);
+  return (data ?? []).map((r) => ({ carId: r.car_id, name: r.name, classId: r.class_id }));
 }
 
 export async function listCarClasses(client: CloudClient): Promise<{ id: string; name: string }[]> {

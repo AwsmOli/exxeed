@@ -12,6 +12,8 @@
     <title>Exxeed — Notes</title>
     <style>
       :root { color-scheme: dark; }
+      /* The browser's own [hidden] rule loses to any class that sets display. */
+      [hidden] { display: none !important; }
       body {
         margin: 0; height: 100vh; display: flex; flex-direction: column;
         background: #101215; color: #e6e9ee; overflow: hidden;

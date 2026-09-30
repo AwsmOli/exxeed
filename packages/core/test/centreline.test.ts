@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCentreline, CentrelineError, metres, pct, type CentrelineSample } from "@exxeed/core";
+import {
+  buildCentreline,
+  buildCentrelineFromPositions,
+  CentrelineError,
+  hasPositions,
+  metres,
+  pct,
+  type CentrelineSample,
+} from "@exxeed/core";
 
 const LENGTH = metres(2000);
 
@@ -114,5 +122,43 @@ describe("buildCentreline", () => {
     // one grid cell of travel, not accumulated drift.
     const gap = Math.hypot(x[x.length - 1]! - x[0]!, y[y.length - 1]! - y[0]!);
     expect(gap).toBeLessThan(LENGTH / 100);
+  });
+});
+
+describe("buildCentrelineFromPositions", () => {
+  // A 500 m-radius circle driven clockwise (every corner a right), as Lat/Lon
+  // around a point in Norfolk. Right is negative steering here, as on iRacing.
+  const R = 500;
+  const lat0 = 52.46;
+  const lon0 = 0.945;
+  const mPerDegLat = 111_195;
+  const mPerDegLon = mPerDegLat * Math.cos((lat0 * Math.PI) / 180);
+  const circle = (steer: number) =>
+    Array.from({ length: 1200 }, (_, i) => {
+      const a = (-2 * Math.PI * i) / 1200; // clockwise
+      return {
+        lapDistPct: pct(i / 1200),
+        lat: lat0 + (R * Math.sin(a)) / mPerDegLat,
+        lon: lon0 + (R * Math.cos(a)) / mPerDegLon,
+        steerRad: steer,
+      };
+    });
+
+  it("draws the lap from positions: right length, closed, and agreeing with the steering", () => {
+    const result = buildCentrelineFromPositions(circle(-0.3), 400, { steerSignRight: -1 });
+    expect(result.pathLengthM).toBeCloseTo(2 * Math.PI * R, -1);
+    expect(result.closureErrorM).toBeLessThan(5);
+    expect(result.orientationAgreement).toBe(1);
+    expect(result.centreline.x).toHaveLength(400);
+  });
+
+  it("refuses when the steering says left all the way round a right-hand loop", () => {
+    // Positions cannot be mirrored, so this means the steering data is wrong.
+    expect(() => buildCentrelineFromPositions(circle(0.3), 400, { steerSignRight: -1 })).toThrow(CentrelineError);
+  });
+
+  it("knows a live recording's zeros are not positions", () => {
+    expect(hasPositions(circle(-0.3))).toBe(true);
+    expect(hasPositions(circle(-0.3).map((s) => ({ ...s, lat: 0, lon: 0 })))).toBe(false);
   });
 });

@@ -14,7 +14,7 @@
 
 import { BrowserWindow, dialog, ipcMain, nativeImage, type WebContents } from "electron";
 
-import { describeDiff, diffNoteSets, type NoteSet, type TrackKey } from "@exxeed/core";
+import { describeDiff, diffNoteSets, isEmptyDiff, type NoteSet, type TrackKey } from "@exxeed/core";
 import {
   PUBLISH_CHANNEL,
   type PublishFields,
@@ -249,6 +249,16 @@ async function publish(deps: PublishDeps, fields: PublishFields, changelog: stri
   }
 
   const previous = link?.versionId == null ? null : await getVersionPayload(client, link.versionId);
+  const diff = previous === null ? null : diffNoteSets(previous, noteSet);
+
+  // Nothing about the callouts changed: the page fields (title, description,
+  // visibility) were saved above, and a new version would be a copy of the
+  // last with nothing for installers to update to.
+  if (diff !== null && isEmptyDiff(diff)) {
+    checkUpdatesNow();
+    return state(deps);
+  }
+
   const mapVersion = await repos.trackMaps.latestVersion(noteSet.trackKey);
   const voices = await repos.audio.listVoices(noteSet.id);
 
@@ -256,7 +266,7 @@ async function publish(deps: PublishDeps, fields: PublishFields, changelog: stri
     itemId,
     noteSet: asPublished(noteSet),
     changelog: changelog.trim(),
-    diff: previous === null ? null : diffNoteSets(previous, noteSet),
+    diff,
     mapVersion,
     voiceId: voices[0] ?? null,
   });
