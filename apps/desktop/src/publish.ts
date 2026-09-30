@@ -37,6 +37,7 @@ import {
 
 import { accountView, cloudClient } from "./account.js";
 import { shareTrack } from "./cloud-sync.js";
+import { checkUpdatesNow } from "./library.js";
 
 interface PublishDeps {
   readonly getSettings: () => Settings;
@@ -190,6 +191,8 @@ async function publish(deps: PublishDeps, fields: PublishFields, changelog: stri
   await index.put(noteSet.id, { itemId, origin: "mine", version: published.version, versionId: published.id, policy: "auto" });
   // The working copy is now the same as the release; keep the draft row in step.
   await saveDraft(client, itemId, noteSet).catch(() => {});
+  // Track Coach shows the new version and counts from the library's cache.
+  checkUpdatesNow();
 
   return state(deps);
 }

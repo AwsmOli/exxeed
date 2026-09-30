@@ -271,6 +271,9 @@ export const AudioPackSchema = z.object({
       path: z.string(),
       durationMs: z.number().positive(),
       bytes: z.number().int().nonnegative(),
+      /** The words this clip says. Lets a re-render keep clips whose text did not
+       *  change (installing an update, M8). Absent on packs rendered before. */
+      text: z.string().optional(),
     }),
   ),
   totalBytes: z.number().int().nonnegative(),

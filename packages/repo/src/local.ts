@@ -8,7 +8,7 @@
  * that isn't a nice-to-have, it's someone in the middle of a race.
  */
 
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type {
@@ -43,6 +43,18 @@ import type {
   TrackMapRepository,
   TrackSummary,
 } from "./interfaces.js";
+
+/**
+ * An id that is about to become part of a path to delete. Note set ids are
+ * slugs, but one arriving from an installed pack is someone else's text, and
+ * `../` in it must never reach `rm`.
+ */
+const safeId = (id: string): string => {
+  if (!/^[A-Za-z0-9_.-]{1,200}$/.test(id) || id.startsWith(".")) {
+    throw new Error(`refusing an unsafe note set id: ${JSON.stringify(id)}`);
+  }
+  return id;
+};
 
 export const readJson = async (path: string): Promise<unknown | null> => {
   try {
@@ -251,6 +263,10 @@ export class LocalFileNoteSetRepository implements NoteSetRepository {
   async put(set: NoteSet): Promise<void> {
     await writeJson(join(this.#dir(), `${set.id}.json`), NoteSetSchema.parse(set));
   }
+
+  async remove(id: string): Promise<void> {
+    await rm(join(this.#dir(), `${safeId(id)}.json`), { force: true });
+  }
 }
 
 export class LocalFileAudioRepository implements AudioRepository {
@@ -296,6 +312,10 @@ export class LocalFileAudioRepository implements AudioRepository {
 
   async putPack(pack: AudioPack): Promise<void> {
     await writeJson(this.#packPath(pack.noteSetId, pack.voiceId), AudioPackSchema.parse(pack));
+  }
+
+  async removeAll(noteSetId: string): Promise<void> {
+    await rm(join(this.root, "audio", safeId(noteSetId)), { recursive: true, force: true });
   }
 }
 

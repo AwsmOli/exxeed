@@ -13,11 +13,15 @@ import type { Note, NoteSet } from "@exxeed/core";
 import { diffNoteSets } from "@exxeed/core";
 import {
   createCalloutItem,
+  getDraft,
   getItem,
+  getItems,
   getVersionPayload,
+  listMyItems,
   listVersions,
   LocalContentIndex,
   publishVersion,
+  recordDownload,
   reportSession,
   saveDraft,
   updateItem,
@@ -155,10 +159,24 @@ describe.skipIf(!stackUp)("publishing a callout pack", () => {
 
   it("keeps the draft private to its author", async () => {
     await saveDraft(author, itemId, v1);
-    const { data } = await stranger.from("content_drafts").select("item_id").eq("item_id", itemId);
-    expect(data).toEqual([]);
-    const { data: mine } = await author.from("content_drafts").select("item_id").eq("item_id", itemId);
-    expect(mine).toHaveLength(1);
+    expect(await getDraft(stranger, itemId)).toBeNull();
+    expect((await getDraft(author, itemId))?.noteSet.id).toBe("publish-test");
+  });
+
+  it("lists an author's own items, and finds items by id for update checks", async () => {
+    const authorId = drivers[0]!;
+    expect((await listMyItems(author, authorId)).map((i) => i.id)).toContain(itemId);
+    // A stranger asking for the author's items sees only what is visible anyway.
+    const seen = await getItems(anonClient(), [itemId, "00000000-0000-4000-8000-000000000000"]);
+    expect(seen.map((i) => i.id)).toEqual([itemId]);
+  });
+
+  it("counts an install once per installation, signed out", async () => {
+    const item = await getItem(anonClient(), itemId);
+    const installation = "00000000-0000-4000-8000-00000000beef";
+    await recordDownload(anonClient(), item!.latestVersionId!, installation);
+    await recordDownload(anonClient(), item!.latestVersionId!, installation);
+    expect((await getItem(anonClient(), itemId))?.downloadCount).toBe(1);
   });
 
   it("does not let a stranger publish or withdraw", async () => {

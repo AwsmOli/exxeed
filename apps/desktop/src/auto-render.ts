@@ -47,7 +47,9 @@ export async function renderImported(
   dataDir: string,
   noteSetId: string,
   progress: RenderProgress,
-): Promise<{ ok: true; clips: number } | { ok: false; message: string }> {
+  /** Keep clips whose words are unchanged — for installing an update (M8). */
+  reuse = false,
+): Promise<{ ok: true; clips: number; reused: number } | { ok: false; message: string }> {
   try {
     const missing = await ensureRenderTools(settings, progress);
     if (missing !== null) return { ok: false, message: missing };
@@ -67,8 +69,9 @@ export async function renderImported(
       audio: repos.audio,
       noteSets: repos.noteSets,
       onClip: () => progress("render", ++done, total),
+      reuse,
     });
-    return { ok: true, clips: result.clips.length };
+    return { ok: true, clips: result.clips.length, reused: result.reused };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }

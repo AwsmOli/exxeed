@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from "electron";
 
-import { deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
+import { classOf, deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
 import {
   AUDIO_PLAY_CHANNEL,
   AUDIO_PRELOAD_CHANNEL,
@@ -59,7 +59,7 @@ import {
   type TelemetrySource,
 } from "@exxeed/telemetry";
 
-import { audioKey, localRepositories, type TrackSummary } from "@exxeed/repo";
+import { audioKey, LocalContentIndex, localRepositories, type TrackSummary } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, isOverlayWindow, OverlayLayout, sendTo } from "./overlay.js";
@@ -70,6 +70,7 @@ import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
 import { installAccount, onAccountChange } from "./account.js";
 import { shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
 import { installPublishIpc } from "./publish.js";
+import { checkUpdatesNow, installLibrary, knownItem, remoteMinePacks } from "./library.js";
 import { installImporterIpc, openImporter } from "./importer.js";
 import {
   installSettingsIpc,
@@ -230,10 +231,18 @@ async function noteSetForTrack(
   }
 
   const key = identity.trackKey;
-  const candidates = await localRepositories(dataDir).noteSets.listForTrack(key);
-  if (candidates.length === 0) {
+  const repos = localRepositories(dataDir);
+  const all = await repos.noteSets.listForTrack(key);
+  if (all.length === 0) {
     return { id: null, detail: `no note set for ${identity.trackName}` };
   }
+
+  // Your own, installed ones and imports alike, but for the car being driven
+  // first: an MX-5 set timed in a GT3 brakes everywhere too early. Any set for
+  // the track is still better than silence, and carWarnings says so.
+  const carClass = classOf(await repos.cars.get(key.sim).catch(() => null), identity.carId);
+  const forThisCar = carClass === null ? [] : all.filter((c) => c.carClass === carClass);
+  const candidates = forThisCar.length > 0 ? forThisCar : all;
 
   const remembered = settings().get().noteSetByTrack[trackKeyId(key)];
   const chosen =
@@ -418,7 +427,14 @@ let sessionStatus: SessionStatus = {
   recordingTo: null,
   packs: [],
   pinnedNoteSetId: null,
+  remoteMine: [],
+  libraryBusy: null,
 };
+
+/** A long library operation in progress (library.ts), shown in Track Coach. */
+let libraryBusy: string | null = null;
+/** Who was signed in at the last account change; undefined before the first. */
+let lastAccountUser: string | null | undefined;
 
 /**
  * Every pack on disk, refreshed rather than re-read on every status broadcast.
@@ -434,22 +450,39 @@ async function refreshPacks(): Promise<void> {
   try {
     const dataDir = resolveDataDir(settings().get());
     const repos = localRepositories(dataDir);
-    const [summaries, tracks] = await Promise.all([
+    const [summaries, tracks, links] = await Promise.all([
       repos.noteSets.listAll(),
       repos.trackMaps.listTracks(),
+      new LocalContentIndex(dataDir).all(),
     ]);
     listedTracks = tracks;
 
-    const written = summaries.map((p) => ({
-      id: p.id,
-      trackName: trackNameFor(tracks, p.trackKey.trackId, p.trackKey.configId),
-      carClass: p.carClass,
-      noteCount: p.noteCount,
-      status: p.status,
-      trackId: p.trackKey.trackId,
-      configId: p.trackKey.configId,
-      active: false,
-    }));
+    const written = summaries.map((p) => {
+      const link = links[p.id];
+      const item = link === undefined ? undefined : knownItem(link.itemId);
+      return {
+        id: p.id,
+        trackName: trackNameFor(tracks, p.trackKey.trackId, p.trackKey.configId),
+        carClass: p.carClass,
+        noteCount: p.noteCount,
+        status: p.status,
+        trackId: p.trackKey.trackId,
+        configId: p.trackKey.configId,
+        active: false,
+        content:
+          link === undefined
+            ? null
+            : {
+                itemId: link.itemId,
+                origin: link.origin,
+                version: link.version,
+                latestVersion: item?.latestVersion ?? null,
+                policy: link.policy,
+                stars: item?.starCount ?? null,
+                downloads: item?.downloadCount ?? null,
+              },
+      };
+    });
 
     // Tracks that have been mapped but have nothing to say yet. Listing them
     // beside the real packs is the point: "I have driven here and there are no
@@ -467,6 +500,7 @@ async function refreshPacks(): Promise<void> {
         trackId: t.key.trackId,
         configId: t.key.configId,
         active: false,
+        content: null,
       }));
 
     packs = [...written, ...empty];
@@ -498,6 +532,8 @@ function broadcastStatus(patch: Partial<SessionStatus>): void {
     startMinimized: current.startMinimized,
     pinnedNoteSetId: current.noteSetId,
     packs: packs.map((p) => ({ ...p, active: p.id === next.noteSetId })),
+    remoteMine: remoteMinePacks(),
+    libraryBusy,
   };
   currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
   controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
@@ -1218,6 +1254,8 @@ function syncOverlayVisibility(): void {
 function setSessionLive(live: boolean, gateOnSimFocus = false): void {
   if (sessionLive === live) return;
   sessionLive = live;
+  // Pack updates wait for the session to end (library.ts); this is that end.
+  if (!live) checkUpdatesNow();
 
   focusWatcher?.stop();
   focusWatcher = null;
@@ -1369,10 +1407,29 @@ void app.whenReady().then(() => {
     if (view.signedIn) {
       void shareOnSignIn(resolveDataDir(settings().get()), (line) => process.stdout.write(line));
     }
+    // Your own packs on the account depend on who is signed in — so check again
+    // when that changes, not on every refresh of the view.
+    if (view.userId !== lastAccountUser) {
+      lastAccountUser = view.userId;
+      checkUpdatesNow();
+    }
   });
   installAccount();
   installEditorIpc(() => settings().get(), resolveDataDir);
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
+  installLibrary({
+    getSettings: () => settings().get(),
+    resolveDataDir,
+    sessionRunning: () => sessionLive,
+    changed: () => void refreshPacks(),
+    busy: (text) => {
+      libraryBusy = text;
+      broadcastStatus({});
+    },
+    unselect: (noteSetId) => {
+      if (settings().get().noteSetId === noteSetId) settings().update({ noteSetId: null });
+    },
+  });
   installImporterIpc({
     getSettings: () => settings().get(),
     resolveDataDir,

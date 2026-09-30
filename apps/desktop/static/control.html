@@ -176,19 +176,40 @@
       button.ghost:disabled { opacity: 0.4; cursor: default; }
       button.ghost.primary { color: #7ee787; border-color: rgba(63,185,80,0.4); }
 
-      /* Packs */
-      ul#packs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-      ul#packs li {
-        display: flex; align-items: center; gap: 10px;
-        border: 1px solid #30363d; border-radius: 8px; padding: 9px 11px;
+      /* Packs (M8: Mine, Installed, tracks without callouts) */
+      .install-row { display: flex; gap: 6px; margin-bottom: 4px; }
+      .install-row input {
+        flex: 1; min-width: 0; background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
+        border-radius: 6px; padding: 6px 9px; font: 12px/1.2 inherit;
       }
-      ul#packs li.active { border-color: #3fb950; }
-      /* A track with a map and no notes: an invitation, not a thing that exists. */
-      ul#packs li.empty { border-style: dashed; }
+      .library-status { min-height: 16px; font-size: 11.5px; color: #8b949e; margin-bottom: 8px; overflow-wrap: anywhere; }
+      .library-status.bad { color: #f85149; }
+      .library-busy { font-size: 11.5px; color: #d29922; margin-bottom: 8px; }
+      .pack-group { margin-bottom: 14px; }
+      .pack-group h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6e7681; }
+      ul.packs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+      ul.packs li { border: 1px solid #30363d; border-radius: 8px; padding: 9px 11px; }
+      ul.packs li.active { border-color: #3fb950; }
+      /* A track with a map and no notes, or a pack not on this machine: an
+         invitation, not a thing that exists here. */
+      ul.packs li.empty { border-style: dashed; }
+      .pack-row { display: flex; align-items: center; gap: 10px; }
       .pack-main { flex: 1; min-width: 0; }
       .pack-id { overflow-wrap: anywhere; }
       .pack-sub { color: #6e7681; font-size: 11px; }
-      li.empty-note { color: #6e7681; font-size: 11.5px; border: 0; padding: 0; }
+      .pack-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+      .chip { font-size: 10.5px; color: #d29922; border: 1px solid rgba(210,153,34,0.45); border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
+      select.policy {
+        background: #0d1117; color: #8b949e; border: 1px solid #30363d; border-radius: 6px;
+        padding: 4px 6px; font: 11.5px/1 inherit;
+      }
+      .versions { margin: 8px 0 0 24px; display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: #8b949e; }
+      .v-row { border-left: 2px solid #30363d; padding-left: 8px; }
+      .v-row.withdrawn { opacity: 0.55; }
+      .v-head { display: flex; gap: 8px; align-items: center; }
+      .v-head strong { color: #e6edf3; }
+      .v-log { color: #8b949e; overflow-wrap: anywhere; }
+      p.empty-note, li.empty-note { color: #6e7681; font-size: 11.5px; margin: 0; }
 
       /* Overlays */
       ul#ov-profiles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -298,7 +319,14 @@
             <label class="auto"><input type="radio" name="pick" id="pick-auto" /> follow the sim</label>
             <button class="ghost" id="import-yt" type="button" title="Find a track guide and turn it into callouts (Ctrl+I)">Import from YouTube</button>
           </div>
-          <ul id="packs"></ul>
+          <div class="install-row">
+            <input type="text" id="install-ref" placeholder="Paste a pack link or id to install it" spellcheck="false" />
+            <button class="ghost" id="install-go" type="button">Install</button>
+            <button class="ghost" id="check-updates" type="button" title="Look for newer versions of installed packs, and your own packs on your account">Check for updates</button>
+          </div>
+          <div class="library-busy" id="library-busy" hidden></div>
+          <div class="library-status" id="library-status"></div>
+          <div id="packs"></div>
         </section>
       </main>
 

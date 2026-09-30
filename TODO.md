@@ -941,9 +941,11 @@ on one machine.
   Publish button in Track Coach (with Mine / Installed, step 4).
 - [ ] Sync drafts across your own machines
   **Push done:** saving a published set in the editor updates its private
-  draft row. **Open:** pulling it on the other machine, which needs the Mine
-  list (step 4); and the conflict rule, later save wins with the other kept as
-  a copy, not merged, since there is one author per pack.
+  draft row. **Pull done for a machine that lacks the pack:** it is listed
+  under Mine as "on your account, not on this machine", with Download (the
+  draft, or the latest version). **Open:** refreshing a pack that is on both
+  machines when the other one saved later, with the conflict rule: later save
+  wins, the other kept as a copy, not merged, since there is one author.
 - [ ] Imports record their source
   `source.videoId`/`channel` already exist. A published pack made from a
   YouTube guide says so and links to it. The words are rewritten, not
@@ -972,12 +974,12 @@ the version they already know.
   note is added, removed, reworded, or moved by N m. The author writes "moved T1
   braking later, shortened the chicane"; the app lists the rest. Both are shown on
   the pack page and in the update prompt.
-- [ ] Updating re-renders only what changed
+- [x] Updating re-renders only what changed
   Audio is cached by `(note id, text hash, voice)`, not by pack version, so a
   version that moves three notes and rewords one renders one clip, not the whole
   set. Moved notes keep their audio: position does not change what is said
   (§7.4's "moving a note does not make it stale").
-- [ ] Per-pack update policy for installers: automatic (default) or pinned
+- [x] Per-pack update policy for installers: automatic (default) or pinned
   Automatic takes a new version when no session is running (§4.5: a session
   is pinned up front). Pinned stays put and shows "v5 available". Either way,
   every version stays installable, so going back to v3 is one click, and v3 is
@@ -1008,23 +1010,25 @@ the version they already know.
 
 **Step 4 — My packs (the Track Coach tab)**
 
-- [ ] Split the list: "Mine" and "Installed"
+- [x] Split the list: "Mine" and "Installed"
   Mine: drafts and published, with version, stars and downloads. Installed: other
   people's packs, the version pinned, "update available" when there is a newer
   one. The per-track rows from this session (a mapped track with no notes, with
   Import… and Write manually) stay.
-- [ ] Install renders locally, with the pack's voice
-  Piper and the voice model download on first use, as import already does. Clips
-  are cached per `(pack version, voice)`. If the pack's voice is unavailable, fall
-  back to the user's voice with a note that timing may differ slightly: durations
-  are re-measured anyway, so it is correct, just not identical.
-- [ ] Update, roll back, uninstall
+- [x] Install renders locally — **in your own voice, not the pack's**
+  Piper and a voice download on first use, as import already does
+  (`apps/desktop/src/library.ts`). The author's voice is not used: a session
+  looks its audio up by the voice set in preferences, so a pack rendered in
+  someone else's voice would play silent. Durations are measured again either
+  way, so timing stays correct. Until the render finishes, notes carry the
+  author's measured durations and are marked stale.
+- [x] Update, roll back, uninstall
   Following Step 3b's policy. An update installs the new version beside the old
   one and switches only when not in a session: changing callouts mid-stint would
   break §4.5's rule about pinning a session up front. The installed row shows the
   version, "v5 available" with its changelog, and a version picker for going
   back.
-- [ ] "Follow the sim" picks among installed packs too
+- [x] "Follow the sim" picks among installed packs too
   `noteSetByTrack` already remembers the last set per track. Installed packs join
   that pool, filtered by the car class actually being driven (`carWarnings`
   already knows it).

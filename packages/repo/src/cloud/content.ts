@@ -146,6 +146,51 @@ export async function getItem(client: CloudClient, itemId: string): Promise<Item
   return data === null ? null : toItem(data as unknown as ItemRow);
 }
 
+/** Several items at once — the installed packs, when checking for updates. Invisible ones are left out. */
+export async function getItems(client: CloudClient, itemIds: readonly string[]): Promise<ItemView[]> {
+  if (itemIds.length === 0) return [];
+  const { data, error } = await client
+    .from("content_items")
+    .select(ITEM_COLUMNS)
+    .in("id", itemIds)
+    .abortSignal(timeout());
+  if (error !== null) fail("get items", error.message);
+  return (data ?? []).map((row) => toItem(row as unknown as ItemRow));
+}
+
+/** Everything the signed-in driver owns, published or not, newest first. */
+export async function listMyItems(client: CloudClient, ownerId: string): Promise<ItemView[]> {
+  const { data, error } = await client
+    .from("content_items")
+    .select(ITEM_COLUMNS)
+    .eq("owner", ownerId)
+    .eq("kind", "callouts")
+    .order("updated_at", { ascending: false })
+    .abortSignal(timeout());
+  if (error !== null) fail("list my items", error.message);
+  return (data ?? []).map((row) => toItem(row as unknown as ItemRow));
+}
+
+/** The owner's working copy, or null if none was ever saved. */
+export async function getDraft(client: CloudClient, itemId: string): Promise<{ noteSet: NoteSet; updatedAt: string } | null> {
+  const { data, error } = await client
+    .from("content_drafts")
+    .select("payload, updated_at")
+    .eq("item_id", itemId)
+    .abortSignal(timeout())
+    .maybeSingle();
+  if (error !== null) fail("get draft", error.message);
+  return data === null ? null : { noteSet: NoteSetSchema.parse(data.payload), updatedAt: data.updated_at };
+}
+
+/** Count an install, once per installation and version. Works signed out. */
+export async function recordDownload(client: CloudClient, versionId: string, installationId: string): Promise<void> {
+  const { error } = await client
+    .rpc("record_download", { p_version_id: versionId, p_installation_id: installationId })
+    .abortSignal(timeout());
+  if (error !== null) fail("record download", error.message);
+}
+
 /** Newest first. */
 export async function listVersions(client: CloudClient, itemId: string): Promise<VersionView[]> {
   const { data, error } = await client

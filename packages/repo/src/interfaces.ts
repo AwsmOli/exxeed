@@ -74,6 +74,8 @@ export interface NoteSetRepository {
   listAll(): Promise<NoteSetSummary[]>;
   get(id: string): Promise<NoteSet | null>;
   put(set: NoteSet): Promise<void>;
+  /** Uninstalling someone else's pack (M8). Absent is not an error. */
+  remove(id: string): Promise<void>;
 }
 
 export interface AudioRepository {
@@ -92,6 +94,8 @@ export interface AudioRepository {
    */
   putClip(noteSetId: string, voiceId: string, key: string, bytes: Uint8Array): Promise<string>;
   putPack(pack: AudioPack): Promise<void>;
+  /** Every voice's clips and packs for a note set. Absent is not an error. */
+  removeAll(noteSetId: string): Promise<void>;
 }
 
 /** Everything the runtime needs, in one place, so wiring is a single object. */

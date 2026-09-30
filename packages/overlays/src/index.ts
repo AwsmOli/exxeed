@@ -376,6 +376,55 @@ export interface NoteSetPack {
   readonly configId: string;
   /** Set while this is the pack a running session actually loaded. */
   readonly active: boolean;
+  /**
+   * Published content this set belongs to (M8), or null for a set that has
+   * never been published or installed — an import, or one written by hand.
+   */
+  readonly content: {
+    readonly itemId: string;
+    readonly origin: "mine" | "installed";
+    /** The version this machine has. Null for mine before its first publish. */
+    readonly version: number | null;
+    /** The newest published version, when last checked. Null until checked or offline. */
+    readonly latestVersion: number | null;
+    readonly policy: "auto" | "pinned";
+    readonly stars: number | null;
+    readonly downloads: number | null;
+  } | null;
+}
+
+/**
+ * One of your own packs that is on your account but not on this machine —
+ * published or drafted on the other one. Shown under Mine with a Download.
+ */
+export interface RemotePack {
+  readonly itemId: string;
+  readonly title: string;
+  readonly trackLabel: string;
+  readonly carClass: string | null;
+  readonly latestVersion: number | null;
+}
+
+/** Renderer → main, invoke: install, update, uninstall packs (M8). */
+export const LIBRARY_CHANNEL = "exxeed:library";
+
+export type LibraryRequest =
+  /** A pack id, or a link containing one (`exxeed://pack/<id>`). A version id pins that version. */
+  | { readonly op: "install"; readonly ref: string; readonly versionId?: string }
+  | { readonly op: "uninstall"; readonly noteSetId: string }
+  | { readonly op: "setPolicy"; readonly noteSetId: string; readonly policy: "auto" | "pinned" }
+  | { readonly op: "versions"; readonly itemId: string }
+  /** One of your own packs from your account onto this machine. */
+  | { readonly op: "downloadMine"; readonly itemId: string }
+  | { readonly op: "checkUpdates" };
+
+export interface LibraryVersion {
+  readonly id: string;
+  readonly version: number;
+  readonly changelog: string;
+  readonly changes: readonly string[];
+  readonly publishedAt: string;
+  readonly withdrawn: boolean;
 }
 
 export interface SessionStatus {
@@ -393,6 +442,10 @@ export interface SessionStatus {
   readonly recordingTo: string | null;
   /** Every pack on disk, for the picker. */
   readonly packs: readonly NoteSetPack[];
+  /** Your own packs that are on your account but not on this machine (M8). */
+  readonly remoteMine: readonly RemotePack[];
+  /** A long-running library operation, for the Track Coach tab to show. */
+  readonly libraryBusy: string | null;
   /**
    * The pack pinned by hand, or null to follow whatever track the sim loads.
    *

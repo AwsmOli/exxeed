@@ -28,91 +28,256 @@ for (const btn of document.querySelectorAll(".section-btn")) {
 // -- Session status -------------------------------------------------------
 
 /**
- * The pack list.
+ * The pack list: yours, installed, and tracks with nothing yet (M8).
  *
  * Rebuilt wholesale on every status. It changes at human speed and there are a
- * handful of entries, so anything cleverer would be book-keeping for no gain.
+ * handful of entries, so anything cleverer would be book-keeping for no gain —
+ * except the open version pickers, which are remembered by pack so a status
+ * broadcast does not snap them shut.
  */
-const renderPacks = (s) => {
-  const list = el("packs");
-  if (!list) return;
+const openPickers = new Set();
 
-  el("pick-auto").checked = s.pinnedNoteSetId == null;
+const make = (tag, props = {}, ...children) => {
+  const node = document.createElement(tag);
+  Object.assign(node, props);
+  node.append(...children.filter((c) => c !== null && c !== undefined));
+  return node;
+};
 
-  const packs = s.packs ?? [];
-  if (packs.length === 0) {
-    const empty = document.createElement("li");
-    empty.className = "empty-note";
-    empty.textContent = "no packs, and no mapped tracks to write one for";
-    list.replaceChildren(empty);
-    return;
+const button = (text, title, onClick) => {
+  const b = make("button", { className: "ghost", textContent: text, title, type: "button" });
+  b.addEventListener("click", onClick);
+  return b;
+};
+
+const library = async (request) => {
+  const response = await window.exxeed.library(request);
+  if (!response.ok) throw new Error(response.error);
+  return response.value;
+};
+
+const setLibraryStatus = (text, bad = false) => {
+  el("library-status").textContent = text;
+  el("library-status").className = `library-status${bad ? " bad" : ""}`;
+};
+
+/** Run a library request and report its answer under the install field. */
+const act = async (request, button) => {
+  if (button) button.disabled = true;
+  try {
+    const answer = await library(request);
+    if (typeof answer === "string") setLibraryStatus(answer);
+    return answer;
+  } catch (err) {
+    setLibraryStatus(err.message, true);
+    return null;
+  } finally {
+    if (button) button.disabled = false;
+  }
+};
+
+/** A button that needs a second click, for things that cannot be undone. */
+const confirmButton = (text, confirmText, title, onConfirm) => {
+  const b = button(text, title, () => {
+    if (b.dataset.armed !== "1") {
+      b.dataset.armed = "1";
+      b.textContent = confirmText;
+      setTimeout(() => {
+        b.dataset.armed = "";
+        b.textContent = text;
+      }, 4000);
+      return;
+    }
+    void onConfirm(b);
+  });
+  return b;
+};
+
+function packRow(s, pack) {
+  const c = pack.content;
+  const li = make("li", { className: pack.active ? "active" : "" });
+
+  const radio = make("input", { type: "radio", name: "pick", checked: s.pinnedNoteSetId === pack.id });
+  radio.addEventListener("change", () => {
+    window.exxeed?.sendSessionCommand({ kind: "selectNoteSet", id: pack.id });
+  });
+
+  const facts = [pack.trackName, pack.carClass, `${pack.noteCount} callouts`];
+  if (c === null) facts.push(pack.status === "published" ? "published" : "not published");
+  else if (c.version === null) facts.push("not published yet");
+  else {
+    facts.push(`v${c.version}`);
+    if (c.stars !== null) facts.push(`★ ${c.stars}`);
+    if (c.downloads !== null) facts.push(`${c.downloads} ↓`);
   }
 
-  list.replaceChildren(
-    ...packs.map((pack) => {
-      const written = pack.id !== "";
-      const li = document.createElement("li");
-      li.className = [pack.active ? "active" : "", written ? "" : "empty"]
-        .filter(Boolean)
-        .join(" ");
+  const main = make(
+    "div",
+    { className: "pack-main" },
+    make("div", { className: "pack-id", textContent: pack.id }),
+    make("div", { className: "pack-sub", textContent: facts.join(" · ") }),
+  );
 
-      if (written) {
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "pick";
-        radio.checked = s.pinnedNoteSetId === pack.id;
-        radio.addEventListener("change", () => {
-          window.exxeed?.sendSessionCommand({ kind: "selectNoteSet", id: pack.id });
-        });
-        li.append(radio);
-      }
+  const row = make("div", { className: "pack-row" }, radio, main);
+  const actions = make("div", { className: "pack-actions" });
+  row.append(actions);
+  li.append(row);
 
-      const main = document.createElement("div");
-      main.className = "pack-main";
+  if (c?.origin === "installed") {
+    const behind = c.latestVersion !== null && c.version !== null && c.latestVersion > c.version;
+    if (behind) {
+      actions.append(
+        make("span", { className: "chip", textContent: `v${c.latestVersion} available` }),
+        button("Update", "Install the newest version now", (e) => void act({ op: "install", ref: c.itemId }, e.currentTarget)),
+      );
+    }
+    const policy = make("select", { className: "policy", title: "Take new versions automatically between sessions, or stay on this one" });
+    policy.append(
+      make("option", { value: "auto", textContent: "Auto-update" }),
+      make("option", { value: "pinned", textContent: "Stay on this version" }),
+    );
+    policy.value = c.policy;
+    policy.addEventListener("change", () => void act({ op: "setPolicy", noteSetId: pack.id, policy: policy.value }));
+    actions.append(
+      policy,
+      button(openPickers.has(pack.id) ? "Hide versions" : "Versions…", "See every version and switch to one", () => {
+        if (openPickers.has(pack.id)) openPickers.delete(pack.id);
+        else openPickers.add(pack.id);
+        renderPacks(lastStatus);
+      }),
+      confirmButton("Uninstall", "Really uninstall?", "Remove this pack and its audio from this machine", (b) =>
+        act({ op: "uninstall", noteSetId: pack.id }, b),
+      ),
+    );
+    if (openPickers.has(pack.id)) li.append(versionPicker(pack));
+  } else {
+    actions.append(
+      button("Edit", "Open in the note editor — publish from there", () => {
+        window.exxeed?.sendSessionCommand({ kind: "editNoteSet", id: pack.id });
+      }),
+    );
+  }
+  return li;
+}
 
-      const name = document.createElement("div");
-      name.className = "pack-id";
-      name.textContent = written ? pack.id : pack.trackName;
+/** Every version of an installed pack, newest first, with what each changed. */
+function versionPicker(pack) {
+  const box = make("div", { className: "versions", textContent: "Loading versions…" });
+  void library({ op: "versions", itemId: pack.content.itemId }).then(
+    (versions) => {
+      box.replaceChildren(
+        ...versions.map((v) => {
+          const here = v.version === pack.content.version;
+          const lines = [v.changelog, ...v.changes].filter(Boolean);
+          const detail = make("div", { className: "v-log", textContent: lines.length > 0 ? lines.join(" · ") : v.version === 1 ? "First release" : "—" });
+          const head = make(
+            "div",
+            { className: "v-head" },
+            make("strong", { textContent: `v${v.version}` }),
+            make("span", { className: "pack-sub", textContent: `${new Date(v.publishedAt).toLocaleDateString()}${v.withdrawn ? " · withdrawn by the author" : ""}` }),
+          );
+          if (here) head.append(make("span", { className: "chip", textContent: "installed" }));
+          else if (!v.withdrawn) {
+            head.append(button("Install this version", "Switch to this version and stay on it", (e) =>
+              void act({ op: "install", ref: pack.content.itemId, versionId: v.id }, e.currentTarget),
+            ));
+          }
+          return make("div", { className: `v-row${v.withdrawn ? " withdrawn" : ""}` }, head, detail);
+        }),
+      );
+    },
+    (err) => {
+      box.textContent = `Could not load versions: ${err.message}`;
+    },
+  );
+  return box;
+}
 
-      const sub = document.createElement("div");
-      sub.className = "pack-sub";
-      sub.textContent = written
-        ? `${pack.trackName} · ${pack.carClass} · ${pack.noteCount} notes · ${pack.status}`
-        : "mapped, no notes yet";
+function remoteRow(remote) {
+  const facts = [remote.trackLabel, remote.carClass ?? "", remote.latestVersion === null ? "draft only" : `v${remote.latestVersion}`];
+  return make(
+    "li",
+    { className: "empty" },
+    make(
+      "div",
+      { className: "pack-row" },
+      make(
+        "div",
+        { className: "pack-main" },
+        make("div", { className: "pack-id", textContent: remote.title }),
+        make("div", { className: "pack-sub", textContent: `${facts.filter(Boolean).join(" · ")} · on your account, not on this machine` }),
+      ),
+      make(
+        "div",
+        { className: "pack-actions" },
+        button("Download", "Put your draft (or latest version) on this machine", (e) =>
+          void act({ op: "downloadMine", itemId: remote.itemId }, e.currentTarget),
+        ),
+      ),
+    ),
+  );
+}
 
-      main.append(name, sub);
-      li.append(main);
-
-      // A mapped track with nothing to say: the two ways to start saying it.
-      if (!written) {
-        const track = { trackId: pack.trackId, configId: pack.configId };
-        const importBtn = document.createElement("button");
-        importBtn.className = "ghost";
-        importBtn.textContent = "Import…";
-        importBtn.title = "Import callouts from a YouTube track guide for this track";
-        importBtn.addEventListener("click", () => {
+function trackRow(pack) {
+  const track = { trackId: pack.trackId, configId: pack.configId };
+  return make(
+    "li",
+    { className: "empty" },
+    make(
+      "div",
+      { className: "pack-row" },
+      make(
+        "div",
+        { className: "pack-main" },
+        make("div", { className: "pack-id", textContent: pack.trackName }),
+        make("div", { className: "pack-sub", textContent: "mapped, no callouts yet" }),
+      ),
+      make(
+        "div",
+        { className: "pack-actions" },
+        button("Import…", "Import callouts from a YouTube track guide for this track", () => {
           window.exxeed?.sendSessionCommand({ kind: "openImporter", track });
-        });
-        const writeBtn = document.createElement("button");
-        writeBtn.className = "ghost";
-        writeBtn.textContent = "Write manually";
-        writeBtn.title = "Start an empty note set for this track and open it in the editor";
-        writeBtn.addEventListener("click", () => {
+        }),
+        button("Write manually", "Start an empty note set for this track and open it in the editor", () => {
           window.exxeed?.sendSessionCommand({ kind: "newNoteSet", ...track });
-        });
-        li.append(importBtn, writeBtn);
-      } else {
-        const edit = document.createElement("button");
-        edit.className = "ghost";
-        edit.textContent = "Edit";
-        edit.addEventListener("click", () => {
-          window.exxeed?.sendSessionCommand({ kind: "editNoteSet", id: pack.id });
-        });
-        li.append(edit);
-      }
+        }),
+      ),
+    ),
+  );
+}
 
-      return li;
-    }),
+const group = (title, rows, emptyText) =>
+  make(
+    "section",
+    { className: "pack-group" },
+    make("h3", { textContent: title }),
+    rows.length > 0 ? make("ul", { className: "packs" }, ...rows) : make("p", { className: "empty-note", textContent: emptyText }),
+  );
+
+let lastStatus = null;
+
+const renderPacks = (s) => {
+  lastStatus = s;
+  const host = el("packs");
+  if (!host) return;
+
+  el("pick-auto").checked = s.pinnedNoteSetId == null;
+  el("library-busy").textContent = s.libraryBusy ?? "";
+  el("library-busy").hidden = s.libraryBusy == null;
+
+  const packs = s.packs ?? [];
+  const mine = packs.filter((p) => p.id !== "" && p.content?.origin !== "installed");
+  const installed = packs.filter((p) => p.id !== "" && p.content?.origin === "installed");
+  const tracks = packs.filter((p) => p.id === "");
+
+  host.replaceChildren(
+    group(
+      "Mine",
+      [...mine.map((p) => packRow(s, p)), ...(s.remoteMine ?? []).map(remoteRow)],
+      "Nothing yet — import a guide, or write callouts for a track below.",
+    ),
+    group("Installed", installed.map((p) => packRow(s, p)), "Packs you install from others appear here."),
+    ...(tracks.length > 0 ? [group("Tracks without callouts", tracks.map(trackRow), "")] : []),
   );
 };
 
@@ -143,6 +308,17 @@ const render = (s) => {
 el("power").addEventListener("click", () => {
   window.exxeed?.sendSessionCommand({ kind: phase === "stopped" ? "start" : "stop" });
 });
+
+const installFromField = async () => {
+  const ref = el("install-ref").value.trim();
+  if (ref === "") return;
+  setLibraryStatus("Installing…");
+  const answer = await act({ op: "install", ref }, el("install-go"));
+  if (answer !== null) el("install-ref").value = "";
+};
+el("install-go").addEventListener("click", () => void installFromField());
+el("install-ref").addEventListener("keydown", (e) => e.key === "Enter" && void installFromField());
+el("check-updates").addEventListener("click", (e) => void act({ op: "checkUpdates" }, e.currentTarget));
 
 el("import-yt").addEventListener("click", () => {
   window.exxeed?.sendSessionCommand({ kind: "openImporter" });
