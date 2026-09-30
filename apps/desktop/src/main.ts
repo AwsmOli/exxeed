@@ -69,6 +69,7 @@ import { createManualNoteSet, installEditorIpc, openEditor, requestRender } from
 import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
 import { installAccount, onAccountChange } from "./account.js";
 import { shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
+import { installPublishIpc } from "./publish.js";
 import { installImporterIpc, openImporter } from "./importer.js";
 import {
   installSettingsIpc,
@@ -1371,6 +1372,7 @@ void app.whenReady().then(() => {
   });
   installAccount();
   installEditorIpc(() => settings().get(), resolveDataDir);
+  installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
   installImporterIpc({
     getSettings: () => settings().get(),
     resolveDataDir,

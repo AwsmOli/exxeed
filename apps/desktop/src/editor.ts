@@ -32,6 +32,7 @@ import { PiperEngine, renderNoteSet } from "@exxeed/tts";
 
 import { resolveRenderSetup } from "./voices.js";
 import { pullForTrack } from "./cloud-sync.js";
+import { pushDraft } from "./publish.js";
 import type { Note, NoteSet, ReferenceLap, TrackKey, TrackMap } from "@exxeed/core";
 import {
   aheadM,
@@ -312,6 +313,8 @@ export function installEditorIpc(
     notes.sort((a, b) => a.pct - b.pct);
 
     await repos.noteSets.put({ ...noteSet, notes });
+    // A published pack's working copy follows its owner to their other machines.
+    void pushDraft(dataDir, noteSet.id);
     return buildPayload(
       dataDir,
       settings.noteSetId,

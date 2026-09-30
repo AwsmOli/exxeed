@@ -44,6 +44,7 @@ const IMPORTER_CHANNEL = "exxeed:importer";
 const IMPORTER_PROGRESS_CHANNEL = "exxeed:importer-progress";
 const IMPORTER_PRESET_CHANNEL = "exxeed:importer-preset";
 const ACCOUNT_CHANNEL = "exxeed:account";
+const PUBLISH_CHANNEL = "exxeed:publish";
 const ACCOUNT_CHANGED_CHANNEL = "exxeed:account-changed";
 
 contextBridge.exposeInMainWorld("exxeed", {
@@ -108,6 +109,9 @@ contextBridge.exposeInMainWorld("exxeed", {
    */
   account: (request: unknown): Promise<unknown> => ipcRenderer.invoke(ACCOUNT_CHANNEL, request),
   onAccountChanged: (cb: (view: unknown) => void) => subscribe(ACCOUNT_CHANGED_CHANNEL, cb),
+
+  /** Publishing the editor's note set (M8): `{ ok, value: PublishState }` or `{ ok: false, error }`. */
+  publish: (request: unknown): Promise<unknown> => ipcRenderer.invoke(PUBLISH_CHANNEL, request),
 
   /**
    * Move this window by a screen-pixel delta. The only renderer -> main call:

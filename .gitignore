@@ -48,6 +48,9 @@ data/piper/*
 data/tools/*
 # Callouts converted from a video for a track with no map yet, waiting on one.
 data/**/imports/
+# Which local note sets are published or installed packs (M8): one machine's
+# install state, and wrong on any other.
+data/**/content/
 data/profile/*
 !data/profile/.gitkeep
 

@@ -88,6 +88,38 @@ export async function shareCut(event: AutoMapEvent, log: Log): Promise<void> {
   }
 }
 
+/**
+ * Make sure a layout's catalog row, map and reference laps are shared before a
+ * pack for it is published, so an installer has the map to draw it on. Throws
+ * when there is neither a local map nor a catalog row: a pack cannot be filed
+ * under a track the catalog has never heard of.
+ */
+export async function shareTrack(dataDir: string, key: TrackKey): Promise<void> {
+  const client = cloudClient();
+  const repos = localRepositories(dataDir);
+  const version = await repos.trackMaps.latestVersion(key);
+  const map = version === null ? null : await repos.trackMaps.get({ ...key, mapVersion: version });
+  if (map === null) return;
+
+  const registry = await repos.cars.get(key.sim).catch(() => null);
+  const cars = await repos.referenceLaps.listCars(key);
+  for (const carId of [null, ...cars]) {
+    await reportSession(client, {
+      trackKey: key,
+      trackName: map.trackName,
+      configName: map.configName,
+      lengthM: map.lengthM,
+      carId,
+      carName: carId === null ? null : (registry?.cars[carId]?.name ?? carId),
+    });
+  }
+  await pushMap(client, map);
+  for (const carId of cars) {
+    const lap = await repos.referenceLaps.get(key, carId);
+    if (lap !== null) await pushReferenceLap(client, lap);
+  }
+}
+
 let sweptFor: string | null = null;
 
 /**

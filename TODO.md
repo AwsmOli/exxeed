@@ -893,20 +893,23 @@ on one machine.
 
 **Step 3 — Making and publishing your own packs**
 
-- [ ] Every note set gets an owner and a remote id
-  A local slug id (`daytona-mx5-draft`) stays the file name. A `remoteId`
-  (uuid) and `version` get added to `NoteSet`, absent until published. Existing
-  sets and imports keep working unpublished.
+- [x] Every note set gets an owner and a remote id — **in a local index, not in `NoteSet`**
+  `<dataDir>/content/index.json` (`LocalContentIndex`, schema in
+  `core/content.ts`) maps a local set id to its item, version and origin.
+  Install state is a fact about one machine; inside the note set it would be
+  published to everyone. Existing sets and imports keep working unpublished.
 - [ ] Publish from the control window and the editor
-  Title, description, car class, visibility (public or unlisted). Refuse a set
-  with a `dirty` note, as §7.4 already refuses to call one `published`: someone
-  installing it would hear callouts timed against audio that does not match the
-  words. Publishing uploads the note set as a new `pack_versions` row, pinned
-  to the map and reference versions it was written against.
+  **Editor done** (`Publish…` in its header, `apps/desktop/src/publish.ts`):
+  title, summary, description, visibility, refused with a `dirty` note or
+  signed out, and the track's map and reference laps shared first so
+  installers can see where each callout sits. The description has no Markdown
+  preview yet; that comes with the renderer in the Content tab. **Open:** a
+  Publish button in Track Coach (with Mine / Installed, step 4).
 - [ ] Sync drafts across your own machines
-  A draft is a private row. Signed in, the editor saves locally and pushes. On
-  conflict, the later save wins, with the other kept as a copy, not merged:
-  there is one author per pack.
+  **Push done:** saving a published set in the editor updates its private
+  draft row. **Open:** pulling it on the other machine, which needs the Mine
+  list (step 4); and the conflict rule, later save wins with the other kept as
+  a copy, not merged, since there is one author per pack.
 - [ ] Imports record their source
   `source.videoId`/`channel` already exist. A published pack made from a
   YouTube guide says so and links to it. The words are rewritten, not
@@ -919,7 +922,7 @@ gets shorter, a corner that turned out to be easy loses its callout. Versions ar
 how those improvements reach the people who installed it without anyone losing
 the version they already know.
 
-- [ ] Versions are numbered 1, 2, 3, … per pack, immutable once published
+- [x] Versions are numbered 1, 2, 3, … per pack, immutable once published
   A plain counter, not semver. There is no API to break, and "v4" is what a
   driver can remember and repeat on Discord. A published version is never
   edited, only superseded. The row, its note set, its setups, and the map and
@@ -929,7 +932,7 @@ the version they already know.
   "Edit" on a published pack opens the draft. "Publish update" turns it into the
   next version, and the draft carries on from there. Publishing still refuses a
   `dirty` note (Step 3). Only one draft per pack, because there is one author.
-- [ ] A changelog per version: the author's one line, plus a diff the app writes itself
+- [x] A changelog per version: the author's one line, plus a diff the app writes itself
   Note ids are opaque handles that survive a move and a rewrite
   (`note-id.ts`), so two versions diff exactly by id, with no guessing. Each
   note is added, removed, reworded, or moved by N m. The author writes "moved T1
@@ -945,7 +948,7 @@ the version they already know.
   is pinned up front). Pinned stays put and shows "v5 available". Either way,
   every version stays installable, so going back to v3 is one click, and v3 is
   still there to go back to, because versions are immutable.
-- [ ] The author can withdraw a version
+- [x] The author can withdraw a version
   For a version that is actually wrong, such as a callout at the wrong corner.
   Withdrawn versions are hidden from new installs and never auto-installed.
   Anyone on one gets "the author withdrew this version" and an offer to

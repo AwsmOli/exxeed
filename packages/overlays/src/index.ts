@@ -273,6 +273,55 @@ export const SESSION_STATUS_CHANNEL = "exxeed:session-status";
 /** Renderer → main: start, stop, or set autostart. */
 export const SESSION_COMMAND_CHANNEL = "exxeed:session-command";
 
+/** Renderer → main, invoke: publish the editor's note set, and its versions (M8). */
+export const PUBLISH_CHANNEL = "exxeed:publish";
+
+export type PublishVisibility = "private" | "unlisted" | "public";
+
+export interface PublishFields {
+  readonly title: string;
+  readonly summary: string;
+  readonly readme: string;
+  readonly visibility: PublishVisibility;
+}
+
+/** What the editor's publish dialog shows for the note set it has open. */
+export interface PublishState {
+  readonly signedIn: boolean;
+  readonly noteSetId: string | null;
+  /** Callouts whose audio is older than their words; publishing is refused while > 0. */
+  readonly dirtyCount: number;
+  readonly noteCount: number;
+  /** Someone else's pack, installed here — not this person's to publish. */
+  readonly installed: boolean;
+  /** Filled for a first publish, from the track and car. */
+  readonly suggested: PublishFields;
+  /** Null until this set has been published at least once. */
+  readonly published: {
+    readonly itemId: string;
+    readonly fields: PublishFields;
+    readonly latestVersion: number | null;
+    readonly localVersion: number | null;
+    readonly starCount: number;
+    readonly downloadCount: number;
+    readonly versions: readonly {
+      readonly id: string;
+      readonly version: number;
+      readonly changelog: string;
+      readonly publishedAt: string;
+      readonly withdrawn: boolean;
+      readonly downloads: number;
+    }[];
+    /** What changed since the latest published version, one line each. */
+    readonly changes: readonly string[];
+  } | null;
+}
+
+export type PublishRequest =
+  | { readonly op: "state" }
+  | { readonly op: "publish"; readonly fields: PublishFields; readonly changelog: string }
+  | { readonly op: "withdraw"; readonly versionId: string };
+
 /** Renderer → main, invoke: sign in, sign out, edit the profile (M8). */
 export const ACCOUNT_CHANNEL = "exxeed:account";
 /** Main → renderer: who is signed in changed. */

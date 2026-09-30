@@ -44,7 +44,7 @@ import type {
   TrackSummary,
 } from "./interfaces.js";
 
-const readJson = async (path: string): Promise<unknown | null> => {
+export const readJson = async (path: string): Promise<unknown | null> => {
   try {
     return JSON.parse(await readFile(path, "utf8")) as unknown;
   } catch (err) {
@@ -53,7 +53,7 @@ const readJson = async (path: string): Promise<unknown | null> => {
   }
 };
 
-const writeJson = async (path: string, value: unknown): Promise<void> => {
+export const writeJson = async (path: string, value: unknown): Promise<void> => {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 };

@@ -14,59 +14,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { ReferenceLap, TrackMap } from "@exxeed/core";
 import { trackKeyOf } from "@exxeed/core";
-import {
-  createCloudClient,
-  localRepositories,
-  pullTrack,
-  pushMap,
-  shareLocalTracks,
-  type CloudClient,
-} from "@exxeed/repo";
+import { localRepositories, pullTrack, pushMap, shareLocalTracks, type CloudClient } from "@exxeed/repo";
 
 import { spaMap } from "../../core/test/fixtures.js";
-
-const URL_ = "http://127.0.0.1:54321";
-// Supabase's standard local-development keys — the same on every machine, and
-// useless against anything but a local stack.
-const ANON =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const SERVICE =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-
-const stackUp = await fetch(`${URL_}/auth/v1/settings`, { headers: { apikey: ANON } })
-  .then((r) => r.ok)
-  .catch(() => false);
-
-const memory = (): { getItem(k: string): string | null; setItem(k: string, v: string): void; removeItem(k: string): void } => {
-  const values = new Map<string, string>();
-  return {
-    getItem: (k) => values.get(k) ?? null,
-    setItem: (k, v) => void values.set(k, v),
-    removeItem: (k) => void values.delete(k),
-  };
-};
-
-const client = (): CloudClient => createCloudClient({ url: URL_, anonKey: ANON }, memory());
-
-async function driver(email: string): Promise<{ id: string; client: CloudClient }> {
-  const response = await fetch(`${URL_}/auth/v1/admin/users`, {
-    method: "POST",
-    headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}`, "content-type": "application/json" },
-    body: JSON.stringify({ email, password: "correct horse battery", email_confirm: true }),
-  });
-  const user = (await response.json()) as { id: string };
-  const c = client();
-  const { error } = await c.auth.signInWithPassword({ email, password: "correct horse battery" });
-  if (error !== null) throw error;
-  return { id: user.id, client: c };
-}
-
-async function removeDriver(id: string): Promise<void> {
-  await fetch(`${URL_}/auth/v1/admin/users/${id}`, {
-    method: "DELETE",
-    headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` },
-  });
-}
+import { anonClient as client, driver, removeDriver, serviceDelete, stackUp } from "./local-stack.js";
 
 describe.skipIf(!stackUp)("cloud sync of maps and reference laps", () => {
   // A layout no real track uses, fresh per run, so first-map-wins from an
@@ -122,15 +73,9 @@ describe.skipIf(!stackUp)("cloud sync of maps and reference laps", () => {
     await Promise.all(drivers.map(removeDriver));
     // Leave the local catalog as it was: children first, for the foreign keys.
     for (const table of ["reference_laps", "track_maps", "track_layouts"]) {
-      await fetch(`${URL_}/rest/v1/${table}?track_id=eq.${trackId}`, {
-        method: "DELETE",
-        headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` },
-      });
+      await serviceDelete(table, `track_id=eq.${trackId}`);
     }
-    await fetch(`${URL_}/rest/v1/cars?car_id=eq.sync-test-car`, {
-      method: "DELETE",
-      headers: { apikey: SERVICE, authorization: `Bearer ${SERVICE}` },
-    });
+    await serviceDelete("cars", "car_id=eq.sync-test-car");
   });
 
   it("shares a map cut on one machine, and keeps the first one for the layout", async () => {

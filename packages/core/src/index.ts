@@ -20,6 +20,8 @@ export * from "./onsets.js";
 export * from "./overrides.js";
 export * from "./map.js";
 export * from "./note-id.js";
+export * from "./diff.js";
+export * from "./content.js";
 export * from "./import.js";
 export * from "./profile.js";
 export * from "./trigger.js";

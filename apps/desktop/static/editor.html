@@ -106,6 +106,39 @@
       }
       .key { display: inline-flex; gap: 5px; align-items: center; }
       .key b { color: #9aa4b2; font-weight: normal; }
+
+      /* Publishing (M8) */
+      .badge {
+        font-size: 11px; color: #9db8dc; border: 1px solid rgba(88,166,255,0.35);
+        border-radius: 10px; padding: 1px 8px; align-self: center;
+      }
+      dialog#publish {
+        width: 560px; max-height: 86vh; overflow-y: auto; box-sizing: border-box;
+        background: #14171c; color: #e6e9ee; border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 10px; padding: 18px 22px;
+      }
+      dialog#publish::backdrop { background: rgba(0,0,0,0.55); }
+      dialog#publish h2 { margin-top: 14px; }
+      dialog#publish h3 { margin: 0 0 4px; font-size: 14px; letter-spacing: 0; text-transform: none; color: #e6e9ee; }
+      dialog#publish select {
+        background: #171a1f; color: #e6e9ee; font: inherit; border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 5px; padding: 5px 7px;
+      }
+      #pub-readme { min-height: 120px; }
+      #pub-changes { margin: 0; padding-left: 18px; font-size: 11.5px; color: #c9d1d9; }
+      #pub-versions { list-style: none; margin: 0; padding: 0; font-size: 11.5px; }
+      #pub-versions li {
+        display: flex; gap: 10px; align-items: baseline; padding: 5px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      #pub-versions li .v { width: 34px; color: #9db8dc; flex: none; }
+      #pub-versions li .log { flex: 1; color: #c9d1d9; }
+      #pub-versions li.withdrawn .log { color: #6f7885; text-decoration: line-through; }
+      #pub-versions li .when { color: #6f7885; flex: none; }
+      .pub-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; align-items: center; }
+      #pub-status { flex: 1; font-size: 11.5px; color: #8a93a0; }
+      #pub-status.bad { color: #f0883e; }
+      #pub-status.ok { color: #7ee787; }
     </style>
   </head>
   <body>
@@ -119,7 +152,50 @@
       <button id="render">Render audio</button>
       <button id="revert" disabled>Revert</button>
       <button id="save" class="primary" disabled>Save</button>
+      <span class="badge" id="pub-badge" hidden></span>
+      <button id="publish-open" title="Share this set as a callout pack others can install">Publish…</button>
     </header>
+
+    <dialog id="publish">
+      <h3 id="pub-heading">Publish callout pack</h3>
+      <div class="meta" id="pub-lead"></div>
+
+      <h2>Page</h2>
+      <div class="field"><label for="pub-title">Title</label><input type="text" id="pub-title" maxlength="80" /></div>
+      <div class="field"><label for="pub-summary">One-line summary</label><input type="text" id="pub-summary" maxlength="160" /></div>
+      <div class="field">
+        <label for="pub-readme">Description — Markdown. Say what the pack is for, which car, who it suits.</label>
+        <textarea id="pub-readme"></textarea>
+      </div>
+      <div class="field">
+        <label for="pub-visibility">Who can find it</label>
+        <select id="pub-visibility">
+          <option value="public">Public — listed in Content</option>
+          <option value="unlisted">Unlisted — only people with the link</option>
+          <option value="private">Private — only you</option>
+        </select>
+      </div>
+
+      <div id="pub-update" hidden>
+        <h2>What changed since <span id="pub-latest"></span></h2>
+        <ul id="pub-changes"></ul>
+        <div class="field" style="margin-top:10px">
+          <label for="pub-changelog">Your note for this version — shown to everyone who updates</label>
+          <input type="text" id="pub-changelog" maxlength="500" placeholder="e.g. moved the T1 braking point later, shortened the chicane" />
+        </div>
+      </div>
+
+      <div id="pub-history" hidden>
+        <h2>Versions</h2>
+        <ul id="pub-versions"></ul>
+      </div>
+
+      <div class="pub-actions">
+        <span id="pub-status"></span>
+        <button id="pub-cancel">Close</button>
+        <button id="pub-go" class="primary">Publish</button>
+      </div>
+    </dialog>
 
     <main>
       <div id="map-wrap">
@@ -181,5 +257,6 @@
     </footer>
 
     <script type="module" src="./editor.js"></script>
+    <script type="module" src="./publish.js"></script>
   </body>
 </html>
