@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(29);
+select plan(32);
 
 -- Two drivers. The trigger makes their profiles.
 insert into auth.users (id, email, raw_user_meta_data) values
@@ -94,6 +94,42 @@ select is(
        "notes": [{"id": "abc123", "dirty": false}, {"id": "def456", "dirty": false}]}'::jsonb, 'added one')),
   2,
   'the next is v2'
+);
+
+-- Files attached to a version (M8 step 6), on an item of their own.
+insert into public.content_items (kind, title, sim, track_id, config_id, car_class)
+values ('callouts', 'Daytona with a setup', 'iracing', 192, 'road-course', 'mx5');
+
+select throws_ok(
+  $$ select public.publish_version(
+       (select id from public.content_items where title = 'Daytona with a setup'),
+       '{"trackKey": {"sim": "iracing", "trackId": 192, "configId": "road-course"}, "notes": []}'::jsonb,
+       '', null, null, null,
+       '[{"kind": "setup", "path": "items/someone-else/x.sto", "label": "Race", "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "bytes": 10}]'::jsonb) $$,
+  'P0001', 'a file is not in this item''s folder',
+  'a version cannot claim a file from another item''s folder'
+);
+
+select is(
+  (select version from public.publish_version(
+     (select id from public.content_items where title = 'Daytona with a setup'),
+     '{"trackKey": {"sim": "iracing", "trackId": 192, "configId": "road-course"}, "notes": []}'::jsonb,
+     '', null, null, null,
+     ('[{"kind": "setup", "path": "items/' || (select id from public.content_items where title = 'Daytona with a setup') ||
+      '/a.sto", "label": "Race", "sha256": "1111111111111111111111111111111111111111111111111111111111111111", "bytes": 10},' ||
+      ' {"kind": "blap", "path": "items/' || (select id from public.content_items where title = 'Daytona with a setup') ||
+      '/b.blap", "label": "Best lap", "sha256": "2222222222222222222222222222222222222222222222222222222222222222", "bytes": 30720}]')::jsonb)),
+  1,
+  'a version can carry a setup and a lap file'
+);
+
+select is(
+  (select string_agg(f.kind, ',' order by f.kind) from public.content_files f
+   join public.content_versions v on v.id = f.version_id
+   join public.content_items i on i.id = v.item_id
+   where i.title = 'Daytona with a setup'),
+  'blap,setup',
+  'and both are recorded with their kind'
 );
 
 select throws_ok(

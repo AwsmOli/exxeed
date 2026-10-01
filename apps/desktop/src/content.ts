@@ -7,7 +7,10 @@
  * starring and the Starred filter.
  */
 
-import { ipcMain, shell } from "electron";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
+import { BrowserWindow, dialog, ipcMain, shell, type WebContents } from "electron";
 
 import { describeDiff, pct, pctToIndex, type TrackKey } from "@exxeed/core";
 import {
@@ -23,6 +26,9 @@ import {
 import {
   browse,
   browseRow,
+  downloadPackFile,
+  listVersionFiles,
+  PACK_FILE_EXTENSION,
   fetchMap,
   getVersionPayload,
   listFacets,
@@ -129,6 +135,7 @@ async function page(deps: ContentDeps, itemId: string): Promise<ContentPage> {
   ]);
 
   const latest = row.latestVersionId === null ? null : await getVersionPayload(client, row.latestVersionId);
+  const files = row.latestVersionId === null ? [] : await listVersionFiles(client, row.latestVersionId).catch(() => []);
   const latestRow = versions.find((v) => v.id === row.latestVersionId) ?? null;
 
   // The map from this machine if it has one, otherwise the shared one — read,
@@ -152,6 +159,7 @@ async function page(deps: ContentDeps, itemId: string): Promise<ContentPage> {
     trackKey: row.trackKey as ContentPage["trackKey"],
     shareLink: shareLinkFor(itemId),
     screenshots: media.filter((m) => m.kind === "screenshot").map((m) => m.url),
+    files: files.map((f) => ({ kind: f.kind, label: f.label, bytes: f.bytes, carId: f.carId })),
     versions: versions.map((v) => ({
       id: v.id,
       version: v.version,
@@ -180,6 +188,40 @@ async function page(deps: ContentDeps, itemId: string): Promise<ContentPage> {
   };
 }
 
+/** A label as a file name: no path separators or characters Windows refuses. */
+const fileNameFor = (label: string): string =>
+  label.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "file";
+
+/**
+ * Download the latest version's files into a folder the driver picks. The way
+ * to get a pack's lap files on any machine, and its setups where the app
+ * cannot install them itself (no iRacing folder, as on macOS).
+ */
+async function saveFiles(sender: WebContents, itemId: string): Promise<string> {
+  const client = cloudClient();
+  const row = await browseRow(client, itemId);
+  if (row?.latestVersionId == null) throw new Error("this pack has no published version");
+  const files = await listVersionFiles(client, row.latestVersionId);
+  if (files.length === 0) return "this version has no files";
+
+  const window = BrowserWindow.fromWebContents(sender);
+  const options = { title: `Save the files of ${row.title}`, properties: ["openDirectory" as const, "createDirectory" as const] };
+  const picked = window === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options);
+  const dir = picked.filePaths[0];
+  if (picked.canceled || dir === undefined) return "";
+
+  const used = new Set<string>();
+  for (const file of files) {
+    const base = fileNameFor(file.label);
+    const ext = PACK_FILE_EXTENSION[file.kind];
+    let name = `${base}.${ext}`;
+    for (let n = 2; used.has(name.toLowerCase()); n++) name = `${base} (${n}).${ext}`;
+    used.add(name.toLowerCase());
+    await writeFile(join(dir, name), await downloadPackFile(client, file));
+  }
+  return `saved ${files.length} file${files.length === 1 ? "" : "s"} to ${dir}`;
+}
+
 async function star(itemId: string, on: boolean): Promise<number> {
   if (!accountView().signedIn) throw new Error("sign in to star packs");
   await setStar(cloudClient(), itemId, on);
@@ -187,7 +229,7 @@ async function star(itemId: string, on: boolean): Promise<number> {
 }
 
 export function installContentIpc(deps: ContentDeps): void {
-  ipcMain.handle(CONTENT_CHANNEL, async (_event, request: ContentRequest) => {
+  ipcMain.handle(CONTENT_CHANNEL, async (event, request: ContentRequest) => {
     try {
       switch (request.op) {
         case "facets":
@@ -198,6 +240,8 @@ export function installContentIpc(deps: ContentDeps): void {
           return { ok: true, value: await page(deps, request.itemId) };
         case "star":
           return { ok: true, value: await star(request.itemId, request.on) };
+        case "saveFiles":
+          return { ok: true, value: await saveFiles(event.sender, request.itemId) };
         case "openExternal": {
           // https only: a description is a stranger's text, and file:, javascript:
           // or a custom protocol handler must not be one click away.

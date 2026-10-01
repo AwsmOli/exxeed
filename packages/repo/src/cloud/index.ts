@@ -7,4 +7,5 @@ export * from "./client.js";
 export * from "./sync.js";
 export * from "./content.js";
 export * from "./browse.js";
+export * from "./files.js";
 export type { Database } from "./db.generated.js";

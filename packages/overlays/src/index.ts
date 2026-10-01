@@ -296,6 +296,10 @@ export interface PublishState {
   readonly installed: boolean;
   /** Filled for a first publish, from the track and car. */
   readonly suggested: PublishFields;
+  /** Files for the next version: the last version's, plus and minus changes. */
+  readonly files: readonly PublishFile[];
+  /** The files differ from the latest version's, so publishing makes a new version. */
+  readonly filesChanged: boolean;
   /** Null until this set has been published at least once. */
   readonly published: {
     readonly itemId: string;
@@ -319,9 +323,32 @@ export interface PublishState {
   } | null;
 }
 
+/** A file to go out with the next version: a setup or an iRacing lap file (M8 step 6). */
+export interface PublishFile {
+  readonly key: string;
+  readonly kind: "setup" | "blap" | "olap";
+  readonly label: string;
+  /** The file's own name, for recognising it. */
+  readonly name: string;
+  readonly bytes: number;
+  /** What a lap file's header says, e.g. "Sebastian Crex · 1:02.667". */
+  readonly detail: string | null;
+  /** Added since the last version, so it still needs the rights confirmation. */
+  readonly isNew: boolean;
+}
+
 export type PublishRequest =
   | { readonly op: "state" }
-  | { readonly op: "publish"; readonly fields: PublishFields; readonly changelog: string }
+  | {
+      readonly op: "publish";
+      readonly fields: PublishFields;
+      readonly changelog: string;
+      /** "These files are mine to share" — required when new files are attached. */
+      readonly filesConfirmed?: boolean;
+    }
+  | { readonly op: "addFiles" }
+  | { readonly op: "removeFile"; readonly key: string }
+  | { readonly op: "setFileLabel"; readonly key: string; readonly label: string }
   | { readonly op: "withdraw"; readonly versionId: string }
   /** Pick an image file, re-encode it (dropping its metadata) and add it to the page. */
   | { readonly op: "addMedia"; readonly kind: "icon" | "screenshot" }
@@ -465,6 +492,13 @@ export interface ContentPage extends ContentRow {
   readonly shareLink: string;
   readonly screenshots: readonly string[];
   readonly versions: readonly LibraryVersion[];
+  /** The latest version's attached files. */
+  readonly files: readonly {
+    readonly kind: "setup" | "blap" | "olap";
+    readonly label: string;
+    readonly bytes: number;
+    readonly carId: string | null;
+  }[];
   /** The latest version's callouts, in lap order. */
   readonly callouts: readonly { readonly id: string; readonly text: string; readonly textShort: string; readonly metresFromStart: number }[];
   /** Null when no map of the layout has been shared yet. */
@@ -482,6 +516,8 @@ export type ContentRequest =
   | { readonly op: "browse"; readonly filters: ContentFilters; readonly offset: number }
   | { readonly op: "page"; readonly itemId: string }
   | { readonly op: "star"; readonly itemId: string; readonly on: boolean }
+  /** Download the latest version's files into a folder the driver picks. */
+  | { readonly op: "saveFiles"; readonly itemId: string }
   /** A link in a description or a source video: opened in the browser, never in the app. */
   | { readonly op: "openExternal"; readonly url: string };
 

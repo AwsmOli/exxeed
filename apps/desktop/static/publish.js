@@ -35,18 +35,27 @@ function renderBadge(s) {
   $("publish-open").textContent = ahead ? "Publish update…" : "Publish…";
 }
 
+/** Fill the form fields from the server — on opening the dialog, and after a publish. */
 function fill(s) {
-  const p = s.published;
-  const fields = p?.fields ?? s.suggested;
+  const fields = s.published?.fields ?? s.suggested;
   $("pub-title").value = fields.title;
   $("pub-summary").value = fields.summary;
   $("pub-readme").value = fields.readme;
   $("pub-visibility").value = fields.visibility;
   $("pub-changelog").value = "";
+  render(s);
+}
 
+/**
+ * Everything but the form fields. Attaching a file or an image redraws only
+ * this, so a title or description being typed is not thrown away.
+ */
+function render(s) {
+  const p = s.published;
   const isUpdate = p !== null && p.latestVersion !== null;
-  // Published, and no callout has changed: saving only updates the page.
-  const pageOnly = isUpdate && p.changes.length === 0;
+  // Published, and neither the callouts nor the files changed: saving only
+  // updates the page.
+  const pageOnly = isUpdate && p.changes.length === 0 && !s.filesChanged;
   $("pub-heading").textContent = pageOnly ? "Edit the pack's page" : isUpdate ? `Publish v${p.latestVersion + 1}` : "Publish callout pack";
   $("pub-lead").textContent = pageOnly
     ? `No callout has changed since v${p.latestVersion}, so this only updates the pack's page — title, description and who can find it.`
@@ -57,7 +66,11 @@ function fill(s) {
   $("pub-update").hidden = !isUpdate || pageOnly;
   if (isUpdate) {
     $("pub-latest").textContent = `v${p.latestVersion}`;
-    const lines = p.changes.length > 0 ? p.changes : ["No callout has changed — publishing now only updates the page."];
+    const lines = [
+      ...p.changes,
+      ...(s.filesChanged ? ["Files changed (below)."] : []),
+    ];
+    if (lines.length === 0) lines.push("No callout has changed — publishing now only updates the page.");
     $("pub-changes").replaceChildren(
       ...lines.map((line) => {
         const li = document.createElement("li");
@@ -68,6 +81,7 @@ function fill(s) {
   }
 
   renderMedia(s);
+  renderFiles(s);
 
   $("pub-history").hidden = !(p && p.versions.length > 0);
   if (p) {
@@ -118,6 +132,55 @@ function fill(s) {
   } else {
     go.disabled = false;
     setStatus("");
+  }
+}
+
+const KIND_LABEL = { setup: "Setup", blap: "Best lap", olap: "Optimal lap" };
+const kb = (n) => `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
+
+/** Setups and lap files for the next version (M8 step 6). */
+function renderFiles(s) {
+  $("pub-files-section").hidden = !s.signedIn || s.installed;
+  $("pub-files").replaceChildren(
+    ...s.files.map((f) => {
+      const row = document.createElement("div");
+      row.className = "pub-file";
+      const kind = document.createElement("span");
+      kind.className = `kind${f.isNew ? " new" : ""}`;
+      kind.textContent = KIND_LABEL[f.kind] ?? f.kind;
+      kind.title = f.isNew ? "New in this version" : "Carried over from the last version";
+
+      const main = document.createElement("div");
+      const label = document.createElement("input");
+      label.type = "text";
+      label.value = f.label;
+      label.maxLength = 60;
+      label.title = "Shown on the pack's page and used as the file name when installed";
+      label.addEventListener("change", () => void fileOp({ op: "setFileLabel", key: f.key, label: label.value }));
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      sub.textContent = [f.name !== f.label ? f.name : null, f.detail, kb(f.bytes)].filter(Boolean).join(" · ");
+      main.append(label, sub);
+
+      const remove = document.createElement("button");
+      remove.textContent = "×";
+      remove.title = "Leave this file out of the next version";
+      remove.addEventListener("click", () => void fileOp({ op: "removeFile", key: f.key }));
+      row.append(kind, main, remove);
+      return row;
+    }),
+  );
+  const anyNew = s.files.some((f) => f.isNew);
+  $("pub-files-confirm-row").hidden = !anyNew;
+  if (!anyNew) $("pub-files-confirm").checked = false;
+}
+
+async function fileOp(request) {
+  try {
+    state = await call(request);
+    render(state);
+  } catch (err) {
+    setStatus(err.message, "bad");
   }
 }
 
@@ -176,7 +239,7 @@ async function open() {
 
 async function doPublish() {
   const go = $("pub-go");
-  const pageOnly = state?.published?.latestVersion != null && state.published.changes.length === 0;
+  const pageOnly = state?.published?.latestVersion != null && state.published.changes.length === 0 && !state.filesChanged;
   go.disabled = true;
   setStatus("Publishing…");
   try {
@@ -189,6 +252,7 @@ async function doPublish() {
         visibility: $("pub-visibility").value,
       },
       changelog: $("pub-changelog").value,
+      filesConfirmed: $("pub-files-confirm").checked,
     });
     renderBadge(state);
     fill(state);
@@ -211,7 +275,7 @@ async function doWithdraw(version, button) {
   try {
     state = await call({ op: "withdraw", versionId: version.id });
     renderBadge(state);
-    fill(state);
+    render(state);
     setStatus(`Withdrew v${version.version}.`, "ok");
   } catch (err) {
     setStatus(err.message, "bad");
@@ -221,6 +285,7 @@ async function doWithdraw(version, button) {
 
 $("publish-open").addEventListener("click", () => void open());
 $("pub-icon").addEventListener("click", () => void mediaOp({ op: "addMedia", kind: "icon" }));
+$("pub-add-files").addEventListener("click", () => void fileOp({ op: "addFiles" }));
 $("pub-shot").addEventListener("click", () => void mediaOp({ op: "addMedia", kind: "screenshot" }));
 $("pub-cancel").addEventListener("click", () => $("publish").close());
 $("pub-go").addEventListener("click", () => void doPublish());

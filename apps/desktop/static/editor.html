@@ -146,6 +146,11 @@
       .pub-media img { width: 96px; height: 60px; object-fit: cover; border-radius: 5px; border: 1px solid rgba(255,255,255,0.12); display: block; }
       .pub-media img.icon { width: 60px; height: 60px; }
       .pub-media figure button { position: absolute; top: 2px; right: 2px; padding: 0 5px; font-size: 11px; line-height: 16px; }
+      .pub-file { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 0; }
+      .pub-file .kind { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #9db8dc; border: 1px solid rgba(88,166,255,0.35); border-radius: 8px; text-align: center; padding: 1px 0; }
+      .pub-file .kind.new { color: #7ee787; border-color: rgba(126,231,135,0.4); }
+      .pub-file .sub { color: #6f7885; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .pub-confirm { display: flex; gap: 6px; align-items: flex-start; margin-top: 10px; font-size: 11.5px; color: #d8a06a; }
     </style>
   </head>
   <body>
@@ -191,6 +196,19 @@
           <button id="pub-shot">Add screenshot…</button>
         </div>
         <div class="meta" style="margin-top:4px">Re-encoded before upload, so a photo's location and camera data are not sent. Up to 8 screenshots.</div>
+      </div>
+
+      <div id="pub-files-section">
+        <h2>Files — setups and lap files</h2>
+        <div id="pub-files"></div>
+        <div style="display:flex; gap:8px; margin-top:8px; align-items:center">
+          <button id="pub-add-files">Attach setups or lap files…</button>
+          <span class="meta">.sto setups, .blap / .olap lap files. Carried over to the next version unless removed.</span>
+        </div>
+        <label class="pub-confirm" id="pub-files-confirm-row" hidden>
+          <input type="checkbox" id="pub-files-confirm" />
+          These files are mine to share — not a setup bought from a shop, and my own laps.
+        </label>
       </div>
 
       <div id="pub-update" hidden>

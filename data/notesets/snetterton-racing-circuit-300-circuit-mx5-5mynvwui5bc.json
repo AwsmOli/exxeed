@@ -27,14 +27,14 @@
       "confidence": 0.8,
       "sourceTs": "2:46",
       "audio": {
-        "file": "imported/g4vifu.wav",
-        "durationMs": 7980
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/g4vifu.wav",
+        "durationMs": 10043
       },
       "audioShort": {
-        "file": "imported/g4vifu_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/g4vifu_short.wav",
+        "durationMs": 1800
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "esklt5",
@@ -46,14 +46,14 @@
       "confidence": 0.8,
       "sourceTs": "3:16",
       "audio": {
-        "file": "imported/esklt5.wav",
-        "durationMs": 7980
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/esklt5.wav",
+        "durationMs": 9555
       },
       "audioShort": {
-        "file": "imported/esklt5_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/esklt5_short.wav",
+        "durationMs": 1474
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "3fewlm",
@@ -65,14 +65,14 @@
       "confidence": 0.75,
       "sourceTs": "3:51",
       "audio": {
-        "file": "imported/3fewlm.wav",
-        "durationMs": 7980
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/3fewlm.wav",
+        "durationMs": 8777
       },
       "audioShort": {
-        "file": "imported/3fewlm_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/3fewlm_short.wav",
+        "durationMs": 1022
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "2nafyr",
@@ -84,14 +84,14 @@
       "confidence": 0.8,
       "sourceTs": "4:28",
       "audio": {
-        "file": "imported/2nafyr.wav",
-        "durationMs": 6700
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/2nafyr.wav",
+        "durationMs": 7465
       },
       "audioShort": {
-        "file": "imported/2nafyr_short.wav",
-        "durationMs": 940
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/2nafyr_short.wav",
+        "durationMs": 1115
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "ka08zq",
@@ -103,14 +103,14 @@
       "confidence": 0.8,
       "sourceTs": "4:55",
       "audio": {
-        "file": "imported/ka08zq.wav",
-        "durationMs": 7660
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/ka08zq.wav",
+        "durationMs": 7964
       },
       "audioShort": {
-        "file": "imported/ka08zq_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/ka08zq_short.wav",
+        "durationMs": 1184
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "erpseq",
@@ -122,14 +122,14 @@
       "confidence": 0.65,
       "sourceTs": "5:16",
       "audio": {
-        "file": "imported/erpseq.wav",
-        "durationMs": 7340
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/erpseq.wav",
+        "durationMs": 7860
       },
       "audioShort": {
-        "file": "imported/erpseq_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/erpseq_short.wav",
+        "durationMs": 1579
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "45a1l0",
@@ -141,14 +141,14 @@
       "confidence": 0.8,
       "sourceTs": "5:35",
       "audio": {
-        "file": "imported/45a1l0.wav",
-        "durationMs": 7660
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/45a1l0.wav",
+        "durationMs": 8173
       },
       "audioShort": {
-        "file": "imported/45a1l0_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/45a1l0_short.wav",
+        "durationMs": 1730
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "50rfhr",
@@ -160,14 +160,14 @@
       "confidence": 0.85,
       "sourceTs": "6:16",
       "audio": {
-        "file": "imported/50rfhr.wav",
-        "durationMs": 10220
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/50rfhr.wav",
+        "durationMs": 11297
       },
       "audioShort": {
-        "file": "imported/50rfhr_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/50rfhr_short.wav",
+        "durationMs": 1567
       },
-      "dirty": true
+      "dirty": false
     },
     {
       "id": "uwhnxr",
@@ -179,14 +179,14 @@
       "confidence": 0.8,
       "sourceTs": "6:55",
       "audio": {
-        "file": "imported/uwhnxr.wav",
-        "durationMs": 4140
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/uwhnxr.wav",
+        "durationMs": 4888
       },
       "audioShort": {
-        "file": "imported/uwhnxr_short.wav",
-        "durationMs": 1260
+        "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/uwhnxr_short.wav",
+        "durationMs": 1149
       },
-      "dirty": true
+      "dirty": false
     }
   ]
 }

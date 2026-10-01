@@ -36,6 +36,7 @@ import { slug } from "@exxeed/telemetry";
 import { accountView, cloudClient } from "./account.js";
 import { renderImported } from "./auto-render.js";
 import { pullForTrack } from "./cloud-sync.js";
+import { installSetups, removeSetups } from "./setups.js";
 
 export interface LibraryDeps {
   readonly getSettings: () => Settings;
@@ -152,6 +153,8 @@ async function install(deps: LibraryDeps, ref: string, versionId?: string): Prom
   deps.busy(`Installing ${item.title}…`);
   try {
     const placed = await placeLocally(deps, noteSet, localId, item.title);
+    // Setups into the sim's own folders, where this machine has them (Windows).
+    const setups = await installSetups(client, target, item.title).catch((err: unknown) => `setups not installed: ${message(err)}`);
     // Choosing an older version is choosing to stay on it: auto-update would
     // otherwise undo the rollback at the next check.
     const pinned = versionId !== undefined && versionId !== item.latestVersionId;
@@ -168,8 +171,9 @@ async function install(deps: LibraryDeps, ref: string, versionId?: string): Prom
     if (installationId !== null) {
       await recordDownload(client, target, installationId).catch((err: unknown) => log(`could not count the download: ${message(err)}`));
     }
-    log(`installed ${item.title} v${version?.version ?? "?"} as ${localId}: ${placed.message}`);
-    return `${item.title} v${version?.version ?? ""} installed — ${placed.message}`;
+    const done = `${placed.message}${setups === null ? "" : `; ${setups}`}`;
+    log(`installed ${item.title} v${version?.version ?? "?"} as ${localId}: ${done}`);
+    return `${item.title} v${version?.version ?? ""} installed — ${done}`;
   } finally {
     deps.busy(null);
     deps.changed();
@@ -184,6 +188,9 @@ async function uninstall(deps: LibraryDeps, noteSetId: string): Promise<string> 
   // next to "Publish" should be able to do by accident.
   if (link?.origin !== "installed") throw new Error("only installed packs can be uninstalled");
   const repos = localRepositories(dataDir);
+  // The pack's setup folders go with it — by title, which is how they were named.
+  const title = remote.get(link.itemId)?.title ?? (await getItem(cloudClient(), link.itemId).catch(() => null))?.title;
+  if (title !== undefined) await removeSetups(title).catch(() => {});
   await repos.noteSets.remove(noteSetId);
   await repos.audio.removeAll(noteSetId);
   await index.remove(noteSetId);

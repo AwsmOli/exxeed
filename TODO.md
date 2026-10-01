@@ -1157,11 +1157,15 @@ A pack is callouts plus attached files. Setups (`.sto`) and iRacing's lap files
 (`.blap` best lap, `.olap` optimal lap) are kinds of attachment, sharing one
 table, one bucket and one set of rules.
 
-- [ ] One table for attachments: `content_setups` becomes `content_files` with a `kind` (setup, blap, olap)
+- [x] One table for attachments: `content_setups` becomes `content_files` with a `kind` (setup, blap, olap)
   A migration renames it and adds the column; rows, rules and the bucket stay
   as they are. Files belong to a version, stored once by content hash across
   versions, readable when the version is.
 - [ ] Lap files: opt-in, with a backup, never on install
+  **Half done:** lap files attach to a version (the header gives the label:
+  "Best lap · Sebastian Crex · 1:02.667", `core/lapfile.ts`), show on the
+  page's Files tab, and save to a chosen folder. **Open:** "use as my delta
+  reference" with backup and restore, waiting on where the sim keeps them.
   The sim compares you against one best-lap and one optimal-lap file per car
   and track on its delta bar, believed to be under
   `Documents/iRacing/lapfiles/` and named by car and track (**verify on the
@@ -1176,16 +1180,24 @@ table, one bucket and one set of rules.
   Later, if the format decodes (§13's `.blap` question), a shared lap file
   can be the reference lap for the editor's speaking windows and the trace
   overlay's ghost too.
-- [ ] `pack_setups`: files in a Storage bucket, with car and optional track
+- [x] `pack_setups`: files in a Storage bucket, with car and optional track
+  Done as `content_files` in the `setups` bucket, stored once per content
+  hash. A new version carries the last version's files over unless removed.
+  Installing on Windows writes them to `setups/<car folder>/Exxeed - <pack>/`
+  (`apps/desktop/src/setups.ts`), replacing that folder on update and removing
+  it on uninstall; the car folder is found by matching its name to the car id
+  (**verify the naming on the rig**). Elsewhere, Save files… on the pack page.
   iRacing setups are `.sto` files under `Documents/iRacing/setups/<car>/`. A
   pack can carry several (race, qualifying, wet), each labelled. Install copies
   them into that folder under a subfolder named for the pack, so they show up
   in the sim's garage without touching anyone's own setups. Keyed per sim,
   because the format and the folder are both iRacing's.
-- [ ] Size limit and type check on upload
+- [x] Size limit and type check on upload
   A `.sto` is a few KB, so anything large is not a setup. Storage policy: owner
   write, public read of published versions only.
 - [ ] Rights attestation, and a report button
+  **Attestation done:** publishing with new files needs "these files are mine
+  to share". The report button comes with moderation (step 7).
   Setup shops sell theirs, and a paid setup re-shared is the most likely
   takedown request this feature will ever get. The uploader confirms it is
   theirs to share, and reports go to moderation (Step 7).
@@ -1816,6 +1828,42 @@ user sees first.
   documented list. A possible catalog source while iRacing's OAuth is paused,
   **if** those endpoints carry iRacing ids and their terms allow reuse; parked
   for now.
+  **Probed with a personal token (2026-10-01, free plan, permissions
+  `profile, openid, driving_data, analyses`):**
+  - `/tracks`: 479, each `{id, name, variant, platform: "iracing",
+    platform_id}` where `platform_id` is iRacing's TrackID (Snetterton 300 =
+    297, Daytona Road Course = 192). **`variant` is not iRacing's config name**
+    ("300", where the sim's `TrackConfigName` is "300 Circuit"), so slugging it
+    would duplicate layouts. Match on the track id, which iRacing gives each
+    layout uniquely, never on the variant.
+  - `/cars`: 193, `{id, name, platform_id}` where `platform_id` is iRacing's
+    numeric car id (MX-5 = 67). No car path, so no direct link to our slug ids
+    (`mx5-mx52016`); the SDK reports both `CarID` and `CarPath`, so recording the
+    numeric id in `report_session` would bridge them.
+  - `/car-groups`: classes (GT3, GT4, ARCA…) with member car ids.
+  - `/laps?tracks=&cars=`: the laps the token can see (6 MX-5 laps at
+    Snetterton 300), with driver, rating, car, track, lap time, clean / off-track
+    / pit flags, weather, sectors, `canViewTelemetry`, `ghostAvailable`.
+  - `/laps/{id}/ghost.bin` **is an iRacing `.blap` file**: no positions, no map.
+  - **`/laps/{id}/csv` (`getLapCSV`) is official** and returns the same CSV
+    as the website's download, positions included, so it makes maps. Its
+    `PositionType` column marks pit lane (1), pit stop (2), on track (3) and
+    off track (4).
+  - **Which laps:** "By default, applications can only access laps driven by
+    the authenticated user or their teammates. Some applications may
+    additionally be approved to access all visible laps." Own and team laps
+    work with a personal token today; building maps for many combos needs that
+    approval. One clean lap per layout is enough for a map, whatever the car,
+    so all 479 tracks are 479 downloads at ~120 requests per rate-limit window.
+  - The full API is 41 operations (spec at `/api/openapi/v1.json`): laps,
+    analyses, cars, car groups, tracks, platforms, `me` (accounts, statistics),
+    teams, and team **data packs** (laps, setups `.sto`, replays) and training
+    plans. **No results, events, standings or rating history**: race results
+    come from the sim, your own iRating/SR from `/me/accounts` (ratings per
+    category), and standings still need iRacing.
+  - A personal token is "to access your own data, or for testing purposes";
+    filling a shared catalog from it goes beyond that, so the catalog seed
+    wants their OK (or an OAuth app approved for it) too.
 - [x] Cheap first step on `.blap`: hex-dump a lap whose time you know, look for that time as a float, check whether file size scales with track length in a way that implies per-sample records. An hour of work tells you whether it's tractable at all.
   **Done 2026-10-01, on a Tsukuba 2000 Full MX-5 lap (Sebastian Crex, 62.667 s).
   Header: tractable. Map: no.** Little-endian throughout.

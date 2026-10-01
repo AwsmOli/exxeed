@@ -10,6 +10,7 @@
 import { NoteSetSchema, type ContentVisibility, type NoteSet, type NoteSetDiff, type TrackKey } from "@exxeed/core";
 
 import type { CloudClient } from "./client.js";
+import type { PackFile } from "./files.js";
 import type { Json } from "./db.generated.js";
 
 /** Writes can carry a whole note set, so they get longer than sync's reads. */
@@ -230,6 +231,8 @@ export interface PublishRequest {
   readonly diff: NoteSetDiff | null;
   readonly mapVersion: number | null;
   readonly voiceId: string | null;
+  /** Already uploaded with `uploadPackFile`. */
+  readonly files?: readonly PackFile[];
 }
 
 /** Publish the next version. The server numbers it and refuses dirty notes. */
@@ -242,6 +245,14 @@ export async function publishVersion(client: CloudClient, request: PublishReques
       p_diff: request.diff as unknown as Json,
       p_map_version: request.mapVersion as number,
       p_voice_id: request.voiceId as string,
+      p_files: (request.files ?? []).map((f) => ({
+        kind: f.kind,
+        path: f.path,
+        label: f.label,
+        car_id: f.carId,
+        sha256: f.sha256,
+        bytes: f.bytes,
+      })) as unknown as Json,
     })
     .abortSignal(timeout());
   if (error !== null) fail("publish", error.message);

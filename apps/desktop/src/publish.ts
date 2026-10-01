@@ -42,6 +42,17 @@ import {
 import { accountView, cloudClient } from "./account.js";
 import { shareTrack } from "./cloud-sync.js";
 import { checkUpdatesNow } from "./library.js";
+import {
+  addFiles,
+  attachments,
+  filesChanged,
+  forget,
+  hasNewFiles,
+  removeFile,
+  setFileLabel,
+  toView,
+  uploadForVersion,
+} from "./publish-files.js";
 
 interface PublishDeps {
   readonly getSettings: () => Settings;
@@ -84,11 +95,16 @@ async function state(deps: PublishDeps): Promise<PublishState> {
       noteCount: 0,
       installed: false,
       suggested: { title: "", summary: "", readme: "", visibility: "public" },
+      files: [],
+      filesChanged: false,
       published: null,
     };
   }
 
   const link = await new LocalContentIndex(dataDir).get(noteSet.id);
+  const client = cloudClient();
+  const item = link === null || !signedIn ? null : await getItem(client, link.itemId);
+  const files = signedIn ? await attachments(client, noteSet.id, item?.latestVersionId ?? null) : [];
   const base = {
     signedIn,
     noteSetId: noteSet.id,
@@ -96,12 +112,10 @@ async function state(deps: PublishDeps): Promise<PublishState> {
     noteCount: noteSet.notes.length,
     installed: link?.origin === "installed",
     suggested: await suggestedFields(dataDir, noteSet),
+    files: toView(files),
+    filesChanged: filesChanged(noteSet.id),
   };
-  if (link === null || !signedIn) return { ...base, published: null };
-
-  const client = cloudClient();
-  const item = await getItem(client, link.itemId);
-  if (item === null) return { ...base, published: null };
+  if (link === null || item === null) return { ...base, published: null };
   const [versions, media] = await Promise.all([listVersions(client, item.id), listMedia(client, item.id)]);
 
   // What an installer of the latest version would get if this were published now.
@@ -207,7 +221,19 @@ function checkFields(fields: PublishFields): void {
   if (fields.summary.trim().length > 160) throw new Error("the summary is at most 160 characters");
 }
 
-async function publish(deps: PublishDeps, fields: PublishFields, changelog: string): Promise<PublishState> {
+/** A setup's car: the one car in the pack's class, when there is exactly one (the MX-5 cup). */
+async function defaultCarFor(dataDir: string, carClass: string): Promise<string | null> {
+  const registry = await localRepositories(dataDir).cars.get("iracing").catch(() => null);
+  const inClass = Object.entries(registry?.cars ?? {}).filter(([, car]) => car.class === carClass);
+  return inClass.length === 1 ? inClass[0]![0] : null;
+}
+
+async function publish(
+  deps: PublishDeps,
+  fields: PublishFields,
+  changelog: string,
+  filesConfirmed: boolean,
+): Promise<PublishState> {
   if (!accountView().signedIn) throw new Error("sign in from the main window to publish");
   checkFields(fields);
 
@@ -230,6 +256,11 @@ async function publish(deps: PublishDeps, fields: PublishFields, changelog: stri
   const index = new LocalContentIndex(dataDir);
   const link = await index.get(noteSet.id);
   if (link?.origin === "installed") throw new Error("this is someone else's pack, installed here — it is not yours to publish");
+  // Setup shops sell theirs, and a paid setup re-shared is the likeliest
+  // takedown this feature will ever see (TODO M8 step 6).
+  if (hasNewFiles(noteSet.id) && !filesConfirmed) {
+    throw new Error("confirm the attached files are yours to share — a setup bought from a shop is not");
+  }
 
   // The map and reference laps go first: a pack is filed under its track, and
   // installers need the map to see where each callout sits.
@@ -251,16 +282,18 @@ async function publish(deps: PublishDeps, fields: PublishFields, changelog: stri
   const previous = link?.versionId == null ? null : await getVersionPayload(client, link.versionId);
   const diff = previous === null ? null : diffNoteSets(previous, noteSet);
 
-  // Nothing about the callouts changed: the page fields (title, description,
-  // visibility) were saved above, and a new version would be a copy of the
-  // last with nothing for installers to update to.
-  if (diff !== null && isEmptyDiff(diff)) {
+  // Nothing about the callouts or the files changed: the page fields (title,
+  // description, visibility) were saved above, and a new version would be a
+  // copy of the last with nothing for installers to update to.
+  if (diff !== null && isEmptyDiff(diff) && !filesChanged(noteSet.id)) {
     checkUpdatesNow();
     return state(deps);
   }
 
   const mapVersion = await repos.trackMaps.latestVersion(noteSet.trackKey);
   const voices = await repos.audio.listVoices(noteSet.id);
+
+  const files = await uploadForVersion(client, noteSet.id, itemId);
 
   const published = await publishVersion(client, {
     itemId,
@@ -269,7 +302,9 @@ async function publish(deps: PublishDeps, fields: PublishFields, changelog: stri
     diff,
     mapVersion,
     voiceId: voices[0] ?? null,
+    files,
   });
+  forget(noteSet.id);
   await index.put(noteSet.id, { itemId, origin: "mine", version: published.version, versionId: published.id, policy: "auto" });
   // The working copy is now the same as the release; keep the draft row in step.
   await saveDraft(client, itemId, noteSet).catch(() => {});
@@ -304,7 +339,25 @@ export function installPublishIpc(deps: PublishDeps): void {
         case "state":
           return { ok: true, value: await state(deps) };
         case "publish":
-          return { ok: true, value: await publish(deps, request.fields, request.changelog) };
+          return { ok: true, value: await publish(deps, request.fields, request.changelog, request.filesConfirmed === true) };
+        case "addFiles": {
+          const settings = deps.getSettings();
+          const dataDir = deps.resolveDataDir(settings);
+          const noteSet = settings.noteSetId === null ? null : await localRepositories(dataDir).noteSets.get(settings.noteSetId);
+          if (noteSet === null) throw new Error("no note set is open");
+          await addFiles(event.sender, noteSet.id, await defaultCarFor(dataDir, noteSet.carClass));
+          return { ok: true, value: await state(deps) };
+        }
+        case "removeFile": {
+          const id = deps.getSettings().noteSetId;
+          if (id !== null) removeFile(id, request.key);
+          return { ok: true, value: await state(deps) };
+        }
+        case "setFileLabel": {
+          const id = deps.getSettings().noteSetId;
+          if (id !== null) setFileLabel(id, request.key, request.label);
+          return { ok: true, value: await state(deps) };
+        }
         case "withdraw":
           await withdrawVersion(cloudClient(), request.versionId);
           return { ok: true, value: await state(deps) };

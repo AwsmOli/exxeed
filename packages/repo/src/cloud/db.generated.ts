@@ -68,6 +68,25 @@ isOneToOne: true
       referencedColumns: ["id"]
     }
                   ]
+                },"content_files": {
+                  Row: {
+                    "bytes": number,"car_id": string | null,"id": string,"kind": string,"label": string,"path": string,"sha256": string,"version_id": string
+                  }
+                  Insert: {
+                    "bytes": number,"car_id"?: string | null,"id"?: string,"kind": string,"label": string,"path": string,"sha256": string,"version_id": string
+                  }
+                  Update: {
+                    "bytes"?: number,"car_id"?: string | null,"id"?: string,"kind"?: string,"label"?: string,"path"?: string,"sha256"?: string,"version_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "content_setups_version_id_fkey"
+      columns: ["version_id"]
+isOneToOne: false
+      referencedRelation: "content_versions"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"content_items": {
                   Row: {
                     "based_on_version_id": string | null,"car_class": string | null,"config_id": string | null,"created_at": string,"download_count": number,"icon_path": string | null,"id": string,"kind": string,"latest_version": number | null,"latest_version_id": string | null,"owner": string,"readme": string,"removed": boolean,"search": unknown,"sim": string | null,"star_count": number,"summary": string,"title": string,"track_id": number | null,"track_label": string,"updated_at": string,"visibility": string
@@ -121,25 +140,6 @@ isOneToOne: false
       columns: ["item_id"]
 isOneToOne: false
       referencedRelation: "content_items"
-      referencedColumns: ["id"]
-    }
-                  ]
-                },"content_setups": {
-                  Row: {
-                    "bytes": number,"car_id": string | null,"id": string,"label": string,"path": string,"sha256": string,"version_id": string
-                  }
-                  Insert: {
-                    "bytes": number,"car_id"?: string | null,"id"?: string,"label": string,"path": string,"sha256": string,"version_id": string
-                  }
-                  Update: {
-                    "bytes"?: number,"car_id"?: string | null,"id"?: string,"label"?: string,"path"?: string,"sha256"?: string,"version_id"?: string
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "content_setups_version_id_fkey"
-      columns: ["version_id"]
-isOneToOne: false
-      referencedRelation: "content_versions"
       referencedColumns: ["id"]
     }
                   ]
@@ -321,7 +321,7 @@ isOneToOne: false
 { Args: { "object_name": string }; Returns: boolean
                            },
 "publish_version":
-{ Args: { "p_changelog"?: string,"p_diff"?: Json,"p_item_id": string,"p_map_version"?: number,"p_payload": Json,"p_setups"?: Json,"p_voice_id"?: string }; Returns: {
+{ Args: { "p_changelog"?: string,"p_diff"?: Json,"p_files"?: Json,"p_item_id": string,"p_map_version"?: number,"p_payload": Json,"p_voice_id"?: string }; Returns: {
               "changelog": string,
 "diff": Json | null,
 "download_count": number,

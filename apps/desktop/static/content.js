@@ -438,6 +438,49 @@ function tabBody(page) {
           ),
         ),
       );
+    case "files": {
+      const KIND = { setup: "Setup", blap: "Best lap", olap: "Optimal lap" };
+      const save = make("button", { className: "ghost", type: "button", textContent: "Save files…" });
+      save.addEventListener("click", async () => {
+        save.disabled = true;
+        try {
+          const message = await content({ op: "saveFiles", itemId: page.id });
+          if (message) setStatus(message);
+        } catch (err) {
+          setStatus(err.message, true);
+        } finally {
+          save.disabled = false;
+        }
+      });
+      return make(
+        "div",
+        {},
+        make(
+          "ol",
+          { className: "c-callouts" },
+          ...page.files.map((f) =>
+            make(
+              "li",
+              {},
+              make("span", { className: "m", textContent: KIND[f.kind] ?? f.kind }),
+              make(
+                "div",
+                {},
+                make("div", { textContent: f.label }),
+                make("div", { className: "short", textContent: `${(f.bytes / 1024).toFixed(1)} KB${f.carId ? ` · ${f.carId}` : ""}` }),
+              ),
+            ),
+          ),
+        ),
+        make(
+          "p",
+          { className: "c-meta" },
+          "Installing on Windows puts the setups in iRacing's garage, in a folder named after this pack. " +
+            "Lap files are never installed over your own; save them and use them as you like.",
+        ),
+        save,
+      );
+    }
     default:
       return make("div");
   }
@@ -476,6 +519,7 @@ function renderPage() {
       ["callouts", `Callouts (${page.callouts.length})`],
       ["map", "Map"],
       ["changelog", `Changelog (${page.versions.length})`],
+      ...(page.files.length > 0 ? [["files", `Files (${page.files.length})`]] : []),
     ].map(([id, label]) => {
       const b = make("button", { type: "button", textContent: label, className: state.tab === id ? "on" : "" });
       b.addEventListener("click", () => {
