@@ -33,7 +33,6 @@ import { RaceViewBuilder } from "./race-view.js";
  *  to shade and the map something to mark. */
 const CORNERS = [0.12, 0.35, 0.58, 0.82];
 const GRID_SIZE = 400;
-const LAP_LENGTH_M = 3200;
 const LAP_DURATION_S = 22;
 const TICK_MS = 50;
 
@@ -77,10 +76,10 @@ function buildProfile(): { throttle: number[]; brake: number[]; speedMps: number
 /** A plausible gear for a speed, for the sample lap and its reference. */
 const gearFor = (speedMps: number): number => Math.max(2, Math.min(6, Math.ceil((speedMps * 3.6) / 45)));
 
-function buildElapsed(speedMps: readonly number[]): number[] {
+function buildElapsed(speedMps: readonly number[], lengthM: number): number[] {
   const elapsed: number[] = [];
   let t = 0;
-  const stepM = LAP_LENGTH_M / GRID_SIZE;
+  const stepM = lengthM / GRID_SIZE;
   for (let i = 0; i < GRID_SIZE; i++) {
     elapsed.push(t);
     t += stepM / Math.max(1, speedMps[i] ?? 40);
@@ -90,7 +89,29 @@ function buildElapsed(speedMps: readonly number[]): number[] {
 
 const shape = buildShape();
 const profile = buildProfile();
-const elapsedS = buildElapsed(profile.speedMps);
+/**
+ * As long as the sample speeds cover in LAP_DURATION_S, so the reference lap
+ * time, the car's own lap and the field's lap times all agree. A fixed length
+ * made the reference a 67 s lap beside 22 s ones, and Delta Sectors showed a
+ * 45 s gap.
+ */
+const LAP_LENGTH_M =
+  LAP_DURATION_S / profile.speedMps.reduce((sum, v) => sum + 1 / Math.max(1, v), 0) * GRID_SIZE;
+const elapsedS = buildElapsed(profile.speedMps, LAP_LENGTH_M);
+
+/** Where the sample car is `t` seconds into its lap: slow in the corners, as its speed says. */
+function pctAtTime(t: number): number {
+  let lo = 0;
+  let hi = GRID_SIZE - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if ((elapsedS[mid] ?? 0) <= t) lo = mid;
+    else hi = mid - 1;
+  }
+  const from = elapsedS[lo] ?? 0;
+  const to = lo + 1 < GRID_SIZE ? (elapsedS[lo + 1] ?? LAP_DURATION_S) : LAP_DURATION_S;
+  return (lo + (to > from ? (t - from) / (to - from) : 0)) / GRID_SIZE;
+}
 const NOTE_IDS = CORNERS.map((_, i) => `preview-${i + 1}`);
 
 function sample(channel: readonly number[], p: number): number {
@@ -113,7 +134,7 @@ const mapView: TrackMapView = {
 
 const referenceView: ReferenceView = {
   gridSize: GRID_SIZE,
-  lapTimeS: elapsedS[GRID_SIZE - 1] ?? LAP_DURATION_S,
+  lapTimeS: LAP_DURATION_S,
   carId: "preview",
   throttle: profile.throttle,
   brake: profile.brake,
@@ -273,7 +294,8 @@ export function startOverlayPreview(send: (channel: string, payload: unknown) =>
 
   const timer = setInterval(() => {
     const elapsedMs = Date.now() - startedAt;
-    const lapPct = (elapsedMs / 1000 / LAP_DURATION_S) % 1;
+    const lapS = (elapsedMs / 1000) % LAP_DURATION_S;
+    const lapPct = pctAtTime(lapS);
     const newLap = Math.floor(elapsedMs / 1000 / LAP_DURATION_S);
     if (newLap !== lap) {
       lap = newLap;
@@ -300,7 +322,7 @@ export function startOverlayPreview(send: (channel: string, payload: unknown) =>
       rpm: 4800 + ((speed * 3.6) % 45) / 45 * 3000,
       clutch: 0,
       ffb: 0.35 + brake * 0.4,
-      lapElapsedS: seconds(lapPct * LAP_DURATION_S),
+      lapElapsedS: seconds(lapS),
       // A gentle side-to-side wander — enough to show the bar move both ways
       // without ever reading as a real, consistent pace difference.
       deltaS: seconds(0.4 * Math.sin(elapsedMs / 4000)),
