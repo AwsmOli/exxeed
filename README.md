@@ -89,21 +89,22 @@ The editor shows the lap the way you think about it: turn by turn.
   you would hear it, so you can tune a pack without leaving the pits.
 - **Publish** it for others when it is ready.
 
-## Fast reference laps, from Garage 61
+## Fast reference laps
 
-When you are new to a track, your own laps are the last thing you want to be
-compared to. So Exxeed's **reference laps** are fast laps from
-[Garage 61](https://garage61.net): the lap your callouts are timed against, and
-the one the overlays compare your throttle, brake, speed and delta to.
+Your **reference lap** is the lap your callouts are timed against, and the one
+the overlays compare your throttle, brake, speed and delta to. When you are new
+to a track, your own laps are the last thing you want to be compared to.
 
-You do not have to do anything. The Exxeed team prepares the track map and a
-reference lap for each track and car from Garage 61, and they arrive in the app
-with the track.
+You can find fast laps on [Garage 61](https://garage61.net). Export one as a CSV
+file, import it in Track Coach, and it becomes your reference lap. If the track
+has no map in Exxeed yet, the imported lap is used to create it.
 
-- **Laps shared on Garage 61.** Exxeed uses laps that are visible to it through
-  Garage 61's API, the same ones you could open there yourself.
-- **Only the reference lap and track map are kept.** The Garage 61 file itself
-  is not stored or passed on.
+No fast lap to hand? Exxeed also takes your own first clean lap as a starting
+point, and you can swap in a faster one later.
+
+Only the reference lap and track map built from the file are kept, and shared
+with other Exxeed drivers so the next person at that track has them too. The
+Garage 61 file itself is not stored or passed on.
 
 ## Overlays
 
@@ -200,12 +201,13 @@ for maps and packs.
 
 ![The Garage 61 lap search in Track Coach → Import lap…](docs/screenshots/garage61.png)
 
-How the reference laps and maps get into Exxeed. Garage 61 gives out API tokens on request, so connecting
-an account is an admin feature, not something every driver does. With a token,
-**Track Coach → Import lap…** searches laps by track and car, and the bulk tool
-(`pnpm --filter @exxeed/trackmap g61`) builds maps for many tracks. What it
-builds is shared to Exxeed's database, so drivers get maps and reference laps
-from Exxeed and never call Garage 61 themselves.
+Anyone can import a lap exported from Garage 61 as a CSV
+(**Track Coach → Import lap… → Choose a Garage 61 CSV**); no token is needed.
+
+Searching Garage 61 from inside the app needs an API token, which Garage 61
+gives out on request, so that part is an admin feature. With a token, the same
+dialog (above) searches laps by track and car, and the bulk tool
+(`pnpm --filter @exxeed/trackmap g61`) builds maps for many tracks at once.
 
 - **Which laps.** The admin's own laps by default. Unticking "Only my laps"
   (`--with-teammates` in the tool) includes the laps teammates share with that
@@ -215,8 +217,6 @@ from Exxeed and never call Garage 61 themselves.
   sent to Exxeed's servers.
 - **Only what is built from a lap is kept and shared**: the reference lap and,
   if needed, the track map. The Garage 61 CSV itself is not stored.
-- A CSV exported from the Garage 61 website can also be imported by anyone, with
-  no token (**Import lap… → Choose a Garage 61 CSV**).
 - Uses Garage 61's documented v1 API (driver, tracks, cars, lap search, lap
   CSV): one lap per import or per layout, layouts that already have a map are
   skipped, and rate-limit responses are waited out.
