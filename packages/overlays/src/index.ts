@@ -559,7 +559,47 @@ export interface LapImportDraft {
 
 export type LapImportRequest =
   | { readonly op: "pick" }
-  | { readonly op: "import"; readonly token: string; readonly trackKey: ContentTrackKey; readonly carId: string };
+  | { readonly op: "import"; readonly token: string; readonly trackKey: ContentTrackKey; readonly carId: string }
+  /** Garage 61: whether a token is stored, and whose. */
+  | { readonly op: "g61Status" }
+  /** Store a personal access token, after checking Garage 61 accepts it. */
+  | { readonly op: "g61Connect"; readonly token: string }
+  | { readonly op: "g61Disconnect" }
+  /** Garage 61's tracks and cars, for the search menus. */
+  | { readonly op: "g61Catalog" }
+  /** Laps with telemetry on a track, optionally in one car; fastest first. */
+  | {
+      readonly op: "g61Laps";
+      readonly trackId: number;
+      readonly carId: number | null;
+      /** Only the account owner's own laps. Teammates' laps are theirs to share. */
+      readonly mineOnly: boolean;
+    }
+  /** Download one of those laps and make a draft from it, as `pick` does for a file. */
+  | { readonly op: "g61Pick"; readonly lapId: string };
+
+export interface Garage61Status {
+  readonly connected: boolean;
+  /** The token owner's name, as Garage 61 has it. */
+  readonly user: string | null;
+}
+
+export interface Garage61Catalog {
+  readonly tracks: readonly { readonly id: number; readonly label: string; readonly iracingTrackId: number | null }[];
+  readonly cars: readonly { readonly id: number; readonly name: string }[];
+  /** The Garage 61 track for the session being driven, if any. */
+  readonly suggestedTrackId: number | null;
+}
+
+export interface Garage61LapRow {
+  readonly id: string;
+  readonly driver: string;
+  readonly car: string;
+  readonly lapTimeS: number;
+  readonly startTime: string;
+  readonly clean: boolean;
+  readonly trackTempC: number | null;
+}
 
 /** Renderer → main, invoke: install, update, uninstall packs (M8). */
 export const LIBRARY_CHANNEL = "exxeed:library";
@@ -1017,11 +1057,33 @@ export interface RecordingImportView {
 export const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
 /** Renderer → main, invoke: save edited notes and get the recomputed view back. */
 export const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
+/** Renderer → main, invoke: the notes as they would be after saving these patches, without saving. */
+export const EDITOR_PREVIEW_CHANNEL = "exxeed:editor-preview";
 /** Renderer → main, invoke: re-render the note set's audio (§10 stage 6). */
 export const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
 
+/** Main → editor, during a render: one more clip done. */
+export const EDITOR_RENDER_PROGRESS_CHANNEL = "exxeed:editor-render-progress";
+
+/** How far the editor's render has got. */
+export interface EditorRenderProgress {
+  readonly done: number;
+  readonly total: number;
+  /** The note just finished. */
+  readonly noteId: string;
+  readonly variant: "full" | "short";
+}
+
 /** Main → editor: the menu asked for a render, do the same thing the button does. */
 export const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
+/** Renderer → main, invoke: the open note set's audio, for Play lap in the editor. */
+export const EDITOR_AUDIO_CHANNEL = "exxeed:editor-audio";
+
+/** WAV bytes per audio key (`noteId`, `noteId_short`), in the voice set in preferences. */
+export interface EditorAudio {
+  readonly voiceId: string;
+  readonly clips: Readonly<Record<string, Uint8Array>>;
+}
 
 export interface RenderResultView {
   readonly ok: boolean;
@@ -1061,15 +1123,16 @@ export interface EditorPayload {
   readonly title: string;
   readonly lengthM: number;
   readonly status: string;
+  /**
+   * Seconds from the line to each grid cell on the reference lap, for Play lap:
+   * the car moves along the map at the speed the lap was driven. Null without
+   * a reference lap.
+   */
+  readonly lapElapsedS: readonly number[] | null;
   /** Centreline normalised to 0..1 with aspect preserved, as the map view. */
   readonly x: readonly number[];
   readonly y: readonly number[];
-  readonly corners: readonly {
-    readonly index: number;
-    readonly entryPct: number;
-    readonly apexPct: number;
-    readonly exitPct: number;
-  }[];
+  readonly corners: readonly EditorCorner[];
   readonly notes: readonly EditorNote[];
   /**
    * Without a reference lap there is no speed profile, so no window can be drawn
@@ -1078,6 +1141,44 @@ export interface EditorPayload {
   readonly hasReference: boolean;
   /** False when Piper is not configured, so the editor can say so up front. */
   readonly canRender: boolean;
+  /** Where the reference lap braked. Null without a reference lap. */
+  readonly braking: EditorBraking | null;
+  /**
+   * The reference lap's pedals and speed per grid cell (same grid as
+   * `lapElapsedS`), for the inputs chart under the map. Null without one.
+   */
+  readonly inputs: {
+    readonly throttle: readonly number[];
+    readonly brake: readonly number[];
+    readonly speedKph: readonly number[];
+  } | null;
+}
+
+export interface EditorCorner {
+  readonly index: number;
+  /** The corner's names, most common first ("Riches"); empty when nobody has named it. */
+  readonly names: readonly string[];
+  readonly entryPct: number;
+  readonly apexPct: number;
+  readonly exitPct: number;
+}
+
+/** Renderer → main, invoke `{ index, name }`: name a corner on the open set's map. Returns the corners. */
+export const EDITOR_CORNER_NAME_CHANNEL = "exxeed:editor-corner-name";
+
+/** The reference lap's braking, for drawing on the editor's map. */
+export interface EditorBraking {
+  /** Stretches of track with the brake on, in lap order. May wrap past the line. */
+  readonly zones: readonly { readonly startPct: number; readonly endPct: number }[];
+  /** Where braking for each turn begins, with the speed there and the slowest point after. */
+  readonly points: readonly {
+    readonly turn: number;
+    readonly pct: number;
+    readonly speedKph: number;
+    readonly minSpeedKph: number;
+  }[];
+  /** The brake channel was worked out from deceleration, not measured (.blap laps). */
+  readonly inferred: boolean;
 }
 
 /**

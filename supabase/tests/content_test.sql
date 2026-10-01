@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(34);
 
 -- Two drivers. The trigger makes their profiles.
 insert into auth.users (id, email, raw_user_meta_data) values
@@ -274,6 +274,19 @@ select is(
   (select latest_version from public.content_items where title = 'Daytona in the MX-5'),
   1,
   'withdrawing the newest version makes the previous one latest'
+);
+
+-- One catalog row per track id, whatever a second source calls the layout.
+select public.report_session('iracing', 192, 'road-course-renamed', 'Daytona', 'Road Course (renamed)', null, null, null);
+select is(
+  (select count(*)::int from public.track_layouts where track_id = 192),
+  1,
+  'a second name for a known track id adds no layout'
+);
+select is(
+  public.layout_for_track_id('iracing', 192),
+  'road-course',
+  'and the first name stays the one in use'
 );
 
 select * from finish();

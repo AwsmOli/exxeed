@@ -3,12 +3,25 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts"
+  ],
   "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/repo" },
-    { "path": "../../packages/telemetry" }
+    {
+      "path": "../../packages/core"
+    },
+    {
+      "path": "../../packages/repo"
+    },
+    {
+      "path": "../../packages/telemetry"
+    },
+    {
+      "path": "../../packages/importer"
+    }
   ]
 }

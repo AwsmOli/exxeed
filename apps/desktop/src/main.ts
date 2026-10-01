@@ -68,7 +68,7 @@ import { startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
 import { createManualNoteSet, installEditorIpc, openEditor, requestRender } from "./editor.js";
 import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
 import { cloudClient, installAccount, onAccountChange } from "./account.js";
-import { shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
+import { canonicalTrackKey, shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
 import { installPublishIpc } from "./publish.js";
 import { checkUpdatesNow, installLibrary, knownItem, remoteMinePacks } from "./library.js";
 import { installContentIpc } from "./content.js";
@@ -605,7 +605,13 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     return;
   }
 
-  const identity = source.identity;
+  // The sim's key, resolved to the layout id this app already files that track
+  // id under — the same layout, whatever another source named it.
+  const reported = source.identity;
+  const identity =
+    reported?.trackKey == null
+      ? reported
+      : { ...reported, trackKey: await canonicalTrackKey(resolveDataDir(settings().get()), reported.trackKey) };
   liveIdentity = identity;
 
   // Before anything reads the track from disk: fetch its map if someone has
@@ -1483,7 +1489,12 @@ void app.whenReady().then(() => {
   installEditorIpc(() => settings().get(), resolveDataDir);
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
   installContentIpc({ getSettings: () => settings().get(), resolveDataDir });
-  installLapImport({ getSettings: () => settings().get(), resolveDataDir, changed: () => void refreshPacks() });
+  installLapImport({
+    getSettings: () => settings().get(),
+    resolveDataDir,
+    changed: () => void refreshPacks(),
+    identity: () => liveIdentity,
+  });
   installLibrary({
     getSettings: () => settings().get(),
     resolveDataDir,

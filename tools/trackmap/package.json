@@ -5,15 +5,18 @@
   "type": "module",
   "description": "Track map builder. Cuts a TrackMap and a ReferenceLap from one recorded lap, applying the per-track corner overrides.",
   "bin": {
-    "exxeed-trackmap": "./dist/cli.js"
+    "exxeed-trackmap": "./dist/cli.js",
+    "exxeed-g61-maps": "./dist/garage61.js"
   },
   "scripts": {
     "build": "tsc --build",
-    "start": "tsc --build && node ./dist/cli.js"
+    "start": "tsc --build && node ./dist/cli.js",
+    "g61": "tsc --build && node ./dist/garage61.js"
   },
   "dependencies": {
     "@exxeed/core": "workspace:*",
     "@exxeed/repo": "workspace:*",
-    "@exxeed/telemetry": "workspace:*"
+    "@exxeed/telemetry": "workspace:*",
+    "@exxeed/importer": "workspace:*"
   }
 }

@@ -38,8 +38,12 @@ const PIPER_INSTALL_CHANNEL = "exxeed:piper-install";
 const INSTALL_PROGRESS_CHANNEL = "exxeed:install-progress";
 const EDITOR_LOAD_CHANNEL = "exxeed:editor-load";
 const EDITOR_SAVE_CHANNEL = "exxeed:editor-save";
+const EDITOR_PREVIEW_CHANNEL = "exxeed:editor-preview";
 const EDITOR_RENDER_CHANNEL = "exxeed:editor-render";
 const EDITOR_RENDER_REQUEST_CHANNEL = "exxeed:editor-render-request";
+const EDITOR_AUDIO_CHANNEL = "exxeed:editor-audio";
+const EDITOR_RENDER_PROGRESS_CHANNEL = "exxeed:editor-render-progress";
+const EDITOR_CORNER_NAME_CHANNEL = "exxeed:editor-corner-name";
 const IMPORTER_CHANNEL = "exxeed:importer";
 const IMPORTER_PROGRESS_CHANNEL = "exxeed:importer-progress";
 const IMPORTER_PRESET_CHANNEL = "exxeed:importer-preset";
@@ -92,7 +96,18 @@ contextBridge.exposeInMainWorld("exxeed", {
   loadNotes: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_LOAD_CHANNEL),
   saveNotes: (patches: unknown): Promise<unknown> =>
     ipcRenderer.invoke(EDITOR_SAVE_CHANNEL, patches),
+  /** The notes as they would be after saving these patches; nothing is written. */
+  previewNotes: (patches: unknown): Promise<unknown> =>
+    ipcRenderer.invoke(EDITOR_PREVIEW_CHANNEL, patches),
   renderNotes: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_RENDER_CHANNEL),
+  /** The open set's clips, for Play lap: `{ voiceId, clips: { key: bytes } }` or null. */
+  loadNoteAudio: (): Promise<unknown> => ipcRenderer.invoke(EDITOR_AUDIO_CHANNEL),
+  /** Name a corner on the open set's map; resolves to the corners, or null. */
+  nameCorner: (index: number, name: string): Promise<unknown> =>
+    ipcRenderer.invoke(EDITOR_CORNER_NAME_CHANNEL, { index, name }),
+  /** During Render audio: `{ done, total, noteId, variant }` after each clip. */
+  onRenderProgress: (cb: (progress: unknown) => void) =>
+    subscribe(EDITOR_RENDER_PROGRESS_CHANNEL, (progress) => cb(progress)),
   onRenderRequested: (cb: () => void) =>
     subscribe(EDITOR_RENDER_REQUEST_CHANNEL, () => cb()),
 

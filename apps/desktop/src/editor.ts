@@ -16,15 +16,23 @@ import { fileURLToPath } from "node:url";
 import { BrowserWindow, ipcMain } from "electron";
 
 import type {
+  EditorAudio,
+  EditorBraking,
+  EditorCorner,
   EditorNote,
   EditorNotePatch,
   EditorPayload,
+  EditorRenderProgress,
   RenderResultView,
   Settings,
 } from "@exxeed/overlays";
 import {
+  EDITOR_AUDIO_CHANNEL,
+  EDITOR_CORNER_NAME_CHANNEL,
   EDITOR_LOAD_CHANNEL,
+  EDITOR_PREVIEW_CHANNEL,
   EDITOR_RENDER_CHANNEL,
+  EDITOR_RENDER_PROGRESS_CHANNEL,
   EDITOR_RENDER_REQUEST_CHANNEL,
   EDITOR_SAVE_CHANNEL,
 } from "@exxeed/overlays";
@@ -113,13 +121,17 @@ function buildNotes(loaded: Loaded, leadAdjustS: number): EditorNote[] {
     }
 
     const w = triggerWindow(note, reference, lengthM, profile);
+    // The engine times callouts along this same reference lap (lead-model.ts),
+    // so at reference pace it starts where the window does: no gap to draw and
+    // no lead adjustment to suggest. `w.runtimeStartPct` is the old
+    // constant-speed engine's start, which nothing uses any more.
     return {
       ...base,
       startPct: w.startPct,
-      runtimeStartPct: w.runtimeStartPct,
+      runtimeStartPct: w.startPct,
       leadS: w.leadS,
       windowM: w.lengthM,
-      suggestedLeadAdjustS: w.suggestedLeadAdjustS,
+      suggestedLeadAdjustS: 0,
       nearestOnsetPct: nearestBrakeOnset(pct(note.pct), reference, lengthM),
     };
   });
@@ -144,6 +156,69 @@ function overlapping(a: EditorNote, b: EditorNote, lengthM: number): boolean {
   return bFromA < aSpan;
 }
 
+/** Brake pressure that counts as braking: above trail-braking noise and a resting foot. */
+const BRAKE_ON = 0.08;
+/** Shorter gaps than this inside a zone are one stop, not two (a stab and re-apply). */
+const BRAKE_GAP_M = 15;
+/** Shorter zones than this are a dab, not a braking zone. */
+const BRAKE_MIN_M = 8;
+
+/**
+ * Where the reference lap had the brake on, and where braking for each turn
+ * starts. From the same lap and the same per-corner onsets the "snap to
+ * braking point" button uses, so what is drawn is what a note snaps to.
+ */
+function buildBraking(reference: ReferenceLap, lengthM: number): EditorBraking {
+  const { brake, speedMps } = reference.channels;
+  const n = brake.length;
+  const cellM = lengthM / n;
+  const on = (i: number): boolean => (brake[((i % n) + n) % n] ?? 0) > BRAKE_ON;
+
+  // Start the scan where the brake is off, so a zone across the line is not cut in two.
+  let origin = 0;
+  while (origin < n && on(origin)) origin++;
+
+  const zones: { startPct: number; endPct: number }[] = [];
+  let start: number | null = null;
+  let gap = 0;
+  for (let k = 1; k <= n; k++) {
+    const i = origin + k;
+    if (on(i)) {
+      start ??= i;
+      gap = 0;
+    } else if (start !== null && ++gap * cellM > BRAKE_GAP_M) {
+      const end = i - gap;
+      if ((end - start + 1) * cellM >= BRAKE_MIN_M) {
+        zones.push({ startPct: (start % n) / n, endPct: ((end + 1) % n) / n });
+      }
+      start = null;
+      gap = 0;
+    }
+  }
+  if (start !== null) zones.push({ startPct: (start % n) / n, endPct: ((origin + n - gap + 1) % n) / n });
+
+  const points = Object.entries(reference.perCorner)
+    .filter(([, c]) => c.brakeOnsetPct !== null)
+    .map(([turn, c]) => ({
+      turn: Number(turn),
+      pct: c.brakeOnsetPct!,
+      speedKph: (speedMps[Math.floor(c.brakeOnsetPct! * n) % n] ?? 0) * 3.6,
+      minSpeedKph: c.minSpeedMps * 3.6,
+    }))
+    .sort((a, b) => a.pct - b.pct);
+
+  return { zones, points, inferred: reference.brakeChannelInferred };
+}
+
+const editorCorners = (map: TrackMap): EditorCorner[] =>
+  map.corners.map((c) => ({
+    index: c.index,
+    names: c.names,
+    entryPct: c.entryPct,
+    apexPct: c.apexPct,
+    exitPct: c.exitPct,
+  }));
+
 async function buildPayload(
   dataDir: string,
   noteSetId: string,
@@ -155,6 +230,7 @@ async function buildPayload(
 
   return {
     noteSetId: loaded.noteSet.id,
+    lapElapsedS: loaded.reference === null ? null : [...loaded.reference.channels.elapsedS],
     title:
       loaded.map?.trackName ??
       `track ${loaded.noteSet.trackKey.trackId} (${loaded.noteSet.trackKey.configId})`,
@@ -162,16 +238,71 @@ async function buildPayload(
     status: loaded.noteSet.status,
     x: view?.x ?? [],
     y: view?.y ?? [],
-    corners: loaded.map?.corners.map((c) => ({
-      index: c.index,
-      entryPct: c.entryPct,
-      apexPct: c.apexPct,
-      exitPct: c.exitPct,
-    })) ?? [],
+    corners: loaded.map === null ? [] : editorCorners(loaded.map),
     notes: buildNotes(loaded, leadAdjustS),
     hasReference: loaded.reference !== null,
     canRender,
+    braking: loaded.reference === null ? null : buildBraking(loaded.reference, loaded.noteSet.lengthM),
+    inputs:
+      loaded.reference === null
+        ? null
+        : {
+            throttle: [...loaded.reference.channels.throttle],
+            brake: [...loaded.reference.channels.brake],
+            speedKph: loaded.reference.channels.speedMps.map((v) => v * 3.6),
+          },
   };
+}
+
+/**
+ * The editor's patches applied to a note set: moved, reworded, added and
+ * deleted notes. Shared by Save, which writes the result, and the preview,
+ * which only times it — so what Play lap previews is what Save would keep.
+ */
+function applyPatches(noteSet: NoteSet, patches: readonly EditorNotePatch[]): Note[] {
+  const byId = new Map(patches.map((p) => [p.id, p]));
+  const existing = new Set(noteSet.notes.map((n) => n.id));
+
+  // New notes: ids the set does not have yet. Stale by definition — nothing
+  // has been spoken — with a placeholder duration until the render measures
+  // one, the same as an import (core/import.ts).
+  const added: Note[] = patches
+    .filter((p) => !existing.has(p.id) && p.deleted !== true && NOTE_ID_PATTERN.test(p.id))
+    .map((p) => ({
+      id: p.id,
+      pct: p.pct,
+      text: p.text.trim() || "New callout",
+      textShort: p.textShort.trim() || p.text.trim() || "New callout",
+      priority: 1,
+      leadAdjustS: p.leadAdjustS,
+      audio: { file: `manual/${p.id}.wav`, durationMs: placeholderMs(p.text) },
+      audioShort: { file: `manual/${p.id}_short.wav`, durationMs: placeholderMs(p.textShort) },
+      dirty: true,
+    }));
+
+  const kept = noteSet.notes.filter((note) => byId.get(note.id)?.deleted !== true);
+  const notes: Note[] = kept.map((note) => {
+    const patch = byId.get(note.id);
+    if (patch === undefined) return note;
+
+    // Changing the text makes the rendered audio stale, and its duration is an
+    // input to the trigger — so a stale note is not merely mispronounced, it is
+    // mistimed (§7.4). Moving a note does not have that effect.
+    const textChanged = patch.text !== note.text || patch.textShort !== note.textShort;
+
+    return {
+      ...note,
+      pct: patch.pct,
+      text: patch.text,
+      textShort: patch.textShort,
+      leadAdjustS: patch.leadAdjustS,
+      dirty: note.dirty || textChanged,
+    };
+  });
+
+  notes.push(...added);
+  // Keep the file in track order, which is the order it is read and heard in.
+  return notes.sort((a, b) => a.pct - b.pct);
 }
 
 /**
@@ -187,6 +318,56 @@ export function installEditorIpc(
   getSettings: () => Settings,
   resolveDataDir: (settings: Settings) => string,
 ): void {
+  /**
+   * The open set's clips, for Play lap. In the voice set in preferences —
+   * the one a session would play — and only clips that exist: a note whose
+   * text changed since rendering has none, and the editor says so.
+   */
+  ipcMain.handle(EDITOR_AUDIO_CHANNEL, async (): Promise<EditorAudio | null> => {
+    const settings = getSettings();
+    if (settings.noteSetId === null) return null;
+    const repos = localRepositories(resolveDataDir(settings));
+    const pack = await repos.audio.getPack(settings.noteSetId, settings.voiceId);
+    if (pack === null) return null;
+    const clips: Record<string, Uint8Array> = {};
+    for (const key of Object.keys(pack.files)) {
+      const bytes = await repos.audio.readFile(pack, key);
+      if (bytes !== null) clips[key] = bytes;
+    }
+    return { voiceId: pack.voiceId, clips };
+  });
+
+  /**
+   * Name a corner. The name goes first in the corner's `names` (other aliases
+   * are kept) on the map on this machine; the geometry is untouched. Names
+   * are what the list and map show, and what the YouTube importer matches a
+   * spoken "into Riches" against. An empty name removes the first one.
+   */
+  ipcMain.handle(
+    EDITOR_CORNER_NAME_CHANNEL,
+    async (_event, request: { index: number; name: string }): Promise<EditorCorner[] | null> => {
+      const settings = getSettings();
+      if (settings.noteSetId === null) return null;
+      const repos = localRepositories(resolveDataDir(settings));
+      const noteSet = await repos.noteSets.get(settings.noteSetId);
+      if (noteSet === null) return null;
+      const version = await repos.trackMaps.latestVersion(noteSet.trackKey);
+      if (version === null) return null;
+      const map = await repos.trackMaps.get({ ...noteSet.trackKey, mapVersion: version });
+      if (map === null) return null;
+
+      const name = String(request.name).trim().slice(0, 60);
+      const corners = map.corners.map((c) => {
+        if (c.index !== request.index) return c;
+        const rest = c.names.slice(1).filter((n) => n.toLowerCase() !== name.toLowerCase());
+        return { ...c, names: name === "" ? rest : [name, ...rest] };
+      });
+      const next = { ...map, corners };
+      await repos.trackMaps.put(next);
+      return editorCorners(next);
+    },
+  );
+
   ipcMain.handle(EDITOR_LOAD_CHANNEL, async () => {
     const settings = getSettings();
     if (settings.noteSetId === null) return null;
@@ -207,7 +388,7 @@ export function installEditorIpc(
    * Dropping to a CLI and reopening the window to find that out is exactly the
    * friction that stops anyone doing it.
    */
-  ipcMain.handle(EDITOR_RENDER_CHANNEL, async (): Promise<RenderResultView> => {
+  ipcMain.handle(EDITOR_RENDER_CHANNEL, async (event): Promise<RenderResultView> => {
     const settings = getSettings();
     if (settings.noteSetId === null) {
       return { ok: false, message: "no note set selected", payload: null };
@@ -236,6 +417,11 @@ export function installEditorIpc(
         engine,
         audio: repos.audio,
         noteSets: repos.noteSets,
+        onProgress: ({ done, total, noteId, variant }) => {
+          if (event.sender.isDestroyed()) return;
+          const progress: EditorRenderProgress = { done, total, noteId, variant };
+          event.sender.send(EDITOR_RENDER_PROGRESS_CHANNEL, progress);
+        },
       });
       return {
         ok: true,
@@ -259,6 +445,19 @@ export function installEditorIpc(
     }
   });
 
+  /**
+   * The speaking windows as they would be after a save, without saving: the
+   * editor asks after every edit, so the lines on the map and Play lap's next
+   * lap follow a moved callout or a new lead straight away.
+   */
+  ipcMain.handle(EDITOR_PREVIEW_CHANNEL, async (_event, patches: EditorNotePatch[]) => {
+    const settings = getSettings();
+    if (settings.noteSetId === null) return null;
+    const loaded = await load(resolveDataDir(settings), settings.noteSetId);
+    const noteSet = { ...loaded.noteSet, notes: applyPatches(loaded.noteSet, patches) };
+    return buildNotes({ ...loaded, noteSet }, settings.leadAdjustS);
+  });
+
   ipcMain.handle(EDITOR_SAVE_CHANNEL, async (_event, patches: EditorNotePatch[]) => {
     const settings = getSettings();
     if (settings.noteSetId === null) return null;
@@ -268,49 +467,7 @@ export function installEditorIpc(
     const noteSet = await repos.noteSets.get(settings.noteSetId);
     if (noteSet === null) return null;
 
-    const byId = new Map(patches.map((p) => [p.id, p]));
-    const existing = new Set(noteSet.notes.map((n) => n.id));
-
-    // New notes: ids the set does not have yet. Stale by definition — nothing
-    // has been spoken — with a placeholder duration until the render measures
-    // one, the same as an import (core/import.ts).
-    const added: Note[] = patches
-      .filter((p) => !existing.has(p.id) && p.deleted !== true && NOTE_ID_PATTERN.test(p.id))
-      .map((p) => ({
-        id: p.id,
-        pct: p.pct,
-        text: p.text.trim() || "New callout",
-        textShort: p.textShort.trim() || p.text.trim() || "New callout",
-        priority: 1,
-        leadAdjustS: p.leadAdjustS,
-        audio: { file: `manual/${p.id}.wav`, durationMs: placeholderMs(p.text) },
-        audioShort: { file: `manual/${p.id}_short.wav`, durationMs: placeholderMs(p.textShort) },
-        dirty: true,
-      }));
-
-    const kept = noteSet.notes.filter((note) => byId.get(note.id)?.deleted !== true);
-    const notes: Note[] = kept.map((note) => {
-      const patch = byId.get(note.id);
-      if (patch === undefined) return note;
-
-      // Changing the text makes the rendered audio stale, and its duration is an
-      // input to the trigger — so a stale note is not merely mispronounced, it is
-      // mistimed (§7.4). Moving a note does not have that effect.
-      const textChanged = patch.text !== note.text || patch.textShort !== note.textShort;
-
-      return {
-        ...note,
-        pct: patch.pct,
-        text: patch.text,
-        textShort: patch.textShort,
-        leadAdjustS: patch.leadAdjustS,
-        dirty: note.dirty || textChanged,
-      };
-    });
-
-    notes.push(...added);
-    // Keep the file in track order, which is the order it is read and heard in.
-    notes.sort((a, b) => a.pct - b.pct);
+    const notes = applyPatches(noteSet, patches);
 
     await repos.noteSets.put({ ...noteSet, notes });
     // A published pack's working copy follows its owner to their other machines.
@@ -393,8 +550,8 @@ export function openEditor(preload: string, options: { readonly reload?: boolean
   }
 
   editor = new BrowserWindow({
-    width: 1180,
-    height: 860,
+    width: 1360,
+    height: 880,
     title: "Exxeed — Notes",
     backgroundColor: "#101215",
     webPreferences: { preload, contextIsolation: true, nodeIntegration: false, sandbox: false },

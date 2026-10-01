@@ -49,7 +49,9 @@ import type {
   SuppressionReason,
 } from "./suppression.js";
 import { SuppressionGate } from "./suppression.js";
-import { leadDistanceM, leadSecondsFor } from "./trigger.js";
+import type { LeadModel } from "./lead-model.js";
+import { constantSpeedLead } from "./lead-model.js";
+import { leadSecondsFor } from "./trigger.js";
 import type { Metres, Pct } from "./units.js";
 import { pct } from "./units.js";
 
@@ -74,19 +76,27 @@ export class NoteEngine {
   readonly #state = new Map<string, NoteState>();
   readonly #gate: SuppressionGate;
   readonly #scheduler: Scheduler;
+  readonly #lead: LeadModel;
 
+  /**
+   * `lead` answers "how long until the car gets there" (lead-model.ts). Pass
+   * `referenceLead(lap, lengthM)` when there is a reference lap: callouts then
+   * start where the editor's blue arc says. Without one, constant speed.
+   */
   constructor(
     notes: readonly Note[],
     lengthM: Metres,
     profile: DriverProfile = DEFAULT_PROFILE,
     suppression: SuppressionOptions = {},
+    lead: LeadModel = constantSpeedLead,
   ) {
+    this.#lead = lead;
     this.#gate = new SuppressionGate(suppression);
     this.#notes = notes.map((note) => ({ note, eventPct: pct(note.pct), dueAtMs: -1 }));
     this.#lengthM = lengthM;
     this.#halfLapM = lengthM / 2;
     this.#profile = profile;
-    this.#scheduler = new Scheduler(lengthM, profile);
+    this.#scheduler = new Scheduler(lengthM, profile, lead);
 
     // Start everything SPENT so the out-lap is silent (§6.2). Belt and braces
     // with the out-lap suppression rule in §6.4 — they cover the same ground from
@@ -168,12 +178,10 @@ export class NoteEngine {
         continue;
       }
 
-      const leadM = leadDistanceM(
-        input.speedMps,
-        leadSecondsFor(note, note.audio, this.#profile),
-      );
+      const leadS = leadSecondsFor(note, note.audio, this.#profile);
+      const aheadS = this.#lead.secondsAhead(input.lapDistPct, eventPct, dAheadM, input.speedMps);
 
-      if (dAheadM <= leadM) {
+      if (aheadS <= leadS) {
         // SPENT on becoming due, whatever the scheduler then decides. A dropped
         // note that stayed ARMED would re-enter the trigger test every tick for
         // the rest of its window and flood the log (§6.2).

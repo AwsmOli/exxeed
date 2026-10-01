@@ -317,6 +317,9 @@ isOneToOne: false
             "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"layout_for_track_id":
+{ Args: { "p_sim": string,"p_track_id": number }; Returns: string
+                           },
 "owns_item_folder":
 { Args: { "object_name": string }; Returns: boolean
                            },

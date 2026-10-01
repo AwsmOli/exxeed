@@ -61,14 +61,13 @@ export async function renderImported(
     const noteSet = await repos.noteSets.get(noteSetId);
     if (noteSet === null) return { ok: false, message: `no note set "${noteSetId}"` };
 
-    const total = noteSet.notes.length * 2;
-    let done = 0;
     const result = await renderNoteSet({
       noteSet,
       engine: new PiperEngine({ binary: resolved.setup.binary, model: resolved.setup.model, voiceId: settings.voiceId }),
       audio: repos.audio,
       noteSets: repos.noteSets,
-      onClip: () => progress("render", ++done, total),
+      // Kept clips count too, or an update's bar would stop short of the end.
+      onProgress: (p) => progress("render", p.done, p.total),
       reuse,
     });
     return { ok: true, clips: result.clips.length, reused: result.reused };

@@ -8,7 +8,8 @@
  */
 
 import type { DriverProfile, NoteSet } from "@exxeed/core";
-import { carEntry, matchesClass, metres, NoteEngine } from "@exxeed/core";
+import type { LeadModel } from "@exxeed/core";
+import { carEntry, constantSpeedLead, matchesClass, metres, NoteEngine, referenceLead } from "@exxeed/core";
 import type { SessionIdentity } from "@exxeed/telemetry";
 import type { ReferenceView, TrackMapView } from "@exxeed/overlays";
 
@@ -77,6 +78,9 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
   // choice take the only recorded lap — and say so when there is more than one
   // rather than picking silently.
   let reference: ReferenceView | null = null;
+  // Times callouts along the reference lap's speeds, so they start where the
+  // editor's blue arc shows (lead-model.ts). Constant speed without one.
+  let lead: LeadModel = constantSpeedLead;
   const cars = await repos.referenceLaps.listCars(noteSet.trackKey);
   const carId = config.carId ?? cars[0];
 
@@ -90,7 +94,10 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
     }
     const lap = await repos.referenceLaps.get(noteSet.trackKey, carId);
     if (lap === null) warnings.push(`no reference lap for car ${carId}`);
-    else reference = toReferenceView(lap, map);
+    else {
+      reference = toReferenceView(lap, map);
+      lead = referenceLead(lap, metres(noteSet.lengthM));
+    }
   }
 
   // A missing audio pack is survivable — the engine still runs and the dev
@@ -120,7 +127,7 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
   return {
     engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), config.profile, {
       assumeLapComplete: config.assumeLapComplete ?? false,
-    }),
+    }, lead),
     noteSet,
     audio,
     mapView,

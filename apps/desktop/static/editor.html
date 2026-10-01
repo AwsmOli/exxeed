@@ -37,7 +37,17 @@
       button.primary:disabled { background: #1b1f26; border-color: rgba(255,255,255,0.14); }
 
       main { flex: 1; display: flex; min-height: 0; }
-      #map-wrap { flex: 1; position: relative; min-width: 0; }
+      #map-wrap { flex: 1; position: relative; min-width: 0; display: flex; flex-direction: column; }
+      #map-wrap > svg { flex: 1; min-height: 0; height: auto; }
+      /* The reference lap's pedals under the map, with Play lap's car as a cursor. */
+      #inputs-wrap { flex: none; height: 110px; position: relative; border-top: 1px solid rgba(255,255,255,0.08); }
+      #inputs { width: 100%; height: 100%; display: block; cursor: pointer; }
+      #inputs-legend {
+        position: absolute; top: 4px; right: 10px; display: flex; gap: 12px; pointer-events: none;
+        font: 10.5px ui-sans-serif, system-ui, sans-serif; color: #8a93a0;
+      }
+      #inputs-legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+      #inputs-readout { color: #e6e9ee; font-variant-numeric: tabular-nums; }
       #no-map {
         position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
         padding: 0 48px; text-align: center; color: #8b949e; font-size: 13px; line-height: 1.5;
@@ -49,29 +59,89 @@
       .window.clash { stroke: rgba(240,136,62,0.55); }
       .window.stale { stroke: rgba(140,148,160,0.4); stroke-dasharray: 6 5; }
       .window.selected { stroke: rgba(88,166,255,0.95); }
-      .runtime { fill: none; stroke: rgba(255,255,255,0.5); stroke-width: 2; stroke-dasharray: 3 3; }
       .corner { fill: none; stroke: rgba(255,255,255,0.28); stroke-width: 5; }
-      .dot { fill: #58a6ff; cursor: grab; }
-      .dot.selected { fill: #fff; }
-      .dot.dragging { cursor: grabbing; }
-      .sf { fill: #f0883e; }
+      /* A numbered marker per callout, in lap order — the list uses the same numbers. */
+      .marker { cursor: grab; }
+      .marker .dot { fill: #1f6feb; stroke: #0d1117; stroke-width: 2.5; }
+      .marker .dot-n { fill: #fff; font: 600 12px ui-sans-serif, system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+      .marker.selected .dot { fill: #fff; }
+      .marker.selected .dot-n { fill: #0d1117; }
+      .marker.hl .dot { fill: #f0b72f; }
+      .marker.hl .dot-n { fill: #0d1117; }
+      .turn-label { fill: #8a93a0; font: 600 16px ui-sans-serif, system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; }
+      .turn-label.hl { fill: #f0b72f; }
+      .corner.hl { stroke: rgba(240,183,47,0.7); stroke-width: 8; }
+      .window.hl { stroke: rgba(240,183,47,0.85); }
+      /* Play lap: the car, and the callout being spoken. */
+      .play { display: inline-flex; gap: 6px; align-items: center; }
+      .play input[type="range"] { width: 160px; accent-color: #f0b72f; }
+      #clock { font-variant-numeric: tabular-nums; min-width: 92px; }
+      .car { fill: #f0b72f; stroke: #0d1117; stroke-width: 3; }
+      .marker.speaking .dot { fill: #3fb950; }
+      .marker.speaking .dot-n { fill: #0d1117; }
+      .window.speaking { stroke: rgba(63,185,80,0.9); }
+      #lap-list .row.speaking { border-color: #3fb950; background: rgba(63,185,80,0.1); }
+      #lap-list .row.speaking .n { background: #3fb950; color: #0d1117; }
+      #lap-list .row.skipped .n { background: #f85149; }
+      #tip {
+        position: absolute; max-width: 260px; pointer-events: none; z-index: 2;
+        background: rgba(10,12,15,0.95); border: 1px solid rgba(240,183,47,0.6); border-radius: 6px;
+        padding: 5px 8px; font-size: 11.5px; line-height: 1.4; color: #e6e9ee;
+      }
 
-      #labels { position: absolute; inset: 0; pointer-events: none; }
-      /* §7.4 wants the whole lap's script readable without clicking anything, so
-         these wrap rather than truncate — a callout cut off mid-sentence is the
-         one thing this view cannot afford to do. */
-      .label {
-        position: absolute; transform: translate(-50%, -125%);
-        background: rgba(10,12,15,0.92); border: 1px solid rgba(255,255,255,0.14);
-        border-radius: 5px; padding: 3px 7px; font-size: 11px; line-height: 1.35;
-        pointer-events: auto; cursor: text;
-        width: max-content; max-width: 190px; white-space: normal;
+      /* The lap list: turns as headings, their callouts under them. */
+      #lap {
+        width: 300px; flex: none; border-right: 1px solid rgba(255,255,255,0.08);
+        padding: 14px 12px; overflow-y: auto;
       }
-      .label.selected { border-color: #58a6ff; }
-      .label.dirty { border-color: rgba(240,136,62,0.6); }
-      .label[contenteditable="true"] {
-        border-color: #58a6ff; background: #0b0d10; overflow: visible; cursor: text;
+      #lap-list { list-style: none; margin: 0; padding: 0; }
+      #lap-list .turn { font: 600 11px ui-sans-serif, system-ui, sans-serif; color: #8a93a0; letter-spacing: 0.04em; padding: 10px 4px 4px; border-radius: 4px; }
+      #lap-list .turn .none { font-weight: 400; color: #5f6773; }
+      #lap-list .turn .cname { font-weight: 600; color: #c9d1d9; letter-spacing: 0; border-radius: 3px; outline: none; padding: 0 2px; cursor: text; }
+      #lap-list .turn .cname.unnamed { color: #4d5560; font-weight: 400; font-style: italic; }
+      #lap-list .turn .cname[contenteditable="true"] { background: #0b0d10; box-shadow: 0 0 0 1px #58a6ff; color: #e6e9ee; font-style: normal; }
+      .corner-name { fill: #6f7885; font: 500 12px ui-sans-serif, system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+      .corner-name.hl { fill: #f0b72f; }
+      #lap-list .turn.hl { color: #f0b72f; }
+      #lap-list .row {
+        display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; padding: 6px 6px; margin: 2px 0;
+        border-radius: 6px; border: 1px solid transparent; cursor: pointer; font-size: 11.5px; line-height: 1.4;
       }
+      #lap-list .row:hover, #lap-list .row.hl { background: rgba(240,183,47,0.08); border-color: rgba(240,183,47,0.35); }
+      #lap-list .row.selected { border-color: #58a6ff; background: rgba(88,166,255,0.08); }
+      #lap-list .row.dirty .n { background: #f0883e; }
+      #lap-list .n {
+        width: 20px; height: 20px; border-radius: 50%; background: #1f6feb; color: #fff;
+        display: grid; place-items: center; font: 600 10.5px ui-sans-serif, system-ui, sans-serif; margin-top: 1px;
+      }
+      #lap-list .row.hl .n { background: #f0b72f; color: #0d1117; }
+      #lap-list .row-text { color: #e6e9ee; outline: none; border-radius: 3px; }
+      #lap-list .row-text[contenteditable="true"] { background: #0b0d10; box-shadow: 0 0 0 1px #58a6ff; cursor: text; padding: 1px 3px; }
+      #lap-list .row-short { color: #6f7885; font-size: 10.5px; margin-top: 2px; }
+      .sf { fill: #f0883e; }
+      /* Braking, from the reference lap: where the brake was on, and where it went on. */
+      .brake-zone { fill: none; stroke: rgba(248,81,73,0.55); stroke-width: 4; stroke-linecap: butt; pointer-events: none; }
+      .brake-point { stroke: #f85149; stroke-width: 3.5; stroke-linecap: round; }
+      .brake-point-hit { stroke: transparent; stroke-width: 14; }
+      .braking-inferred .brake-zone { stroke-dasharray: 4 3; }
+      .braking-off .brake-zone, .braking-off .brake-point, .braking-off .brake-point-hit { display: none; }
+      .toggle { display: inline-flex; gap: 5px; align-items: center; color: #8a93a0; font-size: 12px; cursor: pointer; user-select: none; }
+      /* Render audio: a bar under the toolbar, and the row being spoken into a clip. */
+      #render-progress {
+        flex: none; display: flex; align-items: center; gap: 12px; padding: 7px 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(88,166,255,0.05); font-size: 11.5px;
+      }
+      #render-progress .bar { flex: none; width: 260px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+      #render-progress .bar i { display: block; height: 100%; width: 0; background: #58a6ff; transition: width 0.2s; }
+      #render-progress .bar.waiting i { width: 30%; animation: slide 1.2s ease-in-out infinite; }
+      @keyframes slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+      #render-text { color: #c9d1d9; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+      #render-eta { color: #8a93a0; flex: none; font-variant-numeric: tabular-nums; }
+      #lap-list .row.rendering { border-color: #58a6ff; background: rgba(88,166,255,0.12); }
+      #lap-list .row.rendering .n { background: #58a6ff; animation: pulse 0.8s ease-in-out infinite alternate; }
+      #lap-list .row.rendered .n { background: #3fb950; color: #0d1117; }
+      @keyframes pulse { from { opacity: 1; } to { opacity: 0.45; } }
+
 
       aside {
         width: 330px; flex: none; border-left: 1px solid rgba(255,255,255,0.08);
@@ -108,6 +178,11 @@
       }
       .key { display: inline-flex; gap: 5px; align-items: center; }
       .key b { color: #9aa4b2; font-weight: normal; }
+      footer { flex-wrap: wrap; row-gap: 4px; }
+      /* Legend swatches, drawn like the map draws them. */
+      .sw { display: inline-block; width: 18px; height: 5px; border-radius: 3px; }
+      .sw.dash { height: 0; border-top: 2px dashed; border-radius: 0; background: none; }
+      .sw.sq { width: 8px; height: 8px; border-radius: 1px; }
 
       /* Publishing (M8) */
       .badge {
@@ -157,6 +232,14 @@
     <header>
       <h1>Notes</h1>
       <span class="meta" id="title">…</span>
+      <span class="play">
+        <button id="play" title="Drive the reference lap on the map and hear each callout where the engine would start it">▶ Play lap</button>
+        <button id="stop" title="Back to the start/finish line" disabled>■</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0" title="Position in the lap — drag to jump" />
+        <span class="meta" id="clock">0:00.0</span>
+      </span>
+      <label class="toggle" title="Where your reference lap braked: red = brake on, bar = braking starts"><input type="checkbox" id="show-braking" checked /> Braking</label>
+      <label class="toggle" title="Throttle, brake and speed along the reference lap, under the map"><input type="checkbox" id="show-inputs" checked /> Inputs</label>
       <span class="grow"></span>
       <span class="meta" id="status"></span>
       <span class="meta" id="dirty-count"></span>
@@ -167,6 +250,11 @@
       <span class="badge" id="pub-badge" hidden></span>
       <button id="publish-open" title="Share this set as a callout pack others can install">Publish…</button>
     </header>
+    <div id="render-progress" hidden>
+      <span class="bar" id="render-bar-wrap"><i id="render-bar"></i></span>
+      <span id="render-text"></span>
+      <span id="render-eta"></span>
+    </div>
 
     <dialog id="publish">
       <h3 id="pub-heading">Publish callout pack</h3>
@@ -233,14 +321,28 @@
     </dialog>
 
     <main>
+      <aside id="lap">
+        <h2>The lap</h2>
+        <ul id="lap-list"></ul>
+      </aside>
+
       <div id="map-wrap">
         <svg id="map" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
-        <div id="labels"></div>
+        <div id="tip" hidden></div>
         <div id="no-map" hidden></div>
+        <div id="inputs-wrap" hidden title="Your reference lap's pedals — click to jump Play lap there">
+          <canvas id="inputs"></canvas>
+          <div id="inputs-legend">
+            <span id="inputs-readout"></span>
+            <span><i style="background:#3fb950"></i>throttle</span>
+            <span><i style="background:#f85149"></i>brake</span>
+            <span><i style="background:rgba(200,208,220,0.6)"></i>speed</span>
+          </div>
+        </div>
       </div>
 
       <aside id="panel">
-        <p class="empty" id="empty">Select a callout on the map, or double-click the track to add one.</p>
+        <p class="empty" id="empty">Select a callout in the list or on the map. Double-click the track to add one.</p>
 
         <div id="detail" hidden>
           <h2 id="detail-id">—</h2>
@@ -285,10 +387,15 @@
     </main>
 
     <footer>
-      <span class="key"><b>double-click</b> a label to edit it</span>
-      <span class="key"><b>drag</b> a point to move it</span>
-      <span class="key">blue arc = where the voice is speaking</span>
-      <span class="key">dashed white = where the engine actually starts</span>
+      <span class="key"><b>▶ Play lap</b>: the reference lap's speed, callouts where the engine starts them (green); red = skipped, the previous one was still talking</span>
+      <span class="key"><b>hover</b> a callout or turn to find it on the other side</span>
+      <span class="key"><b>double-click</b> words in the list to edit · the track to add a callout</span>
+      <span class="key"><b>drag</b> a point to move it · <b>double-click</b> a turn's name to name it</span>
+      <span class="key"><i class="sw" style="background:rgba(88,166,255,0.7)"></i> where it speaks, at your reference lap's pace — from where the voice starts to the callout's point</span>
+      <span class="key"><i class="sw" style="background:rgba(240,136,62,0.75)"></i> speaking over another callout</span>
+      <span class="key"><i class="sw dash" style="border-color:rgba(160,168,180,0.8)"></i> words changed — audio not re-rendered</span>
+      <span class="key"><i class="sw" style="background:rgba(248,81,73,0.6)"></i> brake on, and <i class="sw sq" style="background:#f85149;width:3px;height:10px"></i> where braking starts (reference lap)</span>
+      <span class="key"><i class="sw sq" style="background:#f0883e"></i> start/finish</span>
     </footer>
 
     <script type="module" src="./editor.js"></script>

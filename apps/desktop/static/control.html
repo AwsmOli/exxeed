@@ -165,6 +165,21 @@
       button.solid:disabled { opacity: 0.5; cursor: default; }
       .form-status { min-height: 16px; font-size: 11.5px; color: #8b949e; }
       dialog#lap-import { width: 420px; }
+      dialog#lap-source { width: 520px; max-height: 88vh; overflow-y: auto; }
+      .g61-head { margin: 16px 0 6px; font-size: 12px; color: #c9d1d9; text-transform: uppercase; letter-spacing: 0.06em; }
+      .g61-who { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #8b949e; margin-bottom: 8px; }
+      #g61-track { margin-top: 6px; height: auto; }
+      #g61-car { margin-top: 6px; }
+      .g61-mine { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #c9d1d9; margin-top: 8px; }
+      .g61-team-note { color: #d29922; margin: 6px 0 0; }
+      ul.g61-laps { list-style: none; margin: 10px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+      ul.g61-laps li {
+        display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+        padding: 6px 4px; border-bottom: 1px solid #21262d; font-size: 12px;
+      }
+      ul.g61-laps .t { font-variant-numeric: tabular-nums; color: #e6edf3; }
+      ul.g61-laps .who { color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      ul.g61-laps .dirty { color: #d29922; }
       .field-label { display: block; font-size: 11.5px; color: #8b949e; margin: 10px 0 4px; }
       .modal-select {
         width: 100%; box-sizing: border-box; background: #0d1117; color: #e6edf3;
@@ -526,6 +541,42 @@
       </div>
       <div class="form-status" id="signin-status"></div>
       <div class="actions"><button class="ghost" id="signin-cancel" type="button">Close</button></div>
+    </dialog>
+
+    <dialog class="modal" id="lap-source">
+      <h2>Import a lap</h2>
+      <p class="lead">A lap with recorded positions makes a map (if the track has none) and a reference lap.</p>
+
+      <h3 class="g61-head">From Garage 61</h3>
+      <div id="g61-connect" hidden>
+        <p class="lead">
+          Import your own laps and your teammates'. Create a personal access token on garage61.net
+          (Developer → Personal access token) and paste it here. It is stored encrypted on this machine only.
+        </p>
+        <input type="password" id="g61-token" placeholder="Garage 61 personal access token" autocomplete="off" />
+        <div class="actions"><button class="solid" id="g61-connect-go" type="button">Connect</button></div>
+      </div>
+      <div id="g61-search" hidden>
+        <div class="g61-who"><span id="g61-user"></span> <button class="ghost" id="g61-disconnect" type="button">Disconnect</button></div>
+        <input type="search" id="g61-track-filter" class="modal-select" placeholder="Filter tracks" />
+        <select id="g61-track" class="modal-select" size="6"></select>
+        <select id="g61-car" class="modal-select"></select>
+        <label class="g61-mine"><input type="checkbox" id="g61-mine" checked /> Only my laps</label>
+        <p class="lead g61-team-note" id="g61-team-note" hidden>
+          Teammates' laps are theirs: imported maps and reference laps are shared with everyone, so only use one
+          with that driver's OK.
+        </p>
+        <div class="actions"><button class="solid" id="g61-search-go" type="button">Find laps</button></div>
+        <ul class="g61-laps" id="g61-laps"></ul>
+      </div>
+
+      <h3 class="g61-head">From a file</h3>
+      <div class="actions" style="justify-content:flex-start">
+        <button class="ghost" id="lap-file" type="button">Choose a Garage 61 CSV…</button>
+      </div>
+
+      <div class="form-status" id="lap-source-status"></div>
+      <div class="actions"><button class="ghost" id="lap-source-close" type="button">Close</button></div>
     </dialog>
 
     <dialog class="modal" id="lap-import">

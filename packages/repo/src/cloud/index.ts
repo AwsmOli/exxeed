@@ -4,6 +4,7 @@
  */
 
 export * from "./client.js";
+export * from "./config.js";
 export * from "./sync.js";
 export * from "./content.js";
 export * from "./browse.js";

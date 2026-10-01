@@ -15,7 +15,15 @@
  * app does exactly what it did before M8.
  */
 
-import { localRepositories, pullTrack, pushMap, pushReferenceLap, reportSession, shareLocalTracks } from "@exxeed/repo";
+import {
+  layoutForTrackId,
+  localRepositories,
+  pullTrack,
+  pushMap,
+  pushReferenceLap,
+  reportSession,
+  shareLocalTracks,
+} from "@exxeed/repo";
 import type { SessionIdentity } from "@exxeed/telemetry";
 import type { TrackKey } from "@exxeed/core";
 
@@ -25,6 +33,25 @@ import type { AutoMapEvent } from "./auto-map.js";
 type Log = (line: string) => void;
 
 const message = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/**
+ * The key this app files a layout under, for a key the sim reported.
+ *
+ * iRacing gives every layout its own track id, but our key also carries a
+ * layout id slugged from a *name*, and names differ by source: the sim says
+ * "300 Circuit", Garage 61 says "300". A map imported from Garage 61 is filed
+ * under the second; without this, the sim's key would find no map and the
+ * auto-mapper would cut a second one. So a track id already known here, or in
+ * the catalog, keeps the layout id it was first given.
+ */
+export async function canonicalTrackKey(dataDir: string, key: TrackKey): Promise<TrackKey> {
+  const local = (await localRepositories(dataDir).trackMaps.listTracks()).find(
+    (t) => t.key.sim === key.sim && t.key.trackId === key.trackId,
+  );
+  if (local !== undefined) return local.key;
+  const known = await layoutForTrackId(cloudClient(), key.sim, key.trackId).catch(() => null);
+  return known === null ? key : { ...key, configId: known };
+}
 
 /**
  * Before the session loads its note set. Awaited, but bounded by the sync

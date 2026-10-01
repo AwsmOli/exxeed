@@ -35,6 +35,16 @@ export interface RenderResult {
   readonly reused: number;
 }
 
+/** Where a render has got to: every clip counts, reused or synthesised. */
+export interface RenderProgressEvent {
+  readonly done: number;
+  readonly total: number;
+  readonly noteId: string;
+  readonly variant: "full" | "short";
+  /** Kept from the previous pack rather than synthesised. */
+  readonly reused: boolean;
+}
+
 export interface RenderOptions {
   readonly noteSet: NoteSet;
   readonly engine: TtsEngine;
@@ -42,6 +52,8 @@ export interface RenderOptions {
   readonly noteSets: NoteSetRepository;
   /** Report progress; rendering a full set takes a while. */
   readonly onClip?: (clip: RenderedClip) => void;
+  /** Called after every clip, kept or synthesised — for a progress bar that reaches the end. */
+  readonly onProgress?: (event: RenderProgressEvent) => void;
   /**
    * Keep a clip from the existing pack when its words are unchanged and its
    * file is still there — so installing v4 over v3 renders only what v4
@@ -62,6 +74,8 @@ export async function renderNoteSet(options: RenderOptions): Promise<RenderResul
   let reused = 0;
 
   const previous = options.reuse === true ? await audio.getPack(noteSet.id, voiceId) : null;
+  const total = noteSet.notes.length * 2;
+  let done = 0;
 
   for (const note of noteSet.notes) {
     const rendered: Partial<Record<"full" | "short", { file: string; durationMs: number }>> = {};
@@ -78,6 +92,7 @@ export async function renderNoteSet(options: RenderOptions): Promise<RenderResul
         rendered[variant] = { file: kept.path, durationMs: kept.durationMs };
         totalBytes += kept.bytes;
         reused++;
+        options.onProgress?.({ done: ++done, total, noteId: note.id, variant, reused: true });
         continue;
       }
 
@@ -94,6 +109,7 @@ export async function renderNoteSet(options: RenderOptions): Promise<RenderResul
       const clip = { key, text, durationMs, bytes: wav.byteLength };
       clips.push(clip);
       options.onClip?.(clip);
+      options.onProgress?.({ done: ++done, total, noteId: note.id, variant, reused: false });
     }
 
     notes.push({

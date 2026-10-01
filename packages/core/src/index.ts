@@ -26,6 +26,7 @@ export * from "./import.js";
 export * from "./profile.js";
 export * from "./trigger.js";
 export * from "./trigger-window.js";
+export * from "./lead-model.js";
 export * from "./suppression.js";
 export * from "./scheduler.js";
 export * from "./engine.js";

@@ -486,6 +486,8 @@ async function handle(deps: ImporterDeps, request: Request, sender: Electron.Web
       const current = readSecrets();
       const ai = request.ai;
       const next: ImporterSecrets = {
+        // Everything else stored here (the Garage 61 token) is kept as it is.
+        ...current,
         ai:
           ai === undefined
             ? current.ai

@@ -69,6 +69,26 @@ describe("renderNoteSet", () => {
     expect(again.calls).toHaveLength(4);
   });
 
+  it("reports progress for every clip, kept ones included, up to the total", async () => {
+    await render(spaGt3Notes, new CountingEngine(), true);
+    const reworded: NoteSet = {
+      ...spaGt3Notes,
+      notes: spaGt3Notes.notes.map((n, i) => (i === 0 ? { ...n, text: "Brake at the marker board" } : n)),
+    };
+    const seen: { done: number; total: number; reused: boolean }[] = [];
+    await renderNoteSet({
+      noteSet: reworded,
+      engine: new CountingEngine(),
+      audio: repos.audio,
+      noteSets: repos.noteSets,
+      reuse: true,
+      onProgress: ({ done, total, reused }) => seen.push({ done, total, reused }),
+    });
+    expect(seen.map((p) => p.done)).toEqual([1, 2, 3, 4]);
+    expect(seen.every((p) => p.total === 4)).toBe(true);
+    expect(seen.filter((p) => !p.reused)).toHaveLength(1);
+  });
+
   it("re-renders a clip whose file has gone, even when the words match", async () => {
     await render(spaGt3Notes, new CountingEngine(), true);
     await rm(join(root, "audio", spaGt3Notes.id, "test-voice", "t1_brake.wav"));

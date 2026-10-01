@@ -214,3 +214,16 @@ export async function shareLocalTracks(
 
   return { maps, referenceLaps, skipped };
 }
+
+/**
+ * The layout id the catalog already uses for a track id, or null if the track
+ * id is new. iRacing gives each layout its own track id, so this is the same
+ * layout whatever another source called it (…_one_layout_per_track_id.sql).
+ */
+export async function layoutForTrackId(client: CloudClient, sim: string, trackId: number): Promise<string | null> {
+  const { data, error } = await client
+    .rpc("layout_for_track_id", { p_sim: sim, p_track_id: trackId })
+    .abortSignal(timeout());
+  if (error !== null) throw new Error(`layout_for_track_id: ${error.message}`);
+  return data;
+}

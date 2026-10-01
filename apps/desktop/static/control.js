@@ -375,19 +375,19 @@ function explainLapTarget() {
         : "No map here yet: this lap becomes the map (drawn from its recorded positions) and the reference lap.";
 }
 
-el("import-lap").addEventListener("click", async () => {
-  let draft;
-  try {
-    const response = await window.exxeed.lapImport({ op: "pick" });
-    if (!response.ok) throw new Error(response.error);
-    draft = response.value;
-  } catch (err) {
-    setLibraryStatus(err.message, true);
-    return;
-  }
-  if (draft === null) return; // cancelled
-  lapDraft = draft;
+const lapImport = async (request) => {
+  const response = await window.exxeed.lapImport(request);
+  if (!response.ok) throw new Error(response.error);
+  return response.value;
+};
+const sourceStatus = (text, bad = false) => {
+  el("lap-source-status").textContent = text;
+  el("lap-source-status").className = `form-status${bad ? " bad" : ""}`;
+};
 
+/** The confirm step, the same for a file and for a Garage 61 lap. */
+function showLapDraft(draft) {
+  lapDraft = draft;
   const who = draft.driver ? ` by ${draft.driver}` : "";
   const where = draft.trackName ? ` at ${draft.trackName}${draft.layoutName ? ` (${draft.layoutName})` : ""}` : "";
   el("lap-import-lead").textContent = `${fmtLapTime(draft.lapTimeS)}${who}${where} · ${draft.samples} samples.`;
@@ -406,10 +406,134 @@ el("import-lap").addEventListener("click", async () => {
   );
   car.value = draft.suggestedCarId ?? "";
 
-  lapStatus(draft.suggestedLayout ? "" : "The file name did not match a known layout; pick it from the list.");
+  lapStatus(draft.suggestedLayout ? "" : "The lap did not match a known layout; pick it from the list.");
   explainLapTarget();
+  if (el("lap-source").open) el("lap-source").close();
   el("lap-import").showModal();
+}
+
+// -- Garage 61 -------------------------------------------------------------
+
+let g61Tracks = [];
+
+async function showG61(status) {
+  el("g61-connect").hidden = status.connected;
+  el("g61-search").hidden = !status.connected;
+  if (!status.connected) return;
+  el("g61-user").textContent = `Connected as ${status.user ?? "your Garage 61 account"}`;
+  if (g61Tracks.length > 0) return;
+  sourceStatus("Loading Garage 61's tracks and cars…");
+  try {
+    const catalog = await lapImport({ op: "g61Catalog" });
+    g61Tracks = catalog.tracks;
+    renderG61Tracks(catalog.suggestedTrackId);
+    el("g61-car").replaceChildren(
+      make("option", { value: "", textContent: "Any car" }),
+      ...catalog.cars.map((c) => make("option", { value: String(c.id), textContent: c.name })),
+    );
+    sourceStatus("");
+  } catch (err) {
+    sourceStatus(err.message, true);
+  }
+}
+
+function renderG61Tracks(selected = null) {
+  const q = el("g61-track-filter").value.trim().toLowerCase();
+  const keep = selected ?? (el("g61-track").value === "" ? null : Number(el("g61-track").value));
+  const shown = g61Tracks.filter((t) => q === "" || t.label.toLowerCase().includes(q));
+  el("g61-track").replaceChildren(...shown.map((t) => make("option", { value: String(t.id), textContent: t.label })));
+  if (keep !== null && shown.some((t) => t.id === keep)) el("g61-track").value = String(keep);
+}
+
+el("import-lap").addEventListener("click", async () => {
+  el("g61-laps").replaceChildren();
+  sourceStatus("");
+  el("lap-source").showModal();
+  try {
+    await showG61(await lapImport({ op: "g61Status" }));
+  } catch (err) {
+    sourceStatus(err.message, true);
+  }
 });
+
+el("g61-connect-go").addEventListener("click", async () => {
+  sourceStatus("Checking the token with Garage 61…");
+  try {
+    const status = await lapImport({ op: "g61Connect", token: el("g61-token").value });
+    el("g61-token").value = "";
+    await showG61(status);
+  } catch (err) {
+    sourceStatus(err.message, true);
+  }
+});
+
+el("g61-disconnect").addEventListener("click", async () => {
+  g61Tracks = [];
+  el("g61-laps").replaceChildren();
+  await showG61(await lapImport({ op: "g61Disconnect" }));
+});
+
+el("g61-track-filter").addEventListener("input", () => renderG61Tracks());
+el("g61-mine").addEventListener("change", () => {
+  el("g61-team-note").hidden = el("g61-mine").checked;
+});
+
+el("g61-search-go").addEventListener("click", async () => {
+  const trackId = Number(el("g61-track").value);
+  if (!trackId) {
+    sourceStatus("Pick a track first.", true);
+    return;
+  }
+  const carId = el("g61-car").value === "" ? null : Number(el("g61-car").value);
+  sourceStatus("Looking for laps…");
+  try {
+    const mineOnly = el("g61-mine").checked;
+    const laps = await lapImport({ op: "g61Laps", trackId, carId, mineOnly });
+    sourceStatus(
+      laps.length === 0
+        ? mineOnly
+          ? "None of your own laps there have telemetry. Untick 'Only my laps' to include teammates'."
+          : "No laps with telemetry there that your account can see."
+        : `${laps.length} lap${laps.length === 1 ? "" : "s"}, fastest first.`,
+    );
+    el("g61-laps").replaceChildren(
+      ...laps.map((l) => {
+        const use = make("button", { className: "ghost primary", type: "button", textContent: "Use" });
+        use.addEventListener("click", async () => {
+          use.disabled = true;
+          sourceStatus("Downloading the lap…");
+          try {
+            showLapDraft(await lapImport({ op: "g61Pick", lapId: l.id }));
+          } catch (err) {
+            sourceStatus(err.message, true);
+            use.disabled = false;
+          }
+        });
+        const when = new Date(l.startTime).toLocaleDateString();
+        return make(
+          "li",
+          {},
+          make("span", { className: `t${l.clean ? "" : " dirty"}`, textContent: fmtLapTime(l.lapTimeS), title: l.clean ? "Clean lap" : "Not a clean lap" }),
+          make("span", { className: "who", textContent: `${l.driver} · ${l.car} · ${when}` }),
+          use,
+        );
+      }),
+    );
+  } catch (err) {
+    sourceStatus(err.message, true);
+  }
+});
+
+el("lap-file").addEventListener("click", async () => {
+  try {
+    const draft = await lapImport({ op: "pick" });
+    if (draft !== null) showLapDraft(draft);
+  } catch (err) {
+    sourceStatus(err.message, true);
+  }
+});
+
+el("lap-source-close").addEventListener("click", () => el("lap-source").close());
 
 el("lap-import-layout").addEventListener("change", explainLapTarget);
 el("lap-import-cancel").addEventListener("click", () => el("lap-import").close());

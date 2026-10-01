@@ -27,6 +27,8 @@ export interface ImporterSecrets {
     /** Per provider, so switching between two does not lose either key. */
     readonly keys: Readonly<Partial<Record<ProviderId, string>>>;
   };
+  /** A Garage 61 personal access token, for importing laps (lap-import.ts). */
+  readonly garage61Token?: string;
 }
 
 const DEFAULTS: ImporterSecrets = {
@@ -39,7 +41,10 @@ export function readSecrets(): ImporterSecrets {
   if (!safeStorage.isEncryptionAvailable()) return DEFAULTS;
   try {
     const raw = JSON.parse(safeStorage.decryptString(readFileSync(path()))) as Partial<ImporterSecrets>;
-    return { ai: { ...DEFAULTS.ai, ...raw.ai } };
+    return {
+      ai: { ...DEFAULTS.ai, ...raw.ai },
+      ...(typeof raw.garage61Token === "string" && raw.garage61Token !== "" ? { garage61Token: raw.garage61Token } : {}),
+    };
   } catch {
     return DEFAULTS;
   }

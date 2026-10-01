@@ -14,6 +14,8 @@
 import { aheadM } from "./pct.js";
 import type { DriverProfile } from "./profile.js";
 import type { Note } from "./schema.js";
+import type { LeadModel } from "./lead-model.js";
+import { constantSpeedLead } from "./lead-model.js";
 import { leadDistanceM, leadSecondsFor } from "./trigger.js";
 import type { Metres, Mps, Pct } from "./units.js";
 
@@ -118,9 +120,12 @@ export class Scheduler {
   #busyUntilMs = 0;
   #lastTMs: number | null = null;
 
-  constructor(lengthM: Metres, profile: DriverProfile) {
+  readonly #lead: LeadModel;
+
+  constructor(lengthM: Metres, profile: DriverProfile, lead: LeadModel = constantSpeedLead) {
     this.#lengthM = lengthM;
     this.#profile = profile;
+    this.#lead = lead;
   }
 
   /**
@@ -286,19 +291,17 @@ export class Scheduler {
       };
     };
 
-    const fullLeadM = leadDistanceM(
-      input.speedMps,
-      leadSecondsFor(note, note.audio, this.#profile),
-    );
+    // Compared in seconds, through the same lead model the trigger used; the
+    // distances are only for the event log.
+    const aheadS = this.#lead.secondsAhead(input.lapDistPct, eventPct, dAheadM, input.speedMps);
+    const fullLeadS = leadSecondsFor(note, note.audio, this.#profile);
+    const fullLeadM = leadDistanceM(input.speedMps, fullLeadS);
 
     if (candidate.dueAtMs === input.tMs) return build("full", fullLeadM);
-    if (dAheadM >= fullLeadM) return build("full", fullLeadM);
+    if (aheadS >= fullLeadS) return build("full", fullLeadM);
 
-    const shortLeadM = leadDistanceM(
-      input.speedMps,
-      leadSecondsFor(note, note.audioShort, this.#profile),
-    );
-    if (dAheadM >= shortLeadM) return build("short", shortLeadM);
+    const shortLeadS = leadSecondsFor(note, note.audioShort, this.#profile);
+    if (aheadS >= shortLeadS) return build("short", leadDistanceM(input.speedMps, shortLeadS));
 
     return null;
   }

@@ -1855,6 +1855,32 @@ user sees first.
     work with a personal token today; building maps for many combos needs that
     approval. One clean lap per layout is enough for a map, whatever the car,
     so all 479 tracks are 479 downloads at ~120 requests per rate-limit window.
+  - **In the app (2026-10-01):** Track Coach → Import lap… → From Garage 61.
+    The personal token is stored encrypted with the importer's keys; search a
+    track (the one being driven first) and car, fastest laps first, pick one,
+    then the same confirm step as a CSV file. `seeTelemetry` needs a Pro plan,
+    so laps are filtered on their own `canViewTelemetry` instead.
+  - **How Garage 61 data reaches other users (decided 2026-10-01): through our
+    database, not through Garage 61.** Personal tokens are handed out by
+    manual review, so most users will not have one, and a token shipped in the
+    app could be extracted by anyone, would see the owner's teammates' laps
+    (there is no "public only" filter), and is not what personal tokens are for.
+    So the admin imports, on their own machine, and everyone gets the maps and
+    reference laps from Supabase. Only the admin's own laps by default
+    (`drivers=me`); teammates' laps only with their OK. `exxeed-g61-maps`
+    (`pnpm --filter @exxeed/trackmap g61 --all | --track <id>`, `--dry-run`,
+    `--with-teammates`) does many tracks at once: skips any already mapped
+    here or shared, takes the fastest clean lap, writes a reference lap only
+    for a car the catalog knows, and waits out the rate limit. The app shares
+    the results on its next signed-in launch. **Next:** ask Garage 61 to
+    approve the application for "all visible laps", which makes the same tools
+    cover public laps.
+  - **Layout keys follow the track id.** Garage 61's track carries iRacing's
+    TrackID, so its lap matches our layout by id, not name. A track not yet in
+    the catalog gets a new layout under that id; `report_session` now adds a
+    catalog layout only for a new track id, and on connect the app resolves
+    the sim's key to the layout id already used for that track id
+    (`canonicalTrackKey`), so "300" and "300 Circuit" stay one layout.
   - The full API is 41 operations (spec at `/api/openapi/v1.json`): laps,
     analyses, cars, car groups, tracks, platforms, `me` (accounts, statistics),
     teams, and team **data packs** (laps, setups `.sto`, replays) and training
