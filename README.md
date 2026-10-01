@@ -1,16 +1,17 @@
 # Exxeed
 
-A desktop app for iRacing that tells you **where** to brake, in terms you can see
-out of the windscreen, at the moment you need to hear it.
+A **track coach for iRacing**. It helps you learn a new track by talking you
+round it while you drive.
 
 ```
-"Brake at the hundred board"    → spoken so it ends about a second before the braking point
+"Brake at the hundred board, down to third"
 "Gas when you see the ferris wheel"
 "Stay inside for the next one"
 ```
 
-A set of callouts for one track and car is a **callout pack**. You can write
-one, import one from a YouTube track guide, or install one another driver shared.
+It is a track guide, but one you learn by doing. Each callout names something
+you can see from the car and is spoken just before you need it, so your first
+laps at a new circuit are already guided laps.
 
 ![The note editor: Snetterton with callouts, braking zones and the pedal chart](docs/screenshots/editor.png)
 
@@ -18,19 +19,29 @@ one, import one from a YouTube track guide, or install one another driver shared
 > Mac against recorded laps. There is no installer yet; run it from source
 > (see [Development](#development)).
 
-## Why this doesn't already exist
+## Learning by doing, not homework
 
-Existing telemetry coaches compare your lap to a reference and report the
-difference: *"brake 10m later."* That only helps once you already know roughly
-where to brake.
+The usual way to learn a track is a YouTube track guide. They are good, and
+they are homework: you watch, pause, re-watch, then get in the car and try to
+remember what was said about turn seven while you are arriving at turn seven.
 
-The reference lap does contain the braking point, but only as *"2,340 metres into
-the lap"*, which is useless to a human at 250 km/h. What is missing is turning
-**lap distance** into a **visual landmark**, and today that only exists inside
-YouTube track guides you have to watch and re-watch between stints.
+Exxeed moves the guide into the car.
 
-Exxeed takes both halves: telemetry says **where**, a person or a track guide
-says **what to call it**, and the app speaks it at the right moment.
+- **Told at the corner, not the night before.** "Brake at the 100 board" arrives
+  about a second before the 100 board does.
+- **Things you can see.** Boards, kerbs, the end of a tyre wall. Not "brake at
+  2,340 metres".
+- **You drive from the first minute.** The laps you would spend guessing are
+  spent learning.
+- **The same guides, turned into callouts.** A YouTube track guide can be
+  imported and becomes one callout per corner, with credit to its author. Or
+  install a pack another driver has already made for that track and car.
+
+Lap-comparison tools tell you to "brake 10 metres later", which only helps once
+you already know roughly where to brake. Exxeed is for the step before that.
+
+A set of callouts for one track and car is a **callout pack**. You can write
+one, import one, or install one.
 
 ## What it does
 
@@ -110,35 +121,26 @@ one without driving for it.
 
 ### Garage 61
 
-![Import a lap from Garage 61, with "Only my laps" ticked](docs/screenshots/garage61.png)
+![Importing a reference lap from Garage 61](docs/screenshots/garage61.png)
 
-A driver who already logs laps in [Garage 61](https://garage61.net) can build
-the map and reference lap from one of them instead of driving a lap for it
+You can import a fast lap from [Garage 61](https://garage61.net) and use it as
+your **reference lap**: the lap your callouts are timed against, and the one
+the overlays compare your throttle, brake, speed and delta to
 (**Track Coach → Import lap…**).
 
-**What is used.** The documented v1 API: the signed-in driver, the track and car
-lists, a lap search, and one lap's telemetry CSV. From the lap: position, speed,
-throttle, brake, gear and steering.
+Connect your Garage 61 account, pick the track and car, and choose a lap. If
+the track has no map in Exxeed yet, the same lap draws it. A lap exported from
+Garage 61 as a CSV file works too, with no account connected.
 
-**What is made from it.** The positions become the track's centreline and
-corners. The other channels are resampled onto a distance grid and become the
-reference lap that callouts are timed against.
-
-**How the data is handled.**
-
-- The Garage 61 token is entered in the app, stored encrypted with the OS
-  keychain, and used only from that machine. It is not in the app's code and is
-  never sent to Exxeed's servers.
-- **Only the driver's own laps** are offered by default. Teammates' laps appear
-  only when the driver unticks that, with a note that the lap is the teammate's
-  to share.
-- A CSV exported from the Garage 61 website can be imported with no token.
-- The map and reference lap built from a lap are shared to Exxeed's database
-  when the driver is signed in to Exxeed, so others get a map for that track
-  without calling Garage 61. The raw CSV is not stored or shared.
-- Requests are few: one lap per import. The bulk tool
-  (`pnpm --filter @exxeed/trackmap g61`) takes one lap per layout, skips layouts
-  that already have a map, and waits out rate-limit responses.
+- **Your own laps by default.** A teammate's lap is offered only if you untick
+  "Only my laps", with a reminder that it is theirs to share.
+- **Your Garage 61 token stays on your PC**, stored encrypted with the OS
+  keychain. It is never sent to Exxeed's servers.
+- **Only what is built from the lap is kept**: the reference lap and, if needed,
+  the track map. When you are signed in to Exxeed these are shared, so the next
+  driver at that track has a map. The Garage 61 file itself is not stored.
+- Uses Garage 61's documented v1 API (driver, tracks, cars, lap search, lap
+  CSV), one lap per import, and waits out rate-limit responses.
 
 ### Overlays
 
@@ -191,13 +193,6 @@ you arrange overlays, so the names and numbers are made up.
 | <img src="docs/screenshots/overlays/tyres.png" alt="Tyres" width="320"><br>**Tyres** | Pressure, temperature across the tread and wear for each tyre, from the last pit read. |
 | <img src="docs/screenshots/overlays/damage.png" alt="Damage" width="320"><br>**Damage** | Required and optional repair time. |
 | <img src="docs/screenshots/overlays/weather.png" alt="Weather Conditions" width="320"><br>**Weather Conditions** | Sky, air and track temperature, humidity, rain, wind and how wet the track is. |
-
-**Exxeed**
-
-| Overlay | What it shows |
-| --- | --- |
-| <img src="docs/screenshots/overlays/callouts.png" alt="Callouts" width="320"><br>**Callouts** | A log of what was spoken, in which form, and what was skipped and why. |
-| <img src="docs/screenshots/overlays/telemetry.png" alt="Telemetry" width="320"><br>**Telemetry** | The raw values the app is reading from the sim, for checking a setup. |
 
 ### Not built yet
 
