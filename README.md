@@ -4,26 +4,159 @@ A desktop app for iRacing that tells you **where** to brake, in terms you can se
 out of the windscreen, at the moment you need to hear it.
 
 ```
-"Brake at the hundred board"    → fires ~1.7s before the braking point
-"Kerb — throttle"               → fires at the apex
-"Stay inside for the next one"  → fires on exit
+"Brake at the hundred board"    → spoken so it ends about a second before the braking point
+"Gas when you see the ferris wheel"
+"Stay inside for the next one"
 ```
 
-> Status: build spec written, M0a scaffold up. Nothing drives yet.
+A set of callouts for one track and car is a **callout pack**. You can write
+one, import one from a YouTube track guide, or install one another driver shared.
+
+![The note editor: Daytona road course with callouts, braking zones and the pedal chart](docs/screenshots/editor.png)
+
+> **Status: alpha.** It runs against iRacing on Windows and is developed on a
+> Mac against recorded laps. There is no installer yet; run it from source
+> (see [Development](#development)).
 
 ## Why this doesn't already exist
 
-Existing telemetry coaches are **delta coaches** — they compare your lap to a
-reference and report the difference: *"brake 10m later."* That only helps once you
-already know roughly where to brake.
+Existing telemetry coaches compare your lap to a reference and report the
+difference: *"brake 10m later."* That only helps once you already know roughly
+where to brake.
 
 The reference lap does contain the braking point, but only as *"2,340 metres into
-the lap"* — useless to a human at 250 km/h. The missing piece is translating **lap
-distance** into a **visual landmark**, and right now that translation exists only
-inside YouTube lap guides you have to watch and re-watch between stints.
+the lap"*, which is useless to a human at 250 km/h. What is missing is turning
+**lap distance** into a **visual landmark**, and today that only exists inside
+YouTube track guides you have to watch and re-watch between stints.
 
-So Exxeed extracts that translation once, delivers it by voice at the right
-instant, and **stops saying it once you've learned the corner.**
+Exxeed takes both halves: telemetry says **where**, a person or a track guide
+says **what to call it**, and the app speaks it at the right moment.
+
+## What it does
+
+### Voice callouts while you drive
+
+Each callout sits at a point on the lap. The app starts speaking early enough
+that the sentence ends about a second before you get there.
+
+- **Timing from a reference lap.** The app knows how long each stretch of track
+  takes from a reference lap and adjusts for how fast you are going, so a callout
+  starts where the editor shows it will. Without a reference lap it assumes you
+  hold your current speed.
+- **One voice, no talking over itself.** If two callouts collide, the app plays
+  the short form of the later one, or drops it. A late braking call is worse
+  than none.
+- **Quiet when it should be.** Nothing is said on the out-lap, in the pits, off
+  track or under tow. Overlays hide and callouts mute when iRacing is not the
+  window in front (a setting).
+- **No network or AI while driving.** Everything is read from disk before the
+  session and the audio is pre-rendered.
+
+### The note editor
+
+Where a pack is written and checked (screenshot above). `Cmd/Ctrl+E` opens it.
+
+- **The lap in order**: each turn with its callouts in a list beside the map.
+  Hover either side to find it on the other.
+- **Where each callout speaks**: the blue arc is the stretch of track the voice
+  runs over. Orange means two callouts overlap.
+- **Where the reference lap braked**: red stripes for brake on, a red bar where
+  braking starts. A callout can be snapped to that point.
+- **Throttle, brake and speed** for the whole lap under the map.
+- **Play lap** drives the reference lap around the map at its real speed and
+  speaks each callout where the app would. Edits are heard from the next lap,
+  before saving.
+- **Corner names**: double-click a turn to name it.
+- **Render audio** speaks the text locally with Piper and shows progress per clip.
+
+### Track Coach and shared packs
+
+![Track Coach: your own and installed callout packs](docs/screenshots/coach.png)
+
+Track Coach lists the packs you wrote and the ones you installed, and picks the
+right one for the track and car when the sim connects. **Test mode** replays a
+recorded lap through the callouts and overlays without the sim.
+
+![The Content tab: a pack's page](docs/screenshots/content.png)
+
+The **Content** tab is where packs are found: search, filter by track and car
+class, sort by stars or downloads. Each pack has a page with its description,
+screenshots, the callouts, the map and a changelog.
+
+- Packs have **versions**. Installed packs update, and you can pin or roll back.
+- **Setups and lap files** (`.sto`, `.blap`, `.olap`) can be attached to a pack;
+  setups are installed into iRacing's setups folder.
+- Browsing and installing need **no account**. Publishing and starring need a
+  sign-in (Discord, Google or email).
+- A pack is about 1 KB of text. **Audio is rendered on the machine that installs
+  it**, so only the words travel.
+
+### Import from YouTube
+
+![The YouTube importer with this week's official races](docs/screenshots/importer.png)
+
+Pick this week's race, find a track guide, and turn its transcript into one
+editable callout per corner with the AI model you choose, on your own API key.
+The callouts are placed on the map, rendered and opened in the editor for
+review, with a credit to the guide. Details under
+[Importing from YouTube](#importing-from-youtube).
+
+### Track maps from one lap
+
+A map is cut automatically from your first clean lap at a track: the centreline
+from recorded positions, the corners from the steering trace. That lap also
+becomes the reference lap. Maps are shared, so the second driver at a track gets
+one without driving for it.
+
+### Garage 61
+
+![Import a lap from Garage 61, with "Only my laps" ticked](docs/screenshots/garage61.png)
+
+A driver who already logs laps in [Garage 61](https://garage61.net) can build
+the map and reference lap from one of them instead of driving a lap for it
+(**Track Coach → Import lap…**).
+
+**What is used.** The documented v1 API: the signed-in driver, the track and car
+lists, a lap search, and one lap's telemetry CSV. From the lap: position, speed,
+throttle, brake, gear and steering.
+
+**What is made from it.** The positions become the track's centreline and
+corners. The other channels are resampled onto a distance grid and become the
+reference lap that callouts are timed against.
+
+**How the data is handled.**
+
+- The Garage 61 token is entered in the app, stored encrypted with the OS
+  keychain, and used only from that machine. It is not in the app's code and is
+  never sent to Exxeed's servers.
+- **Only the driver's own laps** are offered by default. Teammates' laps appear
+  only when the driver unticks that, with a note that the lap is the teammate's
+  to share.
+- A CSV exported from the Garage 61 website can be imported with no token.
+- The map and reference lap built from a lap are shared to Exxeed's database
+  when the driver is signed in to Exxeed, so others get a map for that track
+  without calling Garage 61. The raw CSV is not stored or shared.
+- Requests are few: one lap per import. The bulk tool
+  (`pnpm --filter @exxeed/trackmap g61`) takes one lap per layout, skips layouts
+  that already have a map, and waits out rate-limit responses.
+
+### Overlays
+
+| Track map | Pedals against the reference |
+| --- | --- |
+| ![Track map overlay](docs/screenshots/overlay-map.png) | ![Throttle and brake against the reference lap](docs/screenshots/overlay-inputs.png) |
+
+Transparent, click-through windows over the sim, one per panel, dragged and
+resized into place and saved per profile: inputs, input and speed comparison
+against the reference, brake indicator, delta bar and sectors, corner analysis,
+standings, relatives, radar, track map, fuel, tyres, damage, weather, and the
+callouts log.
+
+### Not built yet
+
+A Windows installer, a race summary after each session, overlay themes, driver
+profiles with stats, and callouts that go quiet once you have learned a corner.
+`TODO.md` has the plan.
 
 ## How it's built
 
@@ -31,22 +164,24 @@ The system splits along a build-time / run-time line, and keeping that line shar
 is the main architectural discipline:
 
 ```
-GENERATION (offline, slow, AI in the loop)
-  recorded lap  ──► TrackMap + centreline + LandmarkInventory
-  YouTube video ──► NoteSet ──► human review ──► AudioPack
+PREPARATION (offline, slow, AI in the loop)
+  one lap        ──► track map + centreline + reference lap
+  YouTube video  ──► note set ──► human review ──► audio pack
                                      │
                                      ▼
-RUNTIME (online, 60 Hz, dumb, deterministic)
-  telemetry + config ──► trigger ──► speak ──► fade
+RUNTIME (60 Hz, dumb, deterministic)
+  telemetry + note set ──► trigger ──► speak
 ```
 
 The runtime is deliberately stupid: no analysis, no model calls, no network, no
-decisions that aren't already in the config. It reads pre-computed artefacts and
-fires pre-rendered audio. That is what makes it fast, offline-capable, testable off
-a recording, and free to run — the AI cost is paid once per video, never per lap.
+decisions that aren't already in the data. It reads pre-computed artefacts and
+fires pre-rendered audio. That is what makes it fast, offline-capable, testable
+off a recording, and free to run. The AI cost is paid once per video, never per
+lap.
 
-Node 20 · TypeScript (strict, everywhere) · Electron · Vue 3 · pnpm workspaces ·
-Vitest. Local-first in v1, with a repository layer already shaped for Supabase.
+Node 20 · TypeScript (strict, everywhere) · Electron · pnpm workspaces · Vitest ·
+Supabase. Local disk is what a session runs from; the cloud is a sync service
+for maps and packs.
 
 ## Rendering audio
 
@@ -122,9 +257,9 @@ clears each note's `dirty` flag.
 
 ### Editing notes
 
-`Cmd/Ctrl+E` opens the note editor: the track, every callout's text, and each
-one's speaking window shaded back from its point. Double-click a label to edit
-it, drag a point to move it, or snap it to the measured braking point.
+`Cmd/Ctrl+E` opens the note editor, described under
+[The note editor](#the-note-editor). Double-click a callout's words in the list
+to edit them, drag a marker to move it, double-click the track to add one.
 
 **Render Audio** (`Cmd/Ctrl+Shift+R`) re-renders the set through Piper and
 redraws the windows from the new durations. Download a voice in preferences
