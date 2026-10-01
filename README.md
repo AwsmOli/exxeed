@@ -12,7 +12,7 @@ out of the windscreen, at the moment you need to hear it.
 A set of callouts for one track and car is a **callout pack**. You can write
 one, import one from a YouTube track guide, or install one another driver shared.
 
-![The note editor: Daytona road course with callouts, braking zones and the pedal chart](docs/screenshots/editor.png)
+![The note editor: Snetterton with callouts, braking zones and the pedal chart](docs/screenshots/editor.png)
 
 > **Status: alpha.** It runs against iRacing on Windows and is developed on a
 > Mac against recorded laps. There is no installer yet; run it from source
@@ -142,15 +142,62 @@ reference lap that callouts are timed against.
 
 ### Overlays
 
-| Track map | Pedals against the reference |
-| --- | --- |
-| ![Track map overlay](docs/screenshots/overlay-map.png) | ![Throttle and brake against the reference lap](docs/screenshots/overlay-inputs.png) |
+Transparent, click-through windows over the sim. Each one is its own window
+that you drag and resize into place; layouts are saved as profiles. They are
+shown only while iRacing is the window in front (a setting).
 
-Transparent, click-through windows over the sim, one per panel, dragged and
-resized into place and saved per profile: inputs, input and speed comparison
-against the reference, brake indicator, delta bar and sectors, corner analysis,
-standings, relatives, radar, track map, fuel, tyres, damage, weather, and the
-callouts log.
+The pictures below use the app's built-in sample feed, the one it shows while
+you arrange overlays, so the names and numbers are made up.
+
+**Driving**
+
+| Overlay | What it shows |
+| --- | --- |
+| <img src="docs/screenshots/overlays/inputs.png" alt="Essential Inputs" width="320"><br>**Essential Inputs** | Throttle and brake as a rolling trace and as bars, with speed, gear and steering. |
+| <img src="docs/screenshots/overlays/pedals.png" alt="Input Telemetry" width="320"><br>**Input Telemetry** | The fuller version: adds the reference lap's speed and gear under yours, the live delta and the steering angle. |
+| <img src="docs/screenshots/overlays/trace.png" alt="Input Comparison" width="320"><br>**Input Comparison** | Your throttle and brake against the reference lap over the track just ahead, with the reference braking point marked. |
+| <img src="docs/screenshots/overlays/speed.png" alt="Speed Comparison" width="320"><br>**Speed Comparison** | Your speed against the reference lap's over the next few hundred metres. |
+| <img src="docs/screenshots/overlays/brake.png" alt="Brake Indicator" width="320"><br>**Brake Indicator** | A countdown bar to the reference braking point, in metres. |
+
+**Timing**
+
+| Overlay | What it shows |
+| --- | --- |
+| <img src="docs/screenshots/overlays/delta.png" alt="Delta Bar" width="320"><br>**Delta Bar** | Time gained or lost against the reference lap, live. |
+| <img src="docs/screenshots/overlays/sectors.png" alt="Delta Sectors" width="320"><br>**Delta Sectors** | The delta per sector, with best, last and reference lap times. |
+| <img src="docs/screenshots/overlays/corners.png" alt="Corner Analysis" width="320"><br>**Corner Analysis** | Time gained or lost in the corner just taken and the apex speed difference, with the speed trace through it. |
+| <img src="docs/screenshots/overlays/reference.png" alt="Comparison Target" width="320"><br>**Comparison Target** | Which lap every delta is measured against, and the callout pack that is loaded. |
+
+**Race**
+
+| Overlay | What it shows |
+| --- | --- |
+| <img src="docs/screenshots/overlays/standings.png" alt="Standings" width="320"><br>**Standings** | The field by class: strength of field, licence and iRating, gap, interval, last and best lap. |
+| <img src="docs/screenshots/overlays/relative.png" alt="Relatives" width="320"><br>**Relatives** | The cars around you on track with the gap to each, plus temperatures, brake bias, incidents and time left. |
+| <img src="docs/screenshots/overlays/radar.png" alt="Radar" width="320"><br>**Radar** | Cars alongside you, with the occupied side lit. |
+
+**Track**
+
+| Overlay | What it shows |
+| --- | --- |
+| <img src="docs/screenshots/overlays/map.png" alt="Track Map" width="320"><br>**Track Map** | The whole circuit with every car by class position, and where the callouts are. |
+| <img src="docs/screenshots/overlays/minimap.png" alt="Mini Map" width="320"><br>**Mini Map** | A zoomed view of the track around your car. |
+
+**Car**
+
+| Overlay | What it shows |
+| --- | --- |
+| <img src="docs/screenshots/overlays/fuel.png" alt="Fuel Calculator" width="320"><br>**Fuel Calculator** | Fuel and laps left, usage per lap (last, average, max) and how much is needed to finish. |
+| <img src="docs/screenshots/overlays/tyres.png" alt="Tyres" width="320"><br>**Tyres** | Pressure, temperature across the tread and wear for each tyre, from the last pit read. |
+| <img src="docs/screenshots/overlays/damage.png" alt="Damage" width="320"><br>**Damage** | Required and optional repair time. |
+| <img src="docs/screenshots/overlays/weather.png" alt="Weather Conditions" width="320"><br>**Weather Conditions** | Sky, air and track temperature, humidity, rain, wind and how wet the track is. |
+
+**Exxeed**
+
+| Overlay | What it shows |
+| --- | --- |
+| <img src="docs/screenshots/overlays/callouts.png" alt="Callouts" width="320"><br>**Callouts** | A log of what was spoken, in which form, and what was skipped and why. |
+| <img src="docs/screenshots/overlays/telemetry.png" alt="Telemetry" width="320"><br>**Telemetry** | The raw values the app is reading from the sim, for checking a setup. |
 
 ### Not built yet
 
