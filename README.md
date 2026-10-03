@@ -115,10 +115,10 @@ when you tab out of iRacing.
 Several of them compare you to your reference lap as you drive, which is
 where a fast lap from Garage 61 earns its keep.
 
-They come in three themes — iRacing (the default), Gran Turismo and Synthwave —
-and you can make your own. A theme can recolour the overlays, restyle them with
-its own CSS, or rebuild any overlay from its own HTML template, and themes are
-shared in Content like callout packs. See [docs/THEMES.md](docs/THEMES.md).
+They come in OEM+, the sim's own look; more — Gran Turismo, Synthwave, RaceLab
+style — install from Content, and you can make your own. A theme can recolour
+the overlays, restyle them with its own CSS, or rebuild any overlay from its
+own HTML template, and themes are shared in Content like callout packs. See [docs/THEMES.md](docs/THEMES.md).
 
 *The pictures show sample data.*
 

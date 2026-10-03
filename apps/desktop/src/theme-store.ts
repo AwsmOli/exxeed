@@ -206,6 +206,14 @@ export class ThemeStore {
     // path is relative, so the themes folder can be moved or shared whole.
     mkdirSync(join(this.dir, id, TEMPLATES_DIR), { recursive: true });
     writeFileSync(join(this.dir, id, THEME_JSON), themeFileFor(from, name, `../${SCHEMA_FILE}`));
+    // A copy of a theme with a stylesheet and templates of its own (a custom
+    // one: a built-in's come with its base) takes those too, as files to change.
+    if (this.isCustom(from.id)) {
+      if (from.css !== undefined) writeFileSync(join(this.dir, id, THEME_CSS), from.css);
+      for (const [panel, text] of Object.entries(from.templates ?? {})) {
+        writeFileSync(join(this.dir, id, TEMPLATES_DIR, `${panel}.html`), text);
+      }
+    }
     this.#read();
     return id;
   }

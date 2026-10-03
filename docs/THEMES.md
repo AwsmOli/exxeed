@@ -2,7 +2,7 @@
 
 A theme can change more than colours. It can restyle anything with its own
 stylesheet, and rebuild any overlay with its own template. That is how the
-Gran Turismo theme puts your gap to the car ahead on a line of its own between
+Gran Turismo theme (in Content, made this way) puts your gap to the car ahead on a line of its own between
 two rows. Nothing in a theme is code: templates are declarative and sanitized,
 so a theme from Content is safe to install.
 
@@ -13,9 +13,9 @@ mode to have something to look at.
 ## Your first theme, in ten minutes
 
 This walks through the three levels of a theme on one overlay, Relatives,
-starting from iRacing's look. Each step is useful on its own; stop at any.
+starting from the OEM+ look (the sim's own UI). Each step is useful on its own; stop at any.
 
-**1. Make it and see it.** In the Overlays tab, pick **iRacing**, then
+**1. Make it and see it.** In the Overlays tab, pick **OEM+**, then
 **New…** and call it *My relative*. Turn on **Test mode** — the overlays fill
 with a sample race — and click **Edit**. The editor opens on `theme.json`.
 
@@ -31,7 +31,7 @@ car ahead:
 ```
 
 The overlays change as you type. Hover a token for what it does; a colour has a
-swatch that opens a picker. Leave a token out to keep iRacing's.
+swatch that opens a picker. Leave a token out to keep OEM+'s.
 
 **3. Style (theme.css).** **Add… → Stylesheet (theme.css)**. Then make every row taller
 and the names bolder:
@@ -101,17 +101,19 @@ whole folder goes up as one document, and installing it writes the folder back.
 ```json
 {
   "$schema": "../theme.schema.json",
-  "name": "My GT",
-  "description": "Gran Turismo with a red position box.",
-  "base": "gran-turismo",
-  "tokens": { "red": "#c8102e", "radius": "0px" }
+  "name": "My theme",
+  "description": "OEM+ with a red own row and square corners.",
+  "base": "iracing",
+  "tokens": { "me": "#c8102e", "radius": "0px" }
 }
 ```
 
-- `base` is the theme you start from: `iracing`, `gran-turismo`, `synthwave`
-  or `classic`. Its tokens fill in anything you leave out. Its stylesheet and
-  templates come along too, so a theme based on Gran Turismo keeps GT's
-  standings unless it has a standings template of its own.
+- `base` is the built-in theme you start from: `iracing` (OEM+, the sim's own
+  look) or `classic` (the plain stylesheet). Its tokens fill in anything you
+  leave out, and its stylesheet and templates come along too. To start from
+  a custom theme instead — Gran Turismo, say — select it and press **New…**:
+  that copies the whole thing, stylesheet, templates and sizes, as files of
+  your own to change.
 - `tokens` are colours, fonts and shapes. Every token, with what it does,
   completes in the editor; the full list is the `tokens` section of
   `theme.schema.json` beside your themes.

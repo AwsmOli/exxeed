@@ -160,8 +160,6 @@ export type ThemeLayout = (typeof THEME_LAYOUTS)[number];
 const BUILTIN_LAYOUT: Record<string, ThemeLayout> = {
   classic: "wash",
   iracing: "chips",
-  "gran-turismo": "chips",
-  synthwave: "wash",
 };
 
 export interface Theme {
@@ -334,7 +332,7 @@ const CLASSIC: Theme = {
 export const BUILTIN_THEMES: readonly Theme[] = [
   {
     id: "iracing",
-    name: "iRacing",
+    name: "OEM+",
     // The sim's boxes: compact, as its own split-time, TIRES and inputs boxes are.
     sizes: {
       inputs: [460, 110],
@@ -402,189 +400,6 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       "title-spacing": "0em",
       "title-case": "uppercase",
       "title-justify": "flex-start",
-    },
-  },
-  {
-    id: "gran-turismo",
-    name: "Gran Turismo",
-    // GT's standings are a narrow column under a big position box; its speed
-    // cluster is wide and low; its rev band and course maps their own shapes.
-    sizes: {
-      standings: [560, 520],
-      relative: [520, 420],
-      pedals: [600, 180],
-      inputs: [560, 120],
-      revlights: [520, 70],
-      tyres: [300, 180],
-      fuel: [300, 430],
-      map: [400, 300],
-      minimap: [260, 280],
-      radar: [260, 290],
-      sectors: [320, 270],
-      delta: [360, 90],
-      flags: [340, 72],
-      "spotter-left": [130, 120],
-      "spotter-right": [130, 120],
-    },
-    description: "GT7's race screen: slate slabs, boxed positions, white captions, squared digits and GT's hatched rev band.",
-    // Taken from GT7's race HUD: things float over the scene rather than sit
-    // in panels — dark slate slabs for rows, a square box with a thin light
-    // edge for a position, white captions in narrow capitals with a soft
-    // shadow, squared digits for speed and times, a red box for a gap, blue
-    // arrowheads on the maps and yours in red. The structure is in
-    // static/themes/gran-turismo/ (theme.css and templates).
-    tokens: {
-      card: "rgba(26, 32, 40, 0.84)",
-      "card-hi": "rgba(255, 255, 255, 0.06)",
-      well: "rgba(0, 0, 0, 0.25)",
-      line: "rgba(255, 255, 255, 0.08)",
-      track: "rgba(255, 255, 255, 0.18)",
-      "card-border": "0px solid transparent",
-      radius: "0px",
-      gap: "3px",
-      "pill-radius": "0px",
-      glow: "0px",
-      // GT's tachometer: one curved band that fills white and flashes red at the shift point.
-      "shift-style": "sweep",
-
-      text: "#ffffff",
-      "text-2": "rgba(255, 255, 255, 0.74)",
-      "text-3": "rgba(255, 255, 255, 0.5)",
-      label: "#ffffff",
-      ink: "#ffffff",
-
-      green: "#2fb85a",
-      mint: "#2fb85a",
-      red: "#d0101b",
-      yellow: "#f2c230",
-      orange: "#f07a12",
-      cyan: "#5ab8f0",
-      purple: "#b05cf0",
-      blue: "#4aa8f0",
-      throttle: "#ffffff",
-      brake: "#d0101b",
-      danger: "#e0141e",
-      warm: "#ffb347",
-      // Tyres as GT shows them: blue when cold, white when right, red when hot.
-      "temp-cold": "#3d7dff",
-      "temp-cool": "#a9cdff",
-      "temp-ok": "#ffffff",
-      "temp-warm": "#ffb347",
-      "temp-hot": "#ff3b30",
-      // Your own row: light grey with dark type, as GT marks the player.
-      me: "#111418",
-      "me-text": "#111418",
-      "me-bg": "rgba(226, 228, 230, 0.95)",
-      "chip-bg": "rgba(12, 15, 19, 0.92)",
-      "chip-text": "#ffffff",
-      "lap-ahead": "#ff5a5a",
-      "lap-behind": "#6cc0ff",
-      // Classes as GT would: yours white, everyone else's in its red.
-      "class-mine": "#ffffff",
-      "class-other": "#d0101b",
-      "fuel-empty": "rgba(255, 255, 255, 0.12)",
-      // The course map: a white outline with the scene showing through.
-      road: "rgba(16, 20, 24, 0.45)",
-      "road-edge": "#ffffff",
-
-      font: "swiss",
-      "num-font": "squared",
-      "title-font": "narrow",
-      "num-weight": "500",
-      "body-weight": "400",
-
-      // No strips: captions float over the scene, as POSITION and LAP do.
-      "title-bg": "transparent",
-      "title-text": "#ffffff",
-      "title-size": "15px",
-      "title-weight": "600",
-      "title-spacing": "0.03em",
-      "title-case": "uppercase",
-      "title-justify": "flex-start",
-    },
-  },
-  {
-    id: "synthwave",
-    name: "Synthwave",
-    description: "Neon on black: cyan for throttle and time gained, pink for brake and time lost, glowing numbers and lines.",
-    // An 80s neon palette on plain dark panels, so the colours do the work.
-    // Good is cyan and bad is pink throughout, the same pair as the pedals.
-    // The glow on text is in overlay.css under [data-theme="synthwave"].
-    tokens: {
-      card: "rgba(10, 10, 12, 0.82)",
-      "card-hi": "rgba(255, 255, 255, 0.08)",
-      well: "rgba(255, 255, 255, 0.06)",
-      line: "rgba(255, 255, 255, 0.09)",
-      track: "rgba(255, 255, 255, 0.12)",
-      "card-border": "1px solid rgba(255, 255, 255, 0.1)",
-      radius: "4px",
-      gap: "4px",
-      // Square-cut bars, not pills.
-      "pill-radius": "2px",
-      glow: "12px",
-      "shift-strength": "1",
-
-      text: "#ffffff",
-      "text-2": "rgba(255, 255, 255, 0.66)",
-      "text-3": "rgba(255, 255, 255, 0.42)",
-      label: "#00f0ff",
-
-      // Every "good" is neon cyan and every "bad" neon pink.
-      green: "#00f0ff",
-      mint: "#00f0ff",
-      red: "#ff2bd6",
-      yellow: "#f9f002",
-      orange: "#ff6c11",
-      cyan: "#00f0ff",
-      purple: "#f15bff",
-      danger: "#ff1744",
-      // A warm tyre is violet, so the tread runs cyan to violet to pink with no green on the way.
-      warm: "#a45cff",
-      // Rev lights as a neon sweep, no traffic-light yellow: cyan, violet, pink, red.
-      "shift-low": "#00f0ff",
-      "shift-mid": "#a45cff",
-      "shift-high": "#ff2bd6",
-      "shift-max": "#ff1744",
-      blue: "#5b8cff",
-      throttle: "#00f0ff",
-      brake: "#ff2bd6",
-      // Your own row: white on a pink-to-cyan band (the band is in overlay.css).
-      me: "#ff6ad5",
-      "me-text": "#ffffff",
-      "chip-bg": "rgba(0, 240, 255, 0.14)",
-      "chip-text": "#9ff8ff",
-      road: "rgba(232, 232, 238, 0.95)",
-      "road-edge": "rgba(10, 10, 12, 0.95)",
-      // Nothing keeps the sim's traffic-light colours: a car a lap up is pink,
-      // a lap down violet, and licences run red, orange, yellow, cyan, violet.
-      "lap-ahead": "#ff6ad5",
-      "lap-behind": "#a45cff",
-      "lic-r": "#ff1744",
-      "lic-d": "#ff6c11",
-      "lic-c": "#f9f002",
-      "lic-b": "#00f0ff",
-      "lic-a": "#a45cff",
-      "lic-p": "#ffffff",
-      // Classes in neon too, in place of the sim's pastels.
-      "class-1": "#ff3355",
-      "class-2": "#ff9a1f",
-      "class-3": "#b967ff",
-      "class-4": "#00f0ff",
-      "class-5": "#b6ff3a",
-
-      font: "future",
-      "num-font": "digital",
-      "title-font": "arcade",
-      "num-weight": "700",
-      "body-weight": "600",
-
-      "title-bg": "rgba(10, 10, 12, 0.82)",
-      "title-text": "#ff6ad5",
-      "title-size": "11px",
-      "title-weight": "400",
-      "title-spacing": "0.1em",
-      "title-case": "uppercase",
-      "title-justify": "center",
     },
   },
 ];
@@ -752,6 +567,7 @@ export function themeFileFor(from: Theme, name: string, schemaRef: string): stri
       description: `Based on ${from.name}.`,
       base: base.id,
       ...(from.layout !== undefined ? { layout: from.layout } : {}),
+      ...(from.sizes !== undefined ? { sizes: from.sizes } : {}),
       tokens: base === from ? from.tokens : { ...base.tokens, ...from.tokens },
     },
     null,

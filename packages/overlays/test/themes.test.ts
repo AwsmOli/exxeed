@@ -41,7 +41,7 @@ describe("themes", () => {
   });
 
   it("does not offer the classic look in the picker", () => {
-    expect(BUILTIN_THEMES.map((t) => t.id)).toEqual(["iracing", "gran-turismo", "synthwave"]);
+    expect(BUILTIN_THEMES.map((t) => t.id)).toEqual(["iracing"]);
   });
 
   it("names a font stack rather than passing a font string through", () => {
@@ -114,7 +114,7 @@ describe("custom themes", () => {
     const parsed = parseTheme(
       JSON.stringify({
         name: "GT copy",
-        base: "gran-turismo",
+        base: "iracing",
         css: ".row { color: red; }",
         templates: { standings: "<div class=\"panel\"></div>", "Bad Id": "<div></div>", relative: 42 },
       }),
@@ -133,12 +133,12 @@ describe("custom themes", () => {
 
   it("puts a custom theme's stylesheet and templates over its base's files", () => {
     const files = (id: string) =>
-      id === "gran-turismo" ? { css: "/* gt */", templates: { standings: "gt", relative: "gt" } } : {};
+      id === "iracing" ? { css: "/* gt */", templates: { standings: "gt", relative: "gt" } } : {};
     const custom: Theme = {
       id: "mine",
       name: "Mine",
       description: "",
-      base: "gran-turismo",
+      base: "iracing",
       tokens: {},
       css: "/* mine */",
       templates: { relative: "mine" },
@@ -147,7 +147,7 @@ describe("custom themes", () => {
     expect(view.css).toBe("/* gt */\n/* mine */");
     expect(view.templates).toEqual({ standings: "gt", relative: "mine" });
     // A built-in gets its own files.
-    expect(themeView(themeById("gran-turismo"), files).templates).toEqual({ standings: "gt", relative: "gt" });
+    expect(themeView(themeById("iracing"), files).templates).toEqual({ standings: "gt", relative: "gt" });
   });
 
   it("names only a theme folder's own files, so an editor path cannot leave it", () => {
@@ -166,9 +166,9 @@ describe("custom themes", () => {
   });
 
   it("gives a custom theme its base's sizes under its own", () => {
-    const custom: Theme = { id: "mine", name: "Mine", description: "", base: "gran-turismo", tokens: {}, sizes: { relative: [500, 300] } };
+    const custom: Theme = { id: "mine", name: "Mine", description: "", base: "iracing", tokens: {}, sizes: { relative: [500, 300] } };
     const view = themeView(custom);
     expect(view.sizes["relative"]).toEqual([500, 300]);
-    expect(view.sizes["standings"]).toEqual(themeById("gran-turismo").sizes?.["standings"]);
+    expect(view.sizes["inputs"]).toEqual(themeById("iracing").sizes?.["inputs"]);
   });
 });

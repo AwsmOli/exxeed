@@ -1,0 +1,129 @@
+{
+  "$schema": "../theme.schema.json",
+  "name": "Gran Turismo",
+  "description": "GT7's race screen: slate slabs, boxed positions, white captions, squared digits and GT's hatched rev band.",
+  "author": "blkPixel",
+  "base": "classic",
+  "layout": "chips",
+  "sizes": {
+    "standings": [
+      560,
+      520
+    ],
+    "relative": [
+      520,
+      420
+    ],
+    "pedals": [
+      600,
+      180
+    ],
+    "inputs": [
+      560,
+      120
+    ],
+    "revlights": [
+      520,
+      70
+    ],
+    "tyres": [
+      300,
+      180
+    ],
+    "fuel": [
+      300,
+      430
+    ],
+    "map": [
+      400,
+      300
+    ],
+    "minimap": [
+      260,
+      280
+    ],
+    "radar": [
+      260,
+      290
+    ],
+    "sectors": [
+      320,
+      270
+    ],
+    "delta": [
+      360,
+      90
+    ],
+    "flags": [
+      340,
+      72
+    ],
+    "spotter-left": [
+      130,
+      120
+    ],
+    "spotter-right": [
+      130,
+      120
+    ]
+  },
+  "tokens": {
+    "card": "rgba(26, 32, 40, 0.84)",
+    "card-hi": "rgba(255, 255, 255, 0.06)",
+    "well": "rgba(0, 0, 0, 0.25)",
+    "line": "rgba(255, 255, 255, 0.08)",
+    "track": "rgba(255, 255, 255, 0.18)",
+    "card-border": "0px solid transparent",
+    "radius": "0px",
+    "gap": "3px",
+    "pill-radius": "0px",
+    "glow": "0px",
+    "shift-style": "sweep",
+    "text": "#ffffff",
+    "text-2": "rgba(255, 255, 255, 0.74)",
+    "text-3": "rgba(255, 255, 255, 0.5)",
+    "label": "#ffffff",
+    "ink": "#ffffff",
+    "green": "#2fb85a",
+    "mint": "#2fb85a",
+    "red": "#d0101b",
+    "yellow": "#f2c230",
+    "orange": "#f07a12",
+    "cyan": "#5ab8f0",
+    "purple": "#b05cf0",
+    "blue": "#4aa8f0",
+    "throttle": "#ffffff",
+    "brake": "#d0101b",
+    "danger": "#e0141e",
+    "warm": "#ffb347",
+    "temp-cold": "#3d7dff",
+    "temp-cool": "#a9cdff",
+    "temp-ok": "#ffffff",
+    "temp-warm": "#ffb347",
+    "temp-hot": "#ff3b30",
+    "me": "#111418",
+    "me-text": "#111418",
+    "me-bg": "rgba(226, 228, 230, 0.95)",
+    "chip-bg": "rgba(12, 15, 19, 0.92)",
+    "chip-text": "#ffffff",
+    "lap-ahead": "#ff5a5a",
+    "lap-behind": "#6cc0ff",
+    "class-mine": "#ffffff",
+    "class-other": "#d0101b",
+    "fuel-empty": "rgba(255, 255, 255, 0.12)",
+    "road": "rgba(16, 20, 24, 0.45)",
+    "road-edge": "#ffffff",
+    "font": "swiss",
+    "num-font": "squared",
+    "title-font": "narrow",
+    "num-weight": "500",
+    "body-weight": "400",
+    "title-bg": "transparent",
+    "title-text": "#ffffff",
+    "title-size": "15px",
+    "title-weight": "600",
+    "title-spacing": "0.03em",
+    "title-case": "uppercase",
+    "title-justify": "flex-start"
+  }
+}
