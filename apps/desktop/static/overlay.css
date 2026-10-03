@@ -433,7 +433,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .pedal .v { min-width: 3.2em; text-align: center; white-space: nowrap; }
 
 /* The shift lights: sixteen short pills, lighting from both ends inward. */
-.shift { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; margin-bottom: 10px; flex: none; }
+.shift { display: grid; grid-template-columns: repeat(var(--shift-count, 16), 1fr); gap: 6px; margin-bottom: 10px; flex: none; }
 .shift i { height: 6px; border-radius: var(--pill-radius); background: var(--track); }
 
 /* The Rev Lights overlay: just the row, filling its window, lights as tall as it allows. */

@@ -27,6 +27,8 @@ export const PANEL_PARTS: Partial<Record<PanelId, readonly PanelChoice[]>> = {
     { id: "pedals", label: "Pedal bars" },
     { id: "speed", label: "Speed and gear" },
     { id: "wheel", label: "Steering wheel" },
+    { id: "revlights", label: "Rev lights (themes that show them)" },
+    { id: "info", label: "Conditions and last lap (themes that show them)" },
   ],
   pedals: [
     { id: "delta", label: "Delta" },

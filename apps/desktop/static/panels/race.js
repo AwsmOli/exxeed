@@ -268,6 +268,55 @@ const RADAR_RANGE_M = 20;
 const CAR_LEN_M = 4.6;
 const CAR_W_M = 2;
 
+/**
+ * RaceLab's radar: no disc and no rings. Your car and the others as plain
+ * white shapes; a car alongside lights a red bar down that side, fading
+ * outwards; a car close behind or ahead a yellow glow at that end, stronger
+ * the closer it is.
+ */
+function drawGlowRadar(ctx, cx, cy, R, m, r, cars, s) {
+  const cw = CAR_W_M * m;
+  const ch = CAR_LEN_M * m;
+  const spotter = s.race?.radar.spotter ?? "off";
+  const left = spotter === "left" || spotter === "twoLeft" || spotter === "both";
+  const right = spotter === "right" || spotter === "twoRight" || spotter === "both";
+  const bar = (side) => {
+    const x0 = side < 0 ? cx - cw * 0.7 : cx + cw * 0.7;
+    const x1 = side < 0 ? x0 - R * 0.55 : x0 + R * 0.55;
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    g.addColorStop(0, "rgba(232, 40, 40, 0.95)");
+    g.addColorStop(1, "rgba(232, 40, 40, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(Math.min(x0, x1), cy - ch * 0.95, Math.abs(x1 - x0), ch * 1.9);
+    // Two thin lines through it, as RaceLab draws them.
+    ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.fillRect(Math.min(x0, x1), cy - ch * 0.2, Math.abs(x1 - x0) * 0.6, 1.5 * r);
+  };
+  if (left) bar(-1);
+  if (right) bar(1);
+  for (const car of cars) {
+    if (car.alongside) continue;
+    const d = Math.abs(car.y - cy);
+    const k = Math.max(0, 1 - d / R);
+    if (k <= 0) continue;
+    const g = ctx.createRadialGradient(cx, car.y, 0, cx, car.y, R * 0.7);
+    g.addColorStop(0, `rgba(228, 190, 40, ${(0.75 * k).toFixed(2)})`);
+    g.addColorStop(1, "rgba(228, 190, 40, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - R, car.y - R * 0.7, R * 2, R * 1.4);
+  }
+  const shape = (x, y) => {
+    roundRect(ctx, x - cw / 2, y - ch / 2, cw, ch, 3 * r);
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 4 * r;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  };
+  for (const car of cars) shape(car.x, car.y);
+  shape(cx, cy);
+}
+
 function radarBlock(el) {
   const canvas = canvasIn(el);
 
@@ -306,6 +355,11 @@ function radarBlock(el) {
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.clip();
 
+      if (el.getAttribute("look") === "glow") {
+        drawGlowRadar(ctx, cx, cy, R, m, r, cars, s);
+        ctx.restore();
+        return;
+      }
       const chevrons = el.getAttribute("cars") === "chevron";
       const bare = el.getAttribute("disc") === "none";
       if (el.getAttribute("road") === "strip") {
@@ -439,6 +493,7 @@ registerBlock(
       cars: "car (default, a top-down car) | chevron — arrowheads, yours in red",
       disc: "shaded (default) | none — just the rings, over the scene",
       road: "none (default) | strip — the road as a lighter strip with a crosshair, as Gran Turismo's",
+      look: "rings (default) | glow — no disc or rings: red bars beside you for a car alongside, a yellow glow for one close behind or ahead, as RaceLab's",
     },
   },
   radarBlock,

@@ -61,6 +61,8 @@ export const FILTERS = {
   lower: (v) => String(v ?? "").toLowerCase(),
   /** The first word: "A 4.12" → "A". */
   first: (v) => String(v ?? "").split(/\s+/)[0] ?? "",
+  /** A 0–100 value as a share of an arc that is `of` long: {{ revPct | ringOf:75 }} for a three-quarter ring. */
+  ringOf: (v, of = "100") => (typeof v === "number" ? ((v / 100) * Number(of)).toFixed(1) : "0"),
   /** The nth word, from 0: {{ license | word:1 }} is the safety rating of "B 4.62". */
   word: (v, n = "0") => String(v ?? "").split(/\s+/)[Number(n)] ?? "",
   /** The first letter. */

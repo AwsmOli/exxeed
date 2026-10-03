@@ -6,17 +6,23 @@
    an olive-gold band, markers outside the box, a TELEMETRY strip with a
    rounded dial at its end and a round delta dial. */
 
-.rl-box { display: flex; flex-direction: column; min-height: 0; padding: 10px 12px 8px 44px; background: var(--card); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); }
-.rl-head, .rl-foot { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; color: #fff; flex: none; padding: 2px 0 8px; }
-.rl-foot { padding: 8px 0 0; font-size: 15px; }
+.rl-box { display: flex; flex-direction: column; min-height: 0; padding: 6px 8px; background: var(--card); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); }
+/* Room outside the box for the markers RaceLab hangs beside a row: left on
+   Relatives, right on Standings. The gutter is the scene, not the box. */
+.rl-relative { padding-left: 36px; }
+.rl-standings { padding-right: 34px; }
+.rl-head, .rl-foot { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 700; color: #fff; flex: none; padding: 0 2px 5px; }
+.rl-foot { padding: 5px 2px 0; font-size: 14px; }
 .rl-push { margin-left: auto; }
 .rl-dim { color: rgba(255, 255, 255, 0.45); }
 .rl-tag { display: inline-block; padding: 0 4px; border: 1.5px solid rgba(255, 255, 255, 0.5); border-radius: 3px; font-size: 11px; color: rgba(255, 255, 255, 0.6); vertical-align: middle; }
-.rl-rows { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; overflow: visible; }
-.rl-row { position: relative; display: grid; grid-template-columns: 38px 18px minmax(60px, 1fr) auto auto 52px; align-items: center; column-gap: 8px; height: 30px; flex: none; background: #141416; font-size: 15px; font-weight: 700; color: #fff; }
+/* Rows share the box's height, up to their own. Clipped top and bottom, but
+   not at the sides: the markers sit outside the box. */
+.rl-rows { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; overflow-x: visible; overflow-y: clip; }
+.rl-row { position: relative; display: grid; grid-template-columns: 38px 18px minmax(60px, 1fr) auto auto 52px; align-items: center; column-gap: 8px; height: auto; flex: 1 1 0; min-height: 20px; max-height: 30px; background: #141416; font-size: 15px; font-weight: 700; color: #fff; }
 .rl-row.pit { opacity: 0.45; }
 /* Markers outside the box, to the left. */
-.rl-mark { position: absolute; left: -38px; top: 2px; bottom: 2px; width: 30px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+.rl-mark { position: absolute; left: -44px; top: 2px; bottom: 2px; width: 30px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
 .rl-mark:not(:empty) { background: #fff; color: #111; }
 .rl-pos { text-align: center; background: #1b1b1d; align-self: stretch; display: flex; align-items: center; justify-content: center; }
 /* The class colour: a slanted stripe and a wash behind the name. */
@@ -37,10 +43,10 @@
 
 /* -- Standings ----------------------------------------------------------------- */
 
-.rl-st-box { padding: 8px 40px 8px 8px; }
+.rl-st-box { padding: 6px 8px; }
 .rl-circle { display: inline-flex; width: 20px; height: 20px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; color: rgba(255, 255, 255, 0.75); vertical-align: middle; }
 /* Not clipped sideways: the markers sit outside the box. */
-.rl-st-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: visible; }
+.rl-st-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; flex: 1 1 auto; overflow-x: visible; overflow-y: clip; }
 /* A class header: a dark part with the car count, a bright slanted part with the name. */
 .rl-cls {
   display: flex; align-items: stretch; height: 24px; margin-top: 4px; flex: none; font-size: 13px; font-weight: 700;
@@ -51,7 +57,7 @@
 .rl-cls-sof { margin-left: auto; display: flex; align-items: center; padding-right: 10px; color: var(--cls); }
 .rl-cls-col { width: 86px; display: flex; align-items: center; color: rgba(255, 255, 255, 0.75); font-weight: 600; background: #232325; padding-left: 8px; }
 .rl-cls-col:first-of-type { width: 52px; }
-.rl-st-row { display: flex; height: 26px; font-size: 14px; column-gap: 0; }
+.rl-st-row { display: flex; height: 26px; flex: none; min-height: 0; max-height: none; font-size: 14px; column-gap: 0; }
 .rl-st-row .rl-pos { width: 34px; flex: none; }
 .rl-st-row .rl-stripe { width: 16px; flex: none; }
 .rl-st-row .rl-name { flex: 1; min-width: 0; padding-left: 6px; }
@@ -64,7 +70,7 @@
 .rl-cell.fast { color: #d65bff; background: #19191b; }
 .rl-st-row.me .rl-cell { background: color-mix(in srgb, var(--me-bg) 85%, #232325); }
 /* Markers outside the box, on the right. */
-.rl-side { position: absolute; right: -34px; top: 2px; bottom: 2px; width: 28px; display: flex; }
+.rl-side { position: absolute; right: -40px; top: 2px; bottom: 2px; width: 28px; display: flex; }
 .rl-side i { font-style: normal; flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
 .rl-fast { background: #8a2be2; color: #fff; }
 .rl-pit { background: #fff; color: #111; }
@@ -108,16 +114,20 @@
 /* -- Delta --------------------------------------------------------------------- */
 
 .rl-delta { flex-direction: row !important; align-items: center; gap: 14px; }
-.rl-delta-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 160px; border-radius: 50%; background: repeating-linear-gradient(135deg, #1a1a1c 0 3px, #141416 3px 6px); box-shadow: 0 0 0 2px #0c0c0e; }
+.rl-delta-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 160px; container-type: size; border-radius: 50%; background: repeating-linear-gradient(135deg, #1a1a1c 0 3px, #141416 3px 6px); box-shadow: 0 0 0 2px #0c0c0e; }
 .rl-delta-dial x-delta-dial { position: absolute; inset: 0; }
 .rl-delta-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-.rl-delta-cap { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
-.rl-delta-num { font-size: 22px; font-weight: 800; padding: 3px 10px; background: #0c0c0e; border-radius: 6px; color: #fff; }
+/* Sized from the dial, so the number's box always fits inside it. */
+.rl-delta-mid { gap: 3cqh; }
+.rl-delta-cap { font-size: max(8px, 9cqh); font-weight: 700; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
+.rl-delta-num { font-size: 19cqh; font-weight: 800; padding: 2cqh 5cqh; max-width: 86cqw; background: #0c0c0e; border-radius: 6px; color: #fff; white-space: nowrap; }
 .rl-delta-num.good { color: #2ff436; }
 .rl-delta-num.bad { color: #ff2a2a; }
-.rl-laps { display: flex; gap: 22px; padding: 6px 16px; background: rgba(12, 12, 14, 0.92); border-radius: 8px; box-shadow: inset 3px 0 0 #f0a020; align-self: center; flex: none; }
+.rl-laps { display: flex; gap: 4cqw; min-width: 0; overflow: hidden; flex: 1 1 auto; max-width: 520px; padding: 6px 16px; background: rgba(12, 12, 14, 0.92); border-radius: 8px; box-shadow: inset 3px 0 0 #f0a020; align-self: center; }
+.rl-delta { container-type: inline-size; }
 .rl-lap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
-.rl-lap b { font-size: 20px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-lap { flex: 0 1 auto; min-width: 0; }
+.rl-lap b { font-size: clamp(12px, 6.2cqw, 20px); font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
 .rl-lap span { font-size: 9px; font-weight: 700; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); letter-spacing: 0.04em; }
 .rl-predicted.good b { color: #2ff436; }
 .rl-predicted.bad b { color: #ff2a2a; }
@@ -169,3 +179,63 @@
 /* -- Minimap: a striped disc ------------------------------------------------------ */
 
 .rl-minimap x-minimap { border-radius: 50%; background: repeating-linear-gradient(135deg, #1c1c1e 0 4px, #161618 4px 8px); box-shadow: inset 0 0 0 2px #2a2a2c; }
+
+/* -- Delta sectors: rows like the Relative's ---------------------------------------- */
+
+.rl-sec-row { display: grid; grid-template-columns: 44px 18px 1fr auto; }
+.rl-sec-row .rl-pos { font-size: 14px; }
+.rl-sec-row .rl-name { font-variant-numeric: tabular-nums; }
+.rl-sec-row .rl-gap { padding-right: 10px; min-width: 76px; }
+/* The sector's colour is how it went: green gained, red lost, white still to drive. */
+.rl-sec-row { --cls: #9a9a9e; }
+.rl-sec-row.good { --cls: #2ff436; }
+.rl-sec-row.bad { --cls: #ff2a2a; }
+.rl-sec-row.good .rl-gap { color: #2ff436; }
+.rl-sec-row.bad .rl-gap { color: #ff2a2a; }
+.rl-sec-row.live { background: #1e1e21; }
+.rl-sec-row.live .rl-pos { color: var(--yellow); }
+
+/* -- The dashboard (Essential Inputs) and the dots (Rev Lights) ------------------- */
+
+.rl-dash { gap: 0; align-items: stretch; justify-content: center; }
+.rl-dash-pill {
+  position: relative; display: flex; align-items: center; gap: 14px; height: 100px; flex: none;
+  padding: 0 34px 0 6px; background: #000; border-radius: 999px;
+}
+.rl-gear-ring { position: relative; width: 104px; height: 104px; flex: none; margin: -2px 0; }
+.rl-gear-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(135deg); }
+.rl-gear-ring circle { fill: none; stroke-width: 7; }
+.rl-ring-track { stroke: #3a3a3d; }
+.rl-ring-fill { stroke: #42d63a; transition: stroke-dasharray 60ms linear; }
+.rl-gear-ring .rl-gear { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 42px; }
+.rl-dash-mid { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* Round dots, along from the left. */
+.rl-dash-mid .shift, .rl-revlights .shift { gap: 6px; margin: 0; padding: 0; }
+.rl-dash-mid .shift i, .rl-revlights .shift i { height: auto; aspect-ratio: 1; border-radius: 50%; background: #8e8e92; }
+.rl-dash-vals { display: flex; gap: 22px; }
+.rl-dash-vals > span { display: flex; flex-direction: column; line-height: 1.05; }
+.rl-dash-vals small { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
+.rl-dash-vals b { font-size: 26px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; min-width: 2.2em; }
+.rl-dash-pos { font-size: 40px; font-weight: 800; color: #f2903c; flex: none; }
+/* The small pill hanging under it: track and air temperature, the last lap. */
+.rl-dash-sub {
+  align-self: flex-start; display: flex; align-items: center; gap: 14px; margin: -8px 0 0 70px; padding: 4px 14px;
+  background: #2a2a2d; border: 1.5px solid #4a4a4e; border-radius: 999px; font-size: 14px; font-weight: 700; color: #fff; z-index: 1;
+}
+.rl-dash-sub x-icon { color: rgba(255, 255, 255, 0.75); margin-right: 4px; }
+.rl-revlights { justify-content: center; }
+.rl-revlights .rl-dots { background: #000; border-radius: 999px; padding: 8px 14px; }
+
+/* -- Tyres ------------------------------------------------------------------------ */
+
+.rl-tyres .rl-box { gap: 8px; padding: 8px 10px 10px; }
+.rl-box-title { text-align: center; font-size: 14px; font-weight: 700; text-transform: uppercase; color: #fff; flex: none; }
+.rl-tyre-grid { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-height: 0; }
+.rl-tyre { display: flex; flex-direction: column; gap: 4px; padding: 6px; background: #19191b; border-radius: 8px; border: 1.5px solid #2a2a2c; }
+.rl-tyre-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.6); }
+.rl-tyre-body {
+  flex: 1; min-height: 44px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.rl-tyre-foot { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff; }
+.rl-tyre-foot span:last-child { color: rgba(255, 255, 255, 0.6); }

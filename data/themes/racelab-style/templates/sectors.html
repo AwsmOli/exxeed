@@ -1,0 +1,25 @@
+<!--
+  Delta sectors in RaceLab's relative style: a row per sector with its name in
+  the position cell, a slanted stripe and wash in its result's colour — green
+  gained, red lost, grey still to drive — its time, and the gain or loss in
+  bold. Then the best, last and reference laps the same way.
+-->
+<div class="panel sectors rl-sectors" data-class="is-empty: empty">
+  <div class="rl-box grow">
+    <div class="rl-head"><span>Delta</span><span class="rl-push rl-dim">vs ref</span></div>
+    <div class="rl-rows">
+      <div data-each="sectors" class="rl-row rl-sec-row" data-class="good: good; bad: bad; live: live">
+        <span class="rl-pos">{{ name }}</span>
+        <span class="rl-stripe"></span>
+        <span class="rl-name"><x-group data-if="timeS">{{ timeS | sectorTime }}</x-group></span>
+        <span class="rl-gap">{{ deltaS | signed:3 }}</span>
+      </div>
+    </div>
+    <div class="rl-rows rl-laps-rows" data-part="laps">
+      <div class="rl-row rl-sec-row" data-class="good: best.good; bad: best.bad"><span class="rl-pos">Best</span><span class="rl-stripe"></span><span class="rl-name">{{ bestLapS | lapTime }}</span><span class="rl-gap">{{ best.deltaS | signed:3 }}</span></div>
+      <div class="rl-row rl-sec-row" data-class="good: last.good; bad: last.bad"><span class="rl-pos">Last</span><span class="rl-stripe"></span><span class="rl-name">{{ lastLapS | lapTime }}</span><span class="rl-gap">{{ last.deltaS | signed:3 }}</span></div>
+      <div class="rl-row rl-sec-row"><span class="rl-pos">Ref</span><span class="rl-stripe"></span><span class="rl-name">{{ refLapS | lapTime }}</span><span class="rl-gap"></span></div>
+    </div>
+  </div>
+  <div class="empty">needs a reference lap and one crossing of the line</div>
+</div>

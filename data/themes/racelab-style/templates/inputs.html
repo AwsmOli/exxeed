@@ -1,16 +1,31 @@
-<!-- RaceLab's TELEMETRY strip as Essential Inputs: red-edged title, input trace, three pedal bars and the rounded dial with the gear and speed. -->
-<div class="panel inputs rl-tele">
-  <div class="rl-strip">
-    <div class="rl-strip-title"><span>Telemetry</span></div>
-    <div class="rl-graph" data-part="graph"><x-timeline></x-timeline></div>
-    <div class="rl-pedals" data-part="pedals">
-      <div class="rl-pedal"><span>{{ clutch.pct }}</span><div class="rl-pbar clutch"><i style="height:{{ clutch.pct }}%"></i></div></div>
-      <div class="rl-pedal"><span>{{ brake.pct }}</span><div class="rl-pbar brake"><i style="height:{{ brake.pct }}%"></i></div></div>
-      <div class="rl-pedal"><span>{{ throttle.pct }}</span><div class="rl-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div></div>
+<!--
+  RaceLab's dashboard: a black pill with the gear in a ring that fills with
+  the revs, round shift dots along the top filling from the left, KPH and
+  RPM, and your position in orange at the right end; under it a small pill
+  with the track and air temperature and your last lap. The pedals and the
+  input trace, which RaceLab keeps in its telemetry strip, are not here.
+-->
+<div class="panel inputs rl-dash">
+  <div class="rl-dash-pill">
+    <div class="rl-gear-ring" data-part="speed">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="rl-ring-track" cx="50" cy="50" r="44" pathLength="100" stroke-dasharray="75 100"></circle>
+        <circle class="rl-ring-fill" cx="50" cy="50" r="44" pathLength="100" stroke-dasharray="{{ revPct | ringOf:75 }} 100"></circle>
+      </svg>
+      <span class="rl-gear">{{ gear }}</span>
     </div>
-    <div class="rl-dial" data-part="speed">
-      <div class="rl-dial-ring" data-part="wheel"><x-wheel-dial></x-wheel-dial></div>
-      <div class="rl-dial-mid"><span class="rl-gear">{{ gear }}</span><span class="rl-unit">kph</span><span class="rl-speed">{{ speedKph }}</span></div>
+    <div class="rl-dash-mid">
+      <x-shift-lights count="15" fill="left" data-part="revlights"></x-shift-lights>
+      <div class="rl-dash-vals" data-part="speed">
+        <span><small>kph</small><b>{{ speedKph }}</b></span>
+        <span><small>rpm</small><b>{{ rpm | or:— }}</b></span>
+      </div>
     </div>
+    <span class="rl-dash-pos" data-if="position">P{{ position }}</span>
+  </div>
+  <div class="rl-dash-sub" data-part="info">
+    <span data-if="trackC"><x-icon name="lanes"></x-icon>{{ trackC }} °C</span>
+    <span data-if="airC"><x-icon name="thermometer"></x-icon>{{ airC }} °C</span>
+    <span><x-icon name="disc" size="14"></x-icon>{{ lastLapS | lapTime }}</span>
   </div>
 </div>

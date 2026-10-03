@@ -70,8 +70,22 @@ function inputsModel(s) {
     speedKph: Math.round(kph(f?.speedMps)),
     gear: gearText(f?.gear),
     wheelDeg: wheelDeg(f).toFixed(1),
-    rpm: f?.rpm ?? null,
+    rpm: f?.rpm == null ? null : Math.round(f.rpm),
+    /** 0–100: how far up the shift range the revs are, for a ring or bar. */
+    revPct: Math.round(unit(revs(s)?.fraction ?? 0) * 100),
+    /** Your position in your class, and the race's conditions and laps, for a dashboard. */
+    position: playerRow(s)?.classPosition ?? null,
+    airC: s.race?.weather.airC == null ? null : Math.round(s.race.weather.airC),
+    trackC: s.race?.weather.trackC == null ? null : Math.round(s.race.weather.trackC),
+    lastLapS: s.race?.lastLapS ?? null,
+    bestLapS: s.race?.bestLapS ?? null,
   };
+}
+
+/** Your own row of the standings, or null. */
+function playerRow(s) {
+  for (const c of s.race?.classes ?? []) for (const r of c.rows) if (r.isPlayer) return r;
+  return null;
 }
 
 const INPUTS = `
@@ -398,14 +412,19 @@ function revs(s) {
   };
 }
 
-function drawShiftLights(lights, s) {
+function drawShiftLights(lights, s, fromLeft = false) {
   const r = revs(s);
-  const lit = r === null ? 0 : Math.max(0, Math.min(8, Math.ceil(r.fraction * 8)));
+  const n = lights.length;
+  // From both ends inwards (the default), or along from the left.
+  const steps = fromLeft ? n : Math.ceil(n / 2);
+  const lit = r === null ? 0 : Math.max(0, Math.min(steps, Math.ceil(r.fraction * steps)));
   const blink = r !== null && r.blink && Math.floor(performance.now() / 90) % 2 === 0;
   lights.forEach((light, i) => {
-    const j = i < 8 ? i : 15 - i;
+    const j = fromLeft ? i : i < steps ? i : n - 1 - i;
+    // The theme's eight-step ramp, stretched over however many lights there are.
+    const shade = Math.min(7, Math.floor((j / steps) * 8));
     const on = blink || j < lit;
-    const colour = blink ? COLORS.shiftBlink : COLORS.shift[j];
+    const colour = blink ? COLORS.shiftBlink : COLORS.shift[shade];
     light.style.background = on ? colour : "";
     light.style.boxShadow = on && COLORS.glow > 0 ? `0 0 ${COLORS.glow}px ${alpha(colour, 0.6)}` : "";
   });
@@ -415,14 +434,20 @@ registerBlock(
   "x-shift-lights",
   {
     summary:
-      "Sixteen rev lights lighting from both ends inwards, in the theme's shift colours, all blinking at the shift point. Hidden when the theme's shift-style is sweep.",
-    attributes: {},
+      "Rev lights lighting from both ends inwards, in the theme's shift colours, all blinking at the shift point. Hidden when the theme's shift-style is sweep.",
+    attributes: {
+      count: "how many lights; 16 by default",
+      fill: "ends (default: from both ends inwards) | left — along from the left, as RaceLab's dots",
+    },
   },
   (el) => {
     el.classList.add("shift");
-    el.innerHTML = "<i></i>".repeat(16);
+    const count = Math.max(2, Math.min(40, Math.round(numberAttr(el, "count", 16))));
+    el.style.setProperty("--shift-count", String(count));
+    el.innerHTML = "<i></i>".repeat(count);
     const lights = [...el.children];
-    return { paint: (s) => drawShiftLights(lights, s) };
+    const fromLeft = el.getAttribute("fill") === "left";
+    return { paint: (s) => drawShiftLights(lights, s, fromLeft) };
   },
 );
 

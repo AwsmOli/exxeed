@@ -1,0 +1,18 @@
+<!--
+  Tyres as one of RaceLab's boxes: a title, then a card per tyre — its
+  corner and pressure on top, the tyre itself coloured across its tread by
+  temperature with the centre temperature on it, and the wear under it.
+  Pressure, wear, temperatures and the pit-read note are each switchable.
+-->
+<div class="panel tyres rl-tyres" data-class="is-empty: empty">
+  <div class="rl-box grow">
+    <div class="rl-box-title">Tyres <span class="rl-dim" data-part="note">· last pit read</span></div>
+    <div class="rl-tyre-grid">
+      <div class="rl-tyre"><div class="rl-tyre-head"><span>FL</span><span data-part="pressure">{{ lf.psi }} psi</span></div><div class="rl-tyre-body" style="background:{{ lf.gradient }}"><span data-part="temps">{{ lf.tempC }}</span></div><div class="rl-tyre-foot" data-part="wear"><span>Wear</span><span>{{ lf.wearPct }}%</span></div></div>
+      <div class="rl-tyre"><div class="rl-tyre-head"><span>FR</span><span data-part="pressure">{{ rf.psi }} psi</span></div><div class="rl-tyre-body" style="background:{{ rf.gradient }}"><span data-part="temps">{{ rf.tempC }}</span></div><div class="rl-tyre-foot" data-part="wear"><span>Wear</span><span>{{ rf.wearPct }}%</span></div></div>
+      <div class="rl-tyre"><div class="rl-tyre-head"><span>RL</span><span data-part="pressure">{{ lr.psi }} psi</span></div><div class="rl-tyre-body" style="background:{{ lr.gradient }}"><span data-part="temps">{{ lr.tempC }}</span></div><div class="rl-tyre-foot" data-part="wear"><span>Wear</span><span>{{ lr.wearPct }}%</span></div></div>
+      <div class="rl-tyre"><div class="rl-tyre-head"><span>RR</span><span data-part="pressure">{{ rr.psi }} psi</span></div><div class="rl-tyre-body" style="background:{{ rr.gradient }}"><span data-part="temps">{{ rr.tempC }}</span></div><div class="rl-tyre-foot" data-part="wear"><span>Wear</span><span>{{ rr.wearPct }}%</span></div></div>
+    </div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>
