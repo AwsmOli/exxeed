@@ -44,6 +44,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, Menu, screen } from "elect
 
 import {
   MIRROR_PAIRS,
+  mirrorBounds,
   MOVE_WINDOW_CHANNEL,
   PANEL_SPECS,
   type MoveWindowRequest,
@@ -219,9 +220,7 @@ export class OverlayLayout {
     const other = this.#windows.get(partner);
     if (other === undefined || other.isDestroyed()) return;
     const b = window.getBounds();
-    const screenArea = screen.getDisplayMatching(b).bounds;
-    const centre = screenArea.x + screenArea.width / 2;
-    const target = { x: Math.round(2 * centre - b.x - b.width), y: b.y, width: b.width, height: b.height };
+    const target = mirrorBounds(b, screen.getDisplayMatching(b).bounds);
     const now = other.getBounds();
     // Already there (or within a pixel of rounding): nothing to do, and no echo back.
     if (Math.abs(now.x - target.x) <= 1 && Math.abs(now.y - target.y) <= 1 && Math.abs(now.width - target.width) <= 1 && Math.abs(now.height - target.height) <= 1) return;

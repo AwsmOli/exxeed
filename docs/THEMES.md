@@ -10,6 +10,75 @@ Start with **New…** in the Overlays tab, based on the built-in closest to what
 you want, then **Edit**. Changes show on the overlays as you type; turn on Test
 mode to have something to look at.
 
+## Your first theme, in ten minutes
+
+This walks through the three levels of a theme on one overlay, Relatives,
+starting from iRacing's look. Each step is useful on its own; stop at any.
+
+**1. Make it and see it.** In the Overlays tab, pick **iRacing**, then
+**New…** and call it *My relative*. Turn on **Test mode** — the overlays fill
+with a sample race — and click **Edit**. The editor opens on `theme.json`.
+
+**2. Colours (tokens).** In `tokens`, change your own row and the gap to the
+car ahead:
+
+```json
+"tokens": {
+  "me": "#ff6a00",
+  "me-text": "#ff6a00",
+  "lap-ahead": "#ff3355"
+}
+```
+
+The overlays change as you type. Hover a token for what it does; a colour has a
+swatch that opens a picker. Leave a token out to keep iRacing's.
+
+**3. Style (theme.css).** **Add… → Stylesheet (theme.css)**. Then make every row taller
+and the names bolder:
+
+```css
+.relative .row { height: 36px; font-size: 16px; }
+.relative .row .who { font-weight: 800; }
+```
+
+To find what to style, pick Relatives under **Inspect** and click
+**Inspect**: Chromium's developer tools open on that overlay. Select a row in
+the Elements panel to see its classes, and try styles there before copying them
+into `theme.css`.
+
+**4. Structure (a template).** **Add… → Template: Relatives**. The editor
+opens a copy of the template Relatives uses now. Say you want the gap first,
+before the name. Find the row and move the gap span up (the row is
+abridged here — keep the rest of it as it is):
+
+```html
+<div data-each="rows" class="row" data-class="me: isPlayer" style="grid-template-columns:{{ cols }};--cls:{{ classColour }}">
+  <span class="gap r n">{{ gapS | fixed:1 }}</span>
+  <span class="pos">{{ position }}</span>
+  <span class="who">{{ name }}</span>
+</div>
+```
+
+and give the new first column room in `theme.css`, or set your own columns
+in place of `{{ cols }}`. What a row can show — `name`, `gapS`, `lap`,
+`iRating`… — is listed under [What each overlay gives its template](#what-each-overlay-gives-its-template),
+and live in the Inspect window: type `overlayData` in its console.
+
+**5. Size.** If your Relatives is now a different shape — wider, or taller per
+row — tell the app, so its window keeps that shape and scales instead of
+squashing:
+
+```json
+"sizes": { "relative": [520, 420] }
+```
+
+**6. Share it.** **Publish…** puts it in Content, with screenshots and a
+description; others install it from there, the whole folder at once.
+
+If something goes wrong, the editor lists what it could not read under the
+text, and the overlays keep showing the last version that worked. A template
+that cannot be read falls back to the built-in one for that overlay.
+
 ## What a theme is made of
 
 A theme is a folder in the app's `themes` folder (**Folder** in the Overlays tab):

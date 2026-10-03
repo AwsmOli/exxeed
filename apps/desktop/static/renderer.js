@@ -139,17 +139,22 @@ let fitToWindow = () => {};
 
 if (isOverlay) {
   fitToWindow = () => {
-    const inset = 8; // #root's inset on both sides (overlay.css --inset)
-    const w = Math.max(1, window.innerWidth - inset);
-    const h = Math.max(1, window.innerHeight - inset);
-    const [dw, dh] = design[0] > 0 && design[1] > 0 ? [design[0] - inset, design[1] - inset] : [w, h];
-    const scale = Math.min(w / dw, h / dh);
+    // The design includes the margin round the panel (#root's inset, 4px a
+    // side), so the margin scales with it: at a fixed 4px a tiny window would
+    // lose a third of its height to it and the panel would no longer fill it.
+    const half = 4;
+    const W = Math.max(1, window.innerWidth);
+    const H = Math.max(1, window.innerHeight);
+    const [dw, dh] = design[0] > 0 && design[1] > 0 ? design : [W, H];
+    const scale = Math.min(W / dw, H / dh);
     root.style.transformOrigin = "0 0";
     root.style.transform = `scale(${scale})`;
+    root.style.left = `${half * scale}px`;
+    root.style.top = `${half * scale}px`;
     root.style.right = "auto";
     root.style.bottom = "auto";
-    root.style.width = `${dw}px`;
-    root.style.height = `${dh}px`;
+    root.style.width = `${dw - half * 2}px`;
+    root.style.height = `${dh - half * 2}px`;
     document.body.style.setProperty("--fit-scale", String(scale));
   };
   fitToWindow();

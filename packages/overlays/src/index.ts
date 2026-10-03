@@ -114,6 +114,23 @@ export const MIRROR_PAIRS: Partial<Record<PanelId, PanelId>> = {
   "spotter-right": "spotter-left",
 };
 
+export interface Bounds {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Where a mirrored partner goes: the same size and height on the screen, the
+ * other side of `screen`'s vertical centre line. `screen` is the display the
+ * moved window is on, so on a second monitor the pair mirrors there.
+ */
+export function mirrorBounds(window: Bounds, screen: Bounds): Bounds {
+  const centre = screen.x + screen.width / 2;
+  return { x: Math.round(2 * centre - window.x - window.width), y: window.y, width: window.width, height: window.height };
+}
+
 export const PANEL_SPECS: Record<PanelId, PanelSpec> = {
   inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110 },
   pedals: { id: "pedals", title: "Input Telemetry", width: 560, height: 170 },
