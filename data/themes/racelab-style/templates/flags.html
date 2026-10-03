@@ -1,0 +1,18 @@
+<!--
+  RaceLab's flag banner: the message in the flag's colour on a dark band, and
+  under it a band in the flag's colour with crossed flags and the flag's name
+  in dark type. Nothing at all when no flag is out.
+-->
+<div class="panel flags rl-flags">
+  <div class="rl-flag {{ kind }}" data-if="flag" data-class="waving: waving">
+    <div class="rl-flag-msg">{{ hint | upper }}</div>
+    <div class="rl-flag-band">
+      <svg class="rl-flag-icon" viewBox="0 0 48 30" aria-hidden="true">
+        <path d="M4 3c6-3 10 3 17 0l-3 12c-7 3-11-3-17 0z"></path>
+        <path d="M44 3c-6-3-10 3-17 0l3 12c7 3 11-3 17 0z"></path>
+        <path d="M10 15l14 14M38 15L24 29" stroke-width="2.6" fill="none"></path>
+      </svg>
+      <b>{{ label }} Flag</b>
+    </div>
+  </div>
+</div>

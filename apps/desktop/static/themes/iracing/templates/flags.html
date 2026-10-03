@@ -1,0 +1,13 @@
+<!--
+  A flag as one of the sim's boxes: a gold title, then the flag itself, its
+  name in white and what it means in grey. Nothing at all when no flag is out.
+-->
+<div class="panel flags ir-flags">
+  <div class="card ir-box ir-flag-box" data-if="flag">
+    <div class="ir-title">Flag</div>
+    <div class="ir-flag-row">
+      <i class="flag-cloth {{ kind }}" data-class="waving: waving"></i>
+      <span class="ir-flag-words"><b>{{ label }}</b><span>{{ hint }}</span></span>
+    </div>
+  </div>
+</div>

@@ -305,3 +305,20 @@ body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
 .tab-wrap .tab.bad { background: var(--gt-red); color: #ffffff; }
 .tab-wrap .tab.good { background: var(--gt-green); color: #ffffff; }
 .log li { font-family: var(--font); }
+
+/* -- Flags and Blind Spot --------------------------------------------------- */
+
+.gt-flags { justify-content: center; }
+.gt-flag { display: flex; align-items: stretch; gap: 2px; height: 64px; }
+.gt-flag-box { width: 84px; display: flex; align-items: center; justify-content: center; background: var(--gt-box); box-shadow: inset 0 0 0 1px var(--gt-edge); }
+.gt-flag-box .flag-cloth { width: 56px; height: 38px; border-radius: 0; }
+.gt-flag-words { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 14px; background: var(--gt-slab); min-width: 0; }
+.gt-flag-words b { font-size: 22px; }
+.gt-flag-words span { font-size: 13px; color: rgba(255, 255, 255, 0.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.gt-spot { flex: 1 1 auto; display: flex; align-items: stretch; justify-content: center; gap: 10px; min-height: 0; }
+.gt-spot-side { flex: 1; display: flex; align-items: center; justify-content: center; background: var(--gt-slab); }
+.gt-spot-side svg { height: 70%; fill: none; stroke: rgba(255, 255, 255, 0.18); stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+.gt-spot-side.on { background: linear-gradient(180deg, rgba(200, 20, 29, 0.55), rgba(200, 20, 29, 0.35)); box-shadow: inset 0 0 0 1px rgba(255, 90, 90, 0.6); }
+.gt-spot-side.on svg { stroke: #ff3b3b; filter: drop-shadow(0 0 6px rgba(255, 50, 50, 0.8)); }
+.gt-spot-car { align-self: center; height: 82%; fill: var(--red); stroke: #ffffff; stroke-width: 1.6; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }

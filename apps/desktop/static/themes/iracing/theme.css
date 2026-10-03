@@ -89,3 +89,18 @@
 .delta-track { height: 6px; border-radius: 2px; }
 .delta-track > i { border-radius: 0 !important; }
 .delta-readout { font-family: var(--num-font); border-radius: 4px; padding: 3px 12px; }
+
+/* -- Flags and Spotter ------------------------------------------------------ */
+
+.ir-flags { justify-content: center; }
+.ir-flag-box { gap: 10px; }
+.ir-flag-row { display: flex; align-items: center; gap: 12px; }
+.ir-flag-row .flag-cloth { width: 64px; height: 42px; }
+.ir-flag-words { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ir-flag-words b { font-size: 18px; font-weight: 700; color: #fff; }
+.ir-flag-words span { font-size: 12px; color: rgba(255, 255, 255, 0.7); white-space: nowrap; }
+
+.ir-spot { flex: 1 1 auto; display: flex; align-items: stretch; justify-content: center; gap: 18px; min-height: 0; padding: 2px 0; }
+.ir-spot-bar { width: 22px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); }
+.ir-spot-bar.on { background: var(--yellow); box-shadow: 0 0 14px rgba(255, 223, 0, 0.6); }
+.ir-spot-car { align-self: center; height: 92%; fill: rgba(255, 255, 255, 0.85); }
