@@ -131,18 +131,24 @@ with the template and `theme.css`. Their attributes are their options.
 |---|---|
 | `<x-icon name="…">` | a line icon: `gearbox`, `wheel`, `pump`, `thermometer`, `droplet`, `lanes`, `disc`, or `sky` with `of="{{ skies }}"`. `size` for wheel, pump and disc |
 | `<x-shift-lights>` | sixteen rev lights from both ends inwards, blinking at the shift point. Hidden when `shift-style` is `sweep` |
-| `<x-sweep>` | Gran Turismo's curved rev line, white with the revs and flashing red to shift. Shown only when `shift-style` is `sweep` |
+| `<x-sweep hatch shape="swoop" redline="0.82">` | Gran Turismo's rev band, white with the revs and flashing red to shift. `hatch` draws fine ticks; `shape` is `swoop`, `arc` or `line`; past `redline` (0–1) the lit part is red. Shown only when `shift-style` is `sweep`. Colours: `--sweep-lit`, `--sweep-red` in theme.css |
 | `<x-timeline seconds="5">` | throttle and brake against time |
 | `<x-wheel-dial>` | a ring showing how far the wheel is turned |
 | `<x-trace>` | throttle and brake by lap position against the reference lap |
 | `<x-speed-trace>` | speed by lap position against the reference lap |
 | `<x-delta-dial>` | the delta as a ring (Delta overlay only) |
 | `<x-corner-chart>` | your speed through the last corner over the reference's (Corner Analysis only) |
-| `<x-map dark>` | the whole track, heat map, sectors, callout points and cars. `dark` numbers the turns |
-| `<x-minimap ahead="260">` | the road around the car, turned so ahead is up |
-| `<x-radar>` | cars alongside, ahead and behind |
+| `<x-map dark road="outline" cars="chevron">` | the whole track, heat map, sectors, callout points and cars. `dark` numbers the turns; `road="outline"` is a hollow white line; `cars="chevron"` draws arrowheads, yours red |
+| `<x-minimap ahead="260" road cars disc="none">` | the road around the car, turned so ahead is up. `disc="none"` fades the road out instead of framing it |
+| `<x-radar cars="chevron" disc="none">` | cars alongside, ahead and behind |
 
-The blocks' colours come from the tokens.
+The blocks' colours come from the tokens: tyre temperatures from `temp-cold`,
+`temp-cool`, `temp-ok`, `temp-warm` and `temp-hot`, chevrons from `blue` and
+`red`, the outline road from `road-edge`.
+
+Fonts a theme can name (tokens `font`, `num-font`, `title-font`) include
+`squared` (squared digits, as a game's speedo), `narrow` (narrow capitals for
+captions) and `swiss` (Helvetica, or Arial on Windows).
 
 ## What each overlay gives its template
 
@@ -198,13 +204,14 @@ trend colour: green gaining, red losing), `fraction` (0–1 of a side),
 **Comparison Target** (`reference`) — `hasReference`, `lapTimeS`, `carId`, `noteSet`.
 
 **Fuel** (`fuel`) — `empty`, `lap`, `lapsTotal`, `timeRemainS`, `levelL`,
-`levelPct`, `usedPct`, `lapsLeft`, `perLapL`, `maxLapL`, `usage[]` (`label`,
+`levelPct`, `level` (0–1), `usedPct`, `lapsLeft`, `perLapL`, `maxLapL`, `usage[]` (`label`,
 `perLap`, `ends`), `toFinishL`, `learning`, `hasMargin`, `marginL`, `spare`,
 `short`.
 
 **Tyres** (`tyres`) — `empty`, and `lf`, `rf`, `lr`, `rr`: `psi`, `tempC`
 ("88°"), `tempsC` (outer/centre/inner), `gradient` (a CSS gradient of the
-tread's temperatures), `wearPct`, `edges` (`["O","C","I"]` as the car sees them).
+tread's temperatures), `colour` (the tyre as one colour), `wearPct`, `edges`
+(`["O","C","I"]` as the car sees them).
 
 **Damage** (`damage`) — `empty`, `repairS`, `optionalS`, `needsRepair`.
 
