@@ -1,0 +1,15 @@
+<!--
+  A car alongside, one window per side (Blind Spot Left and Right both use
+  this file): a box cut on the slant like the rev lights — leaning in, \ on
+  the left and / on the right — with a warning sign and the side, lit in
+  neon pink when the spotter calls a car there.
+-->
+<div class="panel spotter sw-spotter" data-class="is-empty: empty; idle: !on; left: isLeft">
+  <div class="sw-spot-glow">
+    <div class="sw-spot" data-class="on: on">
+      <svg class="sw-warn" viewBox="0 0 48 42" aria-hidden="true"><path class="sw-warn-tri" d="M24 3 L45 39 H3 Z"></path><path class="sw-warn-bang" d="M24 15v12M24 32v1.5"></path></svg>
+      <span class="sw-side">{{ side }}</span>
+    </div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>
