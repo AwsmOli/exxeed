@@ -1,15 +1,10 @@
 <!--
-  The spotter as one of the sim's boxes, one window per side (Blind Spot
-  Left and Right both use this file): a warning sign and CAR LEFT or CAR
-  RIGHT, the box lighting gold when the spotter calls a car there.
+  The sim's own spotter indicator, one window per side (Blind Spot Left and
+  Right both use this file): a yellow bubble with LEFT or RIGHT in dark bold
+  type, shown only while a car is alongside on that side. While the overlays
+  are being arranged, a faint outline shows where it sits.
 -->
 <div class="panel spotter ir-spotter" data-class="is-empty: empty">
-  <div class="card grow ir-box ir-spot" data-class="on: on">
-    <svg class="ir-warn" viewBox="0 0 48 42" aria-hidden="true">
-      <path class="ir-warn-tri" d="M24 3 L45 39 H3 Z"></path>
-      <path class="ir-warn-bang" d="M24 15v12M24 32v1.5"></path>
-    </svg>
-    <div class="ir-title">Car {{ side }}</div>
-  </div>
+  <div class="ir-bubble" data-class="on: on">{{ side | upper }}</div>
   <div class="empty">{{ empty }}</div>
 </div>

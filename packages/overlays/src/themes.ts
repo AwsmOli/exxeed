@@ -343,8 +343,8 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       tyres: [260, 300],
       reference: [300, 140],
       flags: [290, 100],
-      "spotter-left": [140, 130],
-      "spotter-right": [140, 130],
+      "spotter-left": [150, 60],
+      "spotter-right": [150, 60],
     },
     description: "The sim's own UI: dark navy boxes, gold labels, white monospace numbers, your row in gold.",
     // Colours sampled from iRacing's screenshots of the 2025 sim UI
