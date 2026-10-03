@@ -106,18 +106,19 @@
 .sw-radar x-radar { position: relative; z-index: 1; }
 .sw-sky {
   position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
-  /* Fading out at the edge too, so there is no hard rim. */
-  background: radial-gradient(circle, rgba(40, 10, 70, 0.9), rgba(14, 6, 28, 0.85) 62%, rgba(14, 6, 28, 0) 100%);
+  /* Fading out exactly as the grid does, so neither has an edge. */
+  background: radial-gradient(circle, rgba(40, 10, 70, 0.55), rgba(14, 6, 28, 0.5) 70%);
+  -webkit-mask: radial-gradient(circle, #000 30%, transparent 72%);
 }
 /* A square grid, brightest in the middle, fading out towards the rim. */
 .sw-grid {
   position: absolute; inset: 0;
   background:
-    repeating-linear-gradient(0deg, rgba(0, 240, 255, 0.55) 0 1.5px, transparent 1.5px 22px),
-    repeating-linear-gradient(90deg, rgba(0, 240, 255, 0.55) 0 1.5px, transparent 1.5px 22px);
+    repeating-linear-gradient(0deg, rgba(0, 240, 255, 0.28) 0 1.5px, transparent 1.5px 22px),
+    repeating-linear-gradient(90deg, rgba(0, 240, 255, 0.28) 0 1.5px, transparent 1.5px 22px);
   background-position: center;
   -webkit-mask: radial-gradient(circle, #000 30%, transparent 72%);
-  filter: drop-shadow(0 0 3px rgba(0, 240, 255, 0.8));
+  filter: drop-shadow(0 0 3px rgba(0, 240, 255, 0.4));
 }
 
 /* -- Blind spot: slanted like the rev lights ----------------------------------- */
