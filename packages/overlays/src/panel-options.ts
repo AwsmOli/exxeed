@@ -63,7 +63,16 @@ export const PANEL_PARTS: Partial<Record<PanelId, readonly PanelChoice[]>> = {
     { id: "callouts", label: "Callout points" },
     { id: "cars", label: "Other cars" },
   ],
-  minimap: [{ id: "cars", label: "Other cars" }],
+  minimap: [
+    { id: "cars", label: "Other cars" },
+    { id: "label", label: "Caption (themes that have one)" },
+  ],
+  tyres: [
+    { id: "temps", label: "Temperatures" },
+    { id: "pressure", label: "Pressures" },
+    { id: "wear", label: "Wear" },
+    { id: "note", label: "Note that the values are from the last pit stop" },
+  ],
   fuel: [
     { id: "header", label: "Lap and time header" },
     { id: "bar", label: "Fuel bar" },

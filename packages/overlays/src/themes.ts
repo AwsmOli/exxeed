@@ -63,6 +63,11 @@ export const THEME_TOKENS = {
   ink: "color",
   /** The used part of the fuel bar. */
   "fuel-empty": "color",
+  "temp-cold": "color",
+  "temp-cool": "color",
+  "temp-ok": "color",
+  "temp-warm": "color",
+  "temp-hot": "color",
   // On the Relatives: a car a lap ahead of you, and one a lap behind.
   "lap-ahead": "color",
   "lap-behind": "color",
@@ -124,6 +129,13 @@ export const THEME_FONTS = {
   // Three 80s faces, also bundled under the Open Font License: Orbitron for
   // digits like a digital dash, Audiowide for titles, Exo 2 for the words between.
   digital: `"Orbitron", "Bahnschrift", "Segoe UI", system-ui, sans-serif`,
+  // Squared digits with rounded corners, like a game's speed readout
+  // (Oxanium, bundled under the Open Font License).
+  squared: `"Oxanium", "Bahnschrift", "Segoe UI", system-ui, sans-serif`,
+  // A narrow, upright face for captions in capitals (Barlow Condensed, bundled, OFL).
+  narrow: `"Barlow Condensed", "Bahnschrift Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif`,
+  // The plain Swiss sans of console game menus: Helvetica, or Arial on Windows.
+  swiss: `"Helvetica Neue", Helvetica, Arial, "Segoe UI", system-ui, sans-serif`,
   arcade: `"Audiowide", "Orbitron", "Segoe UI", system-ui, sans-serif`,
   future: `"Exo 2", "Segoe UI", system-ui, -apple-system, sans-serif`,
   mono: `"Roboto Mono", "Cascadia Mono", Consolas, ui-monospace, SFMono-Regular, Menlo, monospace`,
@@ -345,69 +357,76 @@ export const BUILTIN_THEMES: readonly Theme[] = [
   {
     id: "gran-turismo",
     name: "Gran Turismo",
-    description: "GT7's race screen: dark slate slabs, white type, your own row in light grey and gaps in red.",
-    // Taken from GT7's race HUD: each row its own dark slate slab with a gap
-    // of scene between, the position in a square box with a thin light edge,
-    // your own row turned light grey with dark type, the gap to the car ahead
-    // in a red box, captions in white capitals, and a white outline for the
-    // course map. The shapes it cannot say in tokens are in overlay.css.
+    description: "GT7's race screen: slate slabs, boxed positions, white captions, squared digits and GT's hatched rev band.",
+    // Taken from GT7's race HUD: things float over the scene rather than sit
+    // in panels — dark slate slabs for rows, a square box with a thin light
+    // edge for a position, white captions in narrow capitals with a soft
+    // shadow, squared digits for speed and times, a red box for a gap, blue
+    // arrowheads on the maps and yours in red. The structure is in
+    // static/themes/gran-turismo/ (theme.css and templates).
     tokens: {
-      card: "rgba(22, 27, 33, 0.78)",
-      "card-hi": "rgba(255, 255, 255, 0.05)",
-      well: "rgba(0, 0, 0, 0.22)",
-      line: "rgba(255, 255, 255, 0.07)",
-      track: "rgba(255, 255, 255, 0.16)",
+      card: "rgba(26, 32, 40, 0.84)",
+      "card-hi": "rgba(255, 255, 255, 0.06)",
+      well: "rgba(0, 0, 0, 0.25)",
+      line: "rgba(255, 255, 255, 0.08)",
+      track: "rgba(255, 255, 255, 0.18)",
       "card-border": "0px solid transparent",
       radius: "0px",
       gap: "3px",
       "pill-radius": "0px",
       glow: "0px",
-      // GT's tachometer: one curved line that fills white and flashes red at the shift point.
+      // GT's tachometer: one curved band that fills white and flashes red at the shift point.
       "shift-style": "sweep",
 
       text: "#ffffff",
-      "text-2": "rgba(255, 255, 255, 0.72)",
-      "text-3": "rgba(255, 255, 255, 0.48)",
-      label: "rgba(255, 255, 255, 0.92)",
+      "text-2": "rgba(255, 255, 255, 0.74)",
+      "text-3": "rgba(255, 255, 255, 0.5)",
+      label: "#ffffff",
       ink: "#ffffff",
 
-      green: "#3ccf6b",
-      mint: "#3ccf6b",
-      red: "#d7141e",
+      green: "#2fb85a",
+      mint: "#2fb85a",
+      red: "#d0101b",
       yellow: "#f2c230",
       orange: "#f07a12",
-      cyan: "#3aa8f0",
+      cyan: "#5ab8f0",
       purple: "#b05cf0",
-      blue: "#3aa8f0",
-      throttle: "#3ccf6b",
-      brake: "#d7141e",
+      blue: "#4aa8f0",
+      throttle: "#ffffff",
+      brake: "#d0101b",
       danger: "#e0141e",
-      warm: "#f2c230",
+      warm: "#ffb347",
+      // Tyres as GT shows them: blue when cold, white when right, red when hot.
+      "temp-cold": "#3d7dff",
+      "temp-cool": "#a9cdff",
+      "temp-ok": "#ffffff",
+      "temp-warm": "#ffb347",
+      "temp-hot": "#ff3b30",
       // Your own row: light grey with dark type, as GT marks the player.
       me: "#111418",
       "me-text": "#111418",
-      "me-bg": "rgba(226, 228, 230, 0.94)",
+      "me-bg": "rgba(226, 228, 230, 0.95)",
       "chip-bg": "rgba(12, 15, 19, 0.92)",
       "chip-text": "#ffffff",
-      "lap-ahead": "#ff4a4a",
-      "lap-behind": "#5ab8ff",
+      "lap-ahead": "#ff5a5a",
+      "lap-behind": "#6cc0ff",
       "fuel-empty": "rgba(255, 255, 255, 0.12)",
       // The course map: a white outline with the scene showing through.
       road: "rgba(16, 20, 24, 0.45)",
-      "road-edge": "rgba(255, 255, 255, 0.98)",
+      "road-edge": "#ffffff",
 
-      font: "ui",
-      "num-font": "ui",
-      "title-font": "condensed",
+      font: "swiss",
+      "num-font": "squared",
+      "title-font": "narrow",
       "num-weight": "500",
-      "body-weight": "500",
+      "body-weight": "400",
 
-      // Captions sit on the scene in white capitals, the way POSITION and LAP do.
-      "title-bg": "rgba(12, 15, 19, 0.88)",
+      // No strips: captions float over the scene, as POSITION and LAP do.
+      "title-bg": "transparent",
       "title-text": "#ffffff",
-      "title-size": "13px",
+      "title-size": "15px",
       "title-weight": "600",
-      "title-spacing": "0.04em",
+      "title-spacing": "0.03em",
       "title-case": "uppercase",
       "title-justify": "flex-start",
     },
@@ -759,6 +778,11 @@ const TOKEN_HELP: Record<ThemeToken, string> = {
   "road-edge": "The outline of the track on the maps.",
   ink: "Neutral lines on charts and dials: grid lines, the reference trace, the wheel. Use #rrggbb.",
   "fuel-empty": "The used part of the fuel bar.",
+  "temp-cold": "A tyre at 40 °C or below. Use #rrggbb. Left out: the blue token.",
+  "temp-cool": "A tyre at 70 °C. Use #rrggbb. Left out: the cyan token.",
+  "temp-ok": "A tyre at 85 °C, about right. Use #rrggbb. Left out: the green token.",
+  "temp-warm": "A tyre at 100 °C. Use #rrggbb. Left out: the warm token.",
+  "temp-hot": "A tyre at 115 °C or over. Use #rrggbb. Left out: the red token.",
   "lap-ahead": "On Relatives, a car that is a lap ahead of you.",
   "lap-behind": "On Relatives, a car that is a lap behind you.",
   "lic-r": "The Rookie licence colour, in place of the sim's. Use #rrggbb.",

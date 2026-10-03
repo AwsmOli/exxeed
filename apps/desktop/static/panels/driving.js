@@ -153,36 +153,92 @@ function drawDial(canvas, f) {
  * fills white with the revs and flashes red, fast, from the shift point on.
  * Gran Turismo's tachometer works this way.
  *
- * The fill is the whole line, revealed from the left by a clip. A dash along
- * the path would follow the curve more exactly, but the SVG is stretched to
- * its window (preserveAspectRatio none) and Chromium breaks a dash on a
- * stretched, non-scaling stroke into pieces. The line only ever rises to the
- * right, so revealing it by x is the same thing.
+ * The fill is the whole line, revealed from the left by a clip; the line only
+ * ever moves rightwards, so revealing it by x is the same as filling it along
+ * its length. It is drawn in the block's own pixels, rebuilt when the block
+ * changes size, so a hatched band keeps even ticks however it is stretched.
  */
-const SWEEP_PATH = "M 6 50 C 110 50, 210 48, 282 36 S 372 12, 394 6";
 let sweepIds = 0;
-const sweepSvg = () => {
-  const clip = `sweep-reveal-${++sweepIds}`;
-  return `
-  <svg class="shift-sweep" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true">
-    <clipPath id="${clip}"><rect class="sweep-reveal" x="-10" y="-20" width="0" height="96" /></clipPath>
-    <path d="${SWEEP_PATH}" class="sweep-edge" />
-    <path d="${SWEEP_PATH}" class="sweep-track" />
-    <path d="${SWEEP_PATH}" class="sweep-fill" clip-path="url(#${clip})" />
-  </svg>`;
-};
 
-function drawSweep(svg, fraction, shifting) {
+/** The line through a w × h box, inset by `pad`: GT's swoop, an arch, or straight. */
+function sweepPath(shape, w, h, pad) {
+  const left = pad;
+  const right = w - pad;
+  const top = pad;
+  const bottom = h - pad;
+  const x = (u) => left + (u / 400) * (right - left);
+  const y = (v) => top + ((v - 6) / 44) * (bottom - top);
+  if (shape === "line") return `M ${left} ${(top + bottom) / 2} L ${right} ${(top + bottom) / 2}`;
+  if (shape === "arc") return `M ${left} ${bottom} Q ${w / 2} ${top - (bottom - top)} ${right} ${bottom}`;
+  // The swoop: low and flat on the left, rising to the right.
+  return `M ${x(6)} ${y(50)} C ${x(110)} ${y(50)}, ${x(210)} ${y(48)}, ${x(282)} ${y(36)} S ${x(372)} ${y(12)}, ${x(394)} ${y(6)}`;
+}
+
+function sweepBlock(el) {
+  const id = ++sweepIds;
+  el.innerHTML = `
+    <svg class="shift-sweep" aria-hidden="true">
+      <defs>
+        <clipPath id="sweep-reveal-${id}"><rect class="sweep-reveal" x="0" y="0" width="0" height="0" /></clipPath>
+        <linearGradient id="sweep-lit-${id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1" y2="0">
+          <stop class="sweep-stop-lit" offset="0" /><stop class="sweep-stop-lit" offset="1" />
+          <stop class="sweep-stop-red" offset="1" /><stop class="sweep-stop-red" offset="1" />
+        </linearGradient>
+      </defs>
+      <path class="sweep-edge" /><path class="sweep-track" />
+      <path class="sweep-fill" clip-path="url(#sweep-reveal-${id})" stroke="url(#sweep-lit-${id})" />
+    </svg>`;
+  const svg = el.firstElementChild;
   const reveal = svg.querySelector(".sweep-reveal");
+  const gradient = svg.querySelector("linearGradient");
+  const stops = [...gradient.children];
+  const paths = [...svg.querySelectorAll("path")];
   const fill = svg.querySelector(".sweep-fill");
-  // From the line's left end (x 6, round cap and all) to its right end (x 394).
-  const f = shifting ? 1 : Math.max(0, Math.min(1, fraction));
-  reveal.setAttribute("width", f === 0 ? "0" : (16 + f * 388 + (f === 1 ? 20 : 0)).toFixed(1));
-  // At the shift point the whole line takes over: full, red, and blinking
-  // hard enough to catch in the corner of an eye.
-  const flash = shifting && Math.floor(performance.now() / 55) % 2 === 0;
-  fill.classList.toggle("shift-now", shifting);
-  fill.style.visibility = shifting && !flash ? "hidden" : "";
+  let built = "";
+  let from = 0;
+  let to = 0;
+  /** Half the thickest stroke: how far a round cap reaches past the line's ends. */
+  let half = 0;
+
+  return {
+    paint(s) {
+      // Its own size, not the scaled one: the overlay may be shrunk with a transform.
+      const w = svg.clientWidth;
+      const h = svg.clientHeight;
+      if (w === 0 || h === 0) return;
+      const shape = el.getAttribute("shape") ?? "swoop";
+      const redline = Math.max(0, Math.min(1, numberAttr(el, "redline", 1)));
+      const hatch = el.hasAttribute("hatch");
+      const key = `${w}x${h}:${shape}:${redline}:${hatch}`;
+      if (key !== built) {
+        built = key;
+        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+        svg.classList.toggle("hatched", hatch);
+        half = Math.max(...paths.map((p) => parseFloat(getComputedStyle(p).strokeWidth) || 0)) / 2 + 1;
+        const d = sweepPath(shape, w, h, half);
+        for (const p of paths) p.setAttribute("d", d);
+        from = half;
+        to = w - half;
+        reveal.setAttribute("y", "-1000");
+        reveal.setAttribute("height", String(h + 2000));
+        gradient.setAttribute("x1", String(from));
+        gradient.setAttribute("x2", String(to));
+        // Lit colour up to the redline, the red beyond it.
+        stops[1].setAttribute("offset", String(redline));
+        stops[2].setAttribute("offset", String(redline));
+      }
+      const r = revs(s);
+      const shifting = r?.shift ?? false;
+      const f = shifting ? 1 : Math.max(0, Math.min(1, r?.fraction ?? 0));
+      reveal.setAttribute("x", String(from - half));
+      reveal.setAttribute("width", f === 0 ? "0" : (half + f * (to - from) + (f === 1 ? 2 * half : 0)).toFixed(1));
+      // At the shift point the whole line takes over: full, red, and blinking
+      // hard enough to catch in the corner of an eye.
+      const flash = shifting && Math.floor(performance.now() / 55) % 2 === 0;
+      fill.classList.toggle("shift-now", shifting);
+      fill.style.visibility = shifting && !flash ? "hidden" : "";
+    },
+  };
 }
 
 /** How far through the shift range the revs are, 0–1, and whether to shift: null without shift points. */
@@ -230,18 +286,13 @@ registerBlock(
   {
     summary:
       "Gran Turismo's rev line: a curve that fills white with the revs and flashes red from the shift point. Shown only when the theme's shift-style is sweep.",
-    attributes: {},
+    attributes: {
+      shape: "swoop (default, rising to the right) | arc | line",
+      hatch: "fine ticks instead of a solid line, as Gran Turismo's rev band",
+      redline: "0–1: how far along the lit part turns red; 1 (default) for never",
+    },
   },
-  (el) => {
-    el.innerHTML = sweepSvg();
-    const svg = el.firstElementChild;
-    return {
-      paint(s) {
-        const r = revs(s);
-        drawSweep(svg, r?.fraction ?? 0, r?.shift ?? false);
-      },
-    };
-  },
+  sweepBlock,
 );
 
 registerBlock(

@@ -1,0 +1,39 @@
+<!--
+  Gran Turismo's speed cluster: the hatched rev band across the top of a dark
+  trapezoid, the speed in squared digits with km/h under it, a thin rule, and
+  the gear. The gap to the reference sits in GT's red (or green) box above.
+
+  Added to what GT shows, and each switchable in the overlay's options: the
+  input trace on the left, the reference's speed and gear, the pedal bars,
+  the force feedback line and the wheel.
+-->
+<div class="panel pedals-panel gt-cluster">
+  <div class="gt-cl-top">
+    <div class="gt-delta n" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
+  </div>
+  <div class="gt-cl-box">
+    <x-sweep class="gt-rev" hatch redline="0.82" data-part="revlights"></x-sweep>
+    <div class="gt-cl-row">
+      <div class="gt-cl-graph" data-part="graph"><x-timeline></x-timeline></div>
+      <div class="gt-cl-speed">
+        <span class="gt-digits gt-speed">{{ speedKph }}</span>
+        <span class="gt-unit">km/h</span>
+      </div>
+      <div class="gt-cl-rule"></div>
+      <div class="gt-cl-gear">
+        <span class="gt-digits gt-gear">{{ gear }}</span>
+        <span class="gt-unit" data-part="reference">ref {{ refGear | or:– }}</span>
+      </div>
+      <div class="gt-cl-ref" data-part="reference">
+        <span class="gt-unit">ref</span>
+        <span class="gt-digits">{{ refSpeedKph | or:— }}</span>
+      </div>
+      <div class="gt-cl-pedals" data-part="pedals">
+        <div class="gt-pbar brake"><i style="height:{{ brake.pct }}%"></i></div>
+        <div class="gt-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div>
+      </div>
+      <div class="gt-cl-wheel" data-part="wheel"><div style="transform:rotate({{ wheelDeg }}deg)"><x-icon name="wheel" size="30"></x-icon></div></div>
+    </div>
+    <div class="gt-cl-ffb" data-part="ffb"><span class="gt-unit">FFB</span><div class="gt-line"><i style="width:{{ ffbPct }}%"></i></div></div>
+  </div>
+</div>

@@ -33,6 +33,8 @@ function fuelModel(s) {
     timeRemainS: race.timeRemainS,
     levelL: l(f.levelL),
     levelPct: Math.round(Math.max(0, Math.min(1, f.levelPct)) * 100),
+    /** 0–1, for scaling a bar. */
+    level: Math.max(0, Math.min(1, f.levelPct)).toFixed(3),
     /** The used part of the bar, which covers the gradient from the right. */
     usedPct: Math.round((1 - Math.max(0, Math.min(1, f.levelPct))) * 100),
     lapsLeft: l(f.lapsLeft),
@@ -107,6 +109,8 @@ function tyresModel(s) {
       // left tyres the outside edge comes first.
       edges,
       gradient: `linear-gradient(90deg, ${a}, ${b}, ${c})`,
+      /** The tyre as one colour, by its centre temperature. */
+      colour: b,
       tempsC: t.tempC.map((v) => Math.round(v)),
       tempC: mid > 0 ? `${mid.toFixed(0)}°` : "—",
       psi: t.coldPressureKpa > 0 ? (t.coldPressureKpa * KPA_TO_PSI).toFixed(1) : "—",
@@ -121,17 +125,17 @@ function tyresModel(s) {
 /** One tyre's tile, for the template below: pressure, the tread coloured by temperature, wear. */
 const tyreTile = (id) => `
   <div class="tyre">
-    <span class="md n">{{ ${id}.psi }}</span>
-    <div class="body" style="background:{{ ${id}.gradient }}"><span class="temp n">{{ ${id}.tempC }}</span>
+    <span class="md n" data-part="pressure">{{ ${id}.psi }}</span>
+    <div class="body" style="background:{{ ${id}.gradient }}"><span class="temp n" data-part="temps">{{ ${id}.tempC }}</span>
       <div class="ico"><span data-each="${id}.edges">{{ . }}</span></div></div>
-    <span class="md n">{{ ${id}.wearPct }}%</span>
+    <span class="md n" data-part="wear">{{ ${id}.wearPct }}%</span>
   </div>`;
 
 const TYRES = `
 <div class="panel tyres" data-class="is-empty: empty">
   <div class="titlebar keep">Front</div>
   <div class="card"><div class="axle">${tyreTile("lf")}<span class="faint axle-key">psi · °C · wear</span>${tyreTile("rf")}</div></div>
-  <div class="titlebar">Rear <span class="faint axle-note">last pit read</span></div>
+  <div class="titlebar">Rear <span class="faint axle-note" data-part="note">last pit read</span></div>
   <div class="card"><div class="axle">${tyreTile("lr")}<span class="axle-key"></span>${tyreTile("rr")}</div></div>
   <div class="empty">{{ empty }}</div>
 </div>`;

@@ -1,0 +1,31 @@
+<!--
+  Relatives, which GT does not have, built like its standings: a boxed
+  position, a slate slab with the name, and the gap in a box of its own —
+  red for cars lapping you, blue for cars you are lapping. The conditions and
+  the lap float above and below in white capitals.
+-->
+<div class="panel relative gt-relative" data-class="is-empty: empty">
+  <div class="gt-caption keep" data-part="header">
+    <span>{{ airC | fixed }}°C air</span><span>{{ trackC | fixed }}°C track</span>
+    <span data-if="sof">SoF {{ sof }}</span>
+    <span data-if="brakeBiasPct">BB {{ brakeBiasPct | fixed:1 }}%</span>
+    <span>{{ incidents }}x</span><span class="gt-digits">{{ clock }}</span>
+  </div>
+  <div class="gt-list grow">
+    <div data-each="rows" class="gt-row" data-class="me: isPlayer; pit: onPitRoad; lapping: lappingYou; lapped: lappedByYou" style="--cls:{{ classColour }}">
+      <span class="gt-pos">{{ position }}</span>
+      <span class="gt-slab">
+        <span class="gt-name">{{ name }}</span>
+        <span data-if="show.lap" class="gt-lapn">L{{ lap }}</span>
+        <span data-if="show.chip" class="gt-chip" style="--lic:{{ licenceColour }}"><x-group data-if="show.license">{{ license | first }} </x-group><x-group data-if="show.irating">{{ iRating | irating }}</x-group></span>
+        <span data-if="show.number" class="gt-num">{{ carNumber }}</span>
+      </span>
+      <span class="gt-rgap"><x-group data-if="!isPlayer"><x-group data-if="ahead">-</x-group><x-group data-if="!ahead">+</x-group> {{ gapS | fixed:1 }}</x-group></span>
+    </div>
+  </div>
+  <div class="gt-caption" data-part="footer">
+    <span>Lap {{ lap }}<x-group data-if="lapsTotal">/{{ lapsTotal }}</x-group></span>
+    <span class="gt-digits gt-push">{{ timeRemainS | clock }}</span>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

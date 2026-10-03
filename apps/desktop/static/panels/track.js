@@ -9,7 +9,7 @@
 
 import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { alpha, classColour, COLORS, deltaTrend, fit, mix, wrap01 } from "./util.js";
+import { alpha, chevron, classColour, COLORS, deltaTrend, fit, mix, wrap01 } from "./util.js";
 
 const PAD = 16;
 
@@ -18,9 +18,30 @@ const indexAt = (map, p) => Math.min(map.x.length - 1, Math.floor(wrap01(p) * ma
 const font = () => COLORS.font;
 
 /** The road: a dark glow, then a light grey surface. Holds over any sky. */
-function road(ctx, path, width, r, dark = false) {
+function road(ctx, path, width, r, dark = false, outline = false) {
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
+  if (outline) {
+    // Gran Turismo's course map: the road as a white outline, hollow, with
+    // the scene showing through the middle. A soft dark line under it keeps
+    // it readable over snow or sky.
+    ctx.save();
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = width + 4 * r;
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 6 * r;
+    ctx.stroke(path);
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = COLORS.roadEdge;
+    ctx.lineWidth = width + 2 * r;
+    ctx.stroke(path);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.lineWidth = Math.max(1 * r, width - 1.5 * r);
+    ctx.stroke(path);
+    ctx.restore();
+    return;
+  }
   if (dark) {
     // The "dark road" style: a near-black track with a thin white edge.
     ctx.strokeStyle = "rgba(255,255,255,0.92)";
@@ -92,8 +113,20 @@ function positions(race) {
   return out;
 }
 
-/** Everyone else, then the player on top. */
-function drawCars(ctx, s, project, r, inView = () => true) {
+/** Which way the road runs at a lap position, in radians, for a car drawn as an arrow. */
+function headingAt(project, p) {
+  const [x0, y0] = project(p);
+  const [x1, y1] = project(wrap01(p + 0.002));
+  return Math.atan2(y1 - y0, x1 - x0);
+}
+
+/**
+ * Everyone else, then the player on top. `look.cars`: "badge" (a disc with
+ * the position on it) or "chevron" (Gran Turismo's arrowheads: the accent
+ * colour for everyone else, red for you).
+ */
+function drawCars(ctx, s, project, r, inView = () => true, look = {}) {
+  const chevrons = look.cars === "chevron";
   const pos = positions(s.race);
   const others = !s.options.hidden.has("cars");
   let me = null;
@@ -106,16 +139,29 @@ function drawCars(ctx, s, project, r, inView = () => true) {
       continue;
     }
     const [x, y] = project(car.lapDistPct);
-    if (inView(x, y)) badge(ctx, x, y, String(pos.get(car.carIdx) ?? ""), classColour(s.race, car.classColor), r);
+    if (!inView(x, y)) continue;
+    if (chevrons) chevron(ctx, x, y, headingAt(project, car.lapDistPct), 6.5 * r * (look.scale ?? 1), COLORS.blue, r);
+    else badge(ctx, x, y, String(pos.get(car.carIdx) ?? ""), classColour(s.race, car.classColor), r);
   }
 
   // Without race data the player is still known from the frame.
   const f = s.frame;
   if (f === null || typeof f.lapDistPct !== "number") return;
   const [x, y] = project(f.lapDistPct);
+  if (chevrons) {
+    chevron(ctx, x, y, headingAt(project, f.lapDistPct), 8 * r * (look.scale ?? 1), COLORS.red, r);
+    return;
+  }
   const label = me === null ? "" : String(pos.get(me.carIdx) ?? "");
   badge(ctx, x, y, label, f.suppressedBy ? COLORS.orange : COLORS.green, r, true);
 }
+
+/** A block's road and car style, from its attributes. */
+const lookOf = (el) => ({
+  road: el.getAttribute("road") ?? "solid",
+  cars: el.getAttribute("cars") ?? "badge",
+  disc: el.getAttribute("disc") ?? "shaded",
+});
 
 // ---------------------------------------------------------------------------
 // Track map: the whole circuit.
@@ -212,7 +258,9 @@ function mapBlock(el) {
       const off = s.options.hidden;
       const dark = el.hasAttribute("dark") || s.options.style === "dark";
       ctx.clearRect(0, 0, w, h);
-      road(ctx, path, (dark ? ROAD_W + 1.5 : ROAD_W) * r, r, dark);
+      const look = lookOf(el);
+      const outline = look.road === "outline";
+      road(ctx, path, (dark ? ROAD_W + 1.5 : outline ? ROAD_W + 2 : ROAD_W) * r, r, dark && !outline, outline);
       if (!off.has("heat")) ctx.drawImage(heatLayer, 0, 0);
 
       // The dark style numbers the turns: a small dark bubble beside each apex.
@@ -302,7 +350,7 @@ function mapBlock(el) {
         ctx.fill();
       }
 
-      drawCars(ctx, s, (p) => at(indexAt(mv, p)), r);
+      drawCars(ctx, s, (p) => at(indexAt(mv, p)), r, undefined, look);
     },
   };
 }
@@ -312,7 +360,11 @@ registerBlock(
   {
     summary:
       "The whole track: the road, a heat map of where time was gained (green) and lost (red), sector marks, callout points, start/finish and the cars. Hidden parts (panel options) are left out.",
-    attributes: { dark: "a dark road with each turn numbered, whatever the overlay's style" },
+    attributes: {
+      dark: "a dark road with each turn numbered, whatever the overlay's style",
+      road: "solid (default) | outline — a hollow white line, as Gran Turismo's course map",
+      cars: "badge (default, a disc with the position) | chevron — arrowheads, yours in red",
+    },
   },
   mapBlock,
 );
@@ -381,17 +433,20 @@ function minimapBlock(el) {
       const cy = h / 2;
       const R = Math.min(w, h) / 2 - 2 * r;
 
+      const look = lookOf(el);
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.clip();
-      // Darker in a theme that glows, so the lights on it have something to glow against.
-      const neon = COLORS.glow > 6;
-      const disc = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
-      disc.addColorStop(0, neon ? "rgba(26,26,32,0.8)" : "rgba(70,74,80,0.55)");
-      disc.addColorStop(1, neon ? "rgba(6,6,9,0.9)" : "rgba(14,15,17,0.85)");
-      ctx.fillStyle = disc;
-      ctx.fillRect(0, 0, w, h);
+      if (look.disc !== "none") {
+        // Darker in a theme that glows, so the lights on it have something to glow against.
+        const neon = COLORS.glow > 6;
+        const disc = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
+        disc.addColorStop(0, neon ? "rgba(26,26,32,0.8)" : "rgba(70,74,80,0.55)");
+        disc.addColorStop(1, neon ? "rgba(6,6,9,0.9)" : "rgba(14,15,17,0.85)");
+        ctx.fillStyle = disc;
+        ctx.fillRect(0, 0, w, h);
+      }
 
       const here = s.frame.lapDistPct;
       const i0 = indexAt(mv, here);
@@ -424,10 +479,20 @@ function minimapBlock(el) {
         else path.lineTo(x, y);
       }
       path.closePath();
-      road(ctx, path, 11 * r, r);
+      road(ctx, path, 11 * r, r, false, look.road === "outline");
 
       const inView = (x, y) => Math.hypot(x - cx, y - cy) < R + 10 * r;
-      drawCars(ctx, s, (p) => projectIdx(indexAt(mv, p)), r, inView);
+      drawCars(ctx, s, (p) => projectIdx(indexAt(mv, p)), r, inView, { ...look, scale: 1.3 });
+      if (look.disc === "none") {
+        // No disc to end at: the road fades out towards the edge instead.
+        const fade = ctx.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
+        fade.addColorStop(0, "rgba(0,0,0,1)");
+        fade.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.fillStyle = fade;
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = "source-over";
+      }
       ctx.restore();
     },
   };
@@ -437,7 +502,12 @@ registerBlock(
   "x-minimap",
   {
     summary: "The road around the car in a disc, turned so the way ahead is up, with the cars on it.",
-    attributes: { ahead: "metres of road from the car to the top of the disc; 260 by default" },
+    attributes: {
+      ahead: "metres of road from the car to the top of the disc; 260 by default",
+      road: "solid (default) | outline",
+      cars: "badge (default) | chevron",
+      disc: "shaded (default) | none — no disc behind the road",
+    },
   },
   minimapBlock,
 );

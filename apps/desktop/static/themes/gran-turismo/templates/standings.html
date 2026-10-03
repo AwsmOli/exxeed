@@ -4,6 +4,10 @@
   the car ahead sits on a line of its own above your row and the car behind's
   below it, and your gap to the leader hangs off the end of your row in red.
 
+  What GT does not show — the car number (where GT has a flag), licence,
+  iRating and lap times — is drawn the same way and can be switched off in
+  the overlay's options.
+
   Every value this can use: Inspect the overlay from the theme editor and
   type overlayData in its console, or see docs/THEMES.md.
 -->
@@ -18,20 +22,27 @@
       <span class="gt-label">Lap</span>
       <span class="gt-value">{{ lap }}<x-group data-if="lapsTotal">/{{ lapsTotal }}</x-group></span>
     </div>
+    <div class="gt-stat gt-time" data-if="timeRemainS">
+      <span class="gt-label">Time</span>
+      <span class="gt-value">{{ timeRemainS | clock }}</span>
+    </div>
   </div>
   <div class="gt-list">
     <x-group data-each="playerClass.rows">
-      <x-group data-if="isPlayer"><div data-if="intervalS" class="gt-gap">{{ intervalS | signed:3 }}</div></x-group>
+      <x-group data-if="isPlayer"><div data-if="intervalS" class="gt-gap" data-part="interval">+ {{ intervalS | fixed:3 }}</div></x-group>
       <div class="gt-row" data-class="me: isPlayer; pit: onPitRoad" style="--cls:{{ colour }}">
         <span class="gt-pos">{{ position }}</span>
         <span class="gt-slab">
           <span class="gt-name">{{ name }}</span>
           <span data-if="onPitRoad" class="gt-pit">PIT</span>
+          <span data-if="show.chip" class="gt-chip" style="--lic:{{ licenceColour }}"><x-group data-if="show.license">{{ license | first }} </x-group><x-group data-if="show.irating">{{ iRating | irating }}</x-group></span>
+          <span data-if="show.last" class="gt-time-cell">{{ lastLapS | lapTime }}</span>
+          <span data-if="show.best" class="gt-time-cell" data-class="fast: fastest">{{ bestLapS | lapTime }}</span>
           <span data-if="show.number" class="gt-num">{{ carNumber }}</span>
         </span>
-        <span class="gt-lead"><x-group data-if="isPlayer">{{ gapS | signed:3 }}</x-group></span>
+        <span class="gt-lead" data-part="gap"><x-group data-if="isPlayer"><x-group data-if="gapS">+ {{ gapS | fixed:3 }}</x-group></x-group></span>
       </div>
-      <x-group data-if="isPlayer"><div data-if="behindS" class="gt-gap">{{ behindS | neg | signed:3 }}</div></x-group>
+      <x-group data-if="isPlayer"><div data-if="behindS" class="gt-gap" data-part="interval">- {{ behindS | fixed:3 }}</div></x-group>
     </x-group>
   </div>
   <div class="empty">{{ empty }}</div>

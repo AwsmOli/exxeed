@@ -161,7 +161,14 @@ export function refreshColors() {
   COLORS.shiftBlink = mix("#20222b", COLORS.danger, strength);
 
   // Tyre temperatures: cold to hot through the theme's own colours.
-  COLORS.temps = [COLORS.blue, COLORS.cyan, COLORS.green, resolve("--warm", COLORS.yellow), COLORS.red].map(rgbOf);
+  // A theme can name its own (temp-cold … temp-hot): Gran Turismo's run blue, white, red.
+  COLORS.temps = [
+    resolve("--temp-cold", COLORS.blue),
+    resolve("--temp-cool", COLORS.cyan),
+    resolve("--temp-ok", COLORS.green),
+    resolve("--temp-warm", resolve("--warm", COLORS.yellow)),
+    resolve("--temp-hot", COLORS.red),
+  ].map(rgbOf);
 }
 
 /**
@@ -250,6 +257,31 @@ export function alpha(hex, a) {
 }
 
 /** A rounded rectangle path, for canvases. */
+/**
+ * A car as an arrowhead pointing along `angle` (radians, 0 = right), the way
+ * Gran Turismo draws cars on its maps: a filled chevron with a pale edge.
+ */
+export function chevron(ctx, x, y, angle, size, fill, r) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size * 0.8, -size * 0.72);
+  ctx.lineTo(-size * 0.35, 0);
+  ctx.lineTo(-size * 0.8, size * 0.72);
+  ctx.closePath();
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 3 * r;
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 1 * r;
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function roundRect(ctx, x, y, w, h, radius) {
   const rr = Math.min(radius, w / 2, h / 2);
   ctx.beginPath();

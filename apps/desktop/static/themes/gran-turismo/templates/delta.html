@@ -1,0 +1,10 @@
+<!-- The delta in GT's language: a thin white line filling from the centre in the trend colour, and the gap in GT's red or green box. -->
+<div class="panel delta gt-deltabar" data-class="is-empty: empty">
+  <div class="delta-track"><i style="left:{{ fillLeft }}%;width:{{ fillWidth }}%;background:{{ colour }}"></i></div>
+  <div class="gt-delta n" data-part="number" data-class="good: good; bad: bad">{{ deltaS | signed:3 }}</div>
+  <div class="delta-dial">
+    <x-delta-dial></x-delta-dial>
+    <div class="delta-dial-mid" data-part="number"><span class="gt-label">Delta</span><b class="gt-delta n" data-class="good: good; bad: bad">{{ deltaS | signed:3 }}</b></div>
+  </div>
+  <div class="empty">no delta yet — waiting for a timed lap against a reference</div>
+</div>

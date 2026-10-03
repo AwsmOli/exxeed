@@ -1,0 +1,24 @@
+<!--
+  Essential inputs in Gran Turismo's speed cluster: speed and gear in
+  squared digits on a dark trapezoid, with the input trace, pedal bars and
+  wheel beside them (each switchable in the overlay's options).
+-->
+<div class="panel inputs gt-cluster">
+  <div class="gt-cl-box">
+    <div class="gt-cl-row">
+      <div class="gt-cl-graph" data-part="graph"><x-timeline></x-timeline></div>
+      <div class="gt-cl-speed" data-part="speed">
+        <span class="gt-digits gt-speed">{{ speedKph }}</span>
+        <span class="gt-unit">km/h</span>
+      </div>
+      <div class="gt-cl-rule" data-part="speed"></div>
+      <div class="gt-cl-gear" data-part="speed"><span class="gt-digits gt-gear">{{ gear }}</span></div>
+      <div class="gt-cl-pedals" data-part="pedals">
+        <div class="gt-pbar clutch"><i style="height:{{ clutch.pct }}%"></i></div>
+        <div class="gt-pbar brake"><i style="height:{{ brake.pct }}%"></i></div>
+        <div class="gt-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div>
+      </div>
+      <div class="gt-cl-wheel" data-part="wheel"><div style="transform:rotate({{ wheelDeg }}deg)"><x-icon name="wheel" size="30"></x-icon></div></div>
+    </div>
+  </div>
+</div>

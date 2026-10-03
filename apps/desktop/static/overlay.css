@@ -29,6 +29,26 @@
 }
 /* Three 80s faces for themes that name them (their -OFL.txt files are beside
    them): Orbitron for digits, Audiowide for titles, Exo 2 for text. */
+/* Two more, same licence: Oxanium's squared digits and Barlow Condensed's
+   narrow capitals, for themes that name "squared" and "narrow". */
+@font-face {
+  font-family: "Oxanium";
+  src: url("./fonts/Oxanium.ttf") format("truetype");
+  font-weight: 200 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("./fonts/BarlowCondensed-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  src: url("./fonts/BarlowCondensed-SemiBold.ttf") format("truetype");
+  font-weight: 600 700;
+  font-display: swap;
+}
 @font-face {
   font-family: "Orbitron";
   src: url("./fonts/Orbitron.ttf") format("truetype");
@@ -653,11 +673,17 @@ body[data-style="stack"] .wx-wind b { font-size: 22px; }
    a faint track, and a white fill with the revs. renderer.js sets
    data-shift on :root from the theme. */
 .shift-sweep { display: none; width: 100%; height: 26px; flex: none; margin-bottom: 8px; overflow: visible; }
-.shift-sweep path { fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.shift-sweep path { fill: none; stroke-linecap: round; }
 .shift-sweep .sweep-edge { stroke: rgba(0, 0, 0, 0.45); stroke-width: 9px; }
 .shift-sweep .sweep-track { stroke: rgba(255, 255, 255, 0.28); stroke-width: 5px; }
-.shift-sweep .sweep-fill { stroke: #ffffff; stroke-width: 5px; }
+.shift-sweep .sweep-fill { stroke-width: 5px; }
+.shift-sweep .sweep-stop-lit { stop-color: var(--sweep-lit, #ffffff); }
+.shift-sweep .sweep-stop-red { stop-color: var(--sweep-red, var(--danger)); }
+/* At the shift point the whole line is red, whatever the gradient says. */
 .shift-sweep .sweep-fill.shift-now { stroke: var(--danger); }
+/* Hatched: fine ticks across the band instead of a solid line. */
+.shift-sweep.hatched path { stroke-linecap: butt; stroke-dasharray: 2 2.5; }
+.shift-sweep.hatched .sweep-edge { stroke-dasharray: none; }
 :root[data-shift="sweep"] .shift { display: none; }
 :root[data-shift="sweep"] .shift-sweep { display: block; }
 /* Standalone, the sweep floats over the sim like the game's own, with no box behind it. */

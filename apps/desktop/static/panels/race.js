@@ -4,7 +4,7 @@
 
 import { canvasIn, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { alpha, classColour, COLORS, licenceColour, fit, roundRect } from "./util.js";
+import { alpha, chevron, classColour, COLORS, licenceColour, fit, roundRect } from "./util.js";
 
 const NO_RACE = (s) =>
   s.status?.phase === "running" ? "live sim only — this source has no other cars" : "waiting for the sim";
@@ -303,12 +303,16 @@ function radarBlock(el) {
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.clip();
 
-      const disc = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
-      disc.addColorStop(0, "rgba(60,64,70,0.55)");
-      disc.addColorStop(0.7, "rgba(25,27,30,0.75)");
-      disc.addColorStop(1, "rgba(10,11,12,0.85)");
-      ctx.fillStyle = disc;
-      ctx.fillRect(0, 0, w, h);
+      const chevrons = el.getAttribute("cars") === "chevron";
+      const bare = el.getAttribute("disc") === "none";
+      if (!bare) {
+        const disc = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
+        disc.addColorStop(0, "rgba(60,64,70,0.55)");
+        disc.addColorStop(0.7, "rgba(25,27,30,0.75)");
+        disc.addColorStop(1, "rgba(10,11,12,0.85)");
+        ctx.fillStyle = disc;
+        ctx.fillRect(0, 0, w, h);
+      }
 
       // A wedge per car, fading outwards through the theme's warning colours:
       // orange into red for a car nearby, the strongest warning into red and
@@ -361,7 +365,7 @@ function radarBlock(el) {
         ctx.strokeStyle = rim;
         ctx.lineWidth = 1.6 * r;
       } else {
-        ctx.strokeStyle = alpha(COLORS.ink, 0.18);
+        ctx.strokeStyle = alpha(COLORS.ink, bare ? 0.4 : 0.18);
         ctx.lineWidth = 1 * r;
       }
       ctx.beginPath();
@@ -389,6 +393,14 @@ function radarBlock(el) {
         ctx.closePath();
         ctx.fill();
       };
+      if (chevrons) {
+        // Gran Turismo's arrowheads, pointing up the road: the accent colour
+        // for the others, red for you.
+        const size = CAR_LEN_M * m * 0.55;
+        for (const car of cars) chevron(ctx, car.x, car.y, -Math.PI / 2, size, COLORS.blue, r);
+        chevron(ctx, cx, cy, -Math.PI / 2, size, COLORS.red, r);
+        return;
+      }
       for (const car of cars) drawCar(car.x, car.y);
       drawCar(cx, cy);
     },
@@ -400,7 +412,10 @@ registerBlock(
   {
     summary:
       "Cars within a few lengths ahead and behind, with a warning wedge towards each, pushed to the side the spotter calls.",
-    attributes: {},
+    attributes: {
+      cars: "car (default, a top-down car) | chevron — arrowheads, yours in red",
+      disc: "shaded (default) | none — just the rings, over the scene",
+    },
   },
   radarBlock,
 );

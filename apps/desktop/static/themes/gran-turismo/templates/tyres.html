@@ -1,0 +1,39 @@
+<!--
+  Gran Turismo's tyre display: the car from above between two brackets, a
+  tyre at each corner coloured by its temperature — blue cold, white right,
+  red hot (the temp-* tokens). Beside each tyre, its temperature, pressure
+  and wear; each of those can be switched off in the overlay's options.
+-->
+<div class="panel tyres gt-tyres" data-class="is-empty: empty">
+  <div class="gt-ty">
+    <span class="gt-brk left"></span>
+    <div class="gt-ty-side left">
+      <div class="gt-tyre">
+        <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ lf.tempC }}</span><span data-part="pressure">{{ lf.psi }} psi</span><span data-part="wear">{{ lf.wearPct }}%</span></div>
+        <i class="gt-pill" style="background:{{ lf.colour }}"></i>
+      </div>
+      <div class="gt-tyre">
+        <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ lr.tempC }}</span><span data-part="pressure">{{ lr.psi }} psi</span><span data-part="wear">{{ lr.wearPct }}%</span></div>
+        <i class="gt-pill" style="background:{{ lr.colour }}"></i>
+      </div>
+    </div>
+    <svg class="gt-car" viewBox="0 0 40 84" aria-hidden="true">
+      <path d="M12 4 Q20 0 28 4 L32 20 L32 70 Q32 80 20 81 Q8 80 8 70 L8 20 Z" fill="rgba(255,255,255,0.1)" stroke="#ffffff" stroke-width="1.6"></path>
+      <path d="M12.5 27 Q20 23 27.5 27 L26.5 37 Q20 35 13.5 37 Z" fill="#ffffff" opacity="0.85"></path>
+      <path d="M13.5 58 Q20 60 26.5 58 L27.5 66 Q20 69 12.5 66 Z" fill="#ffffff" opacity="0.6"></path>
+    </svg>
+    <div class="gt-ty-side right">
+      <div class="gt-tyre">
+        <i class="gt-pill" style="background:{{ rf.colour }}"></i>
+        <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ rf.tempC }}</span><span data-part="pressure">{{ rf.psi }} psi</span><span data-part="wear">{{ rf.wearPct }}%</span></div>
+      </div>
+      <div class="gt-tyre">
+        <i class="gt-pill" style="background:{{ rr.colour }}"></i>
+        <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ rr.tempC }}</span><span data-part="pressure">{{ rr.psi }} psi</span><span data-part="wear">{{ rr.wearPct }}%</span></div>
+      </div>
+    </div>
+    <span class="gt-brk right"></span>
+  </div>
+  <div class="gt-caption gt-note" data-part="note">Last pit read</div>
+  <div class="empty">{{ empty }}</div>
+</div>

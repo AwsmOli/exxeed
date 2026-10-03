@@ -1,0 +1,18 @@
+<!--
+  Lap times as GT shows them top right: a small light box with the number
+  and a dark slab with the time. Sectors first, then best, last and the
+  reference lap (switchable as "laps" in the overlay's options).
+-->
+<div class="panel sectors gt-sectors" data-class="is-empty: empty">
+  <div data-each="sectors" class="gt-lt" data-class="live: live">
+    <span class="gt-lt-n">{{ number }}</span>
+    <span class="gt-lt-t gt-digits"><x-group data-if="timeS">{{ timeS | sectorTime }}</x-group><x-group data-if="!timeS">--:--.---</x-group></span>
+    <span class="gt-lt-d gt-digits" data-class="good: good; bad: bad">{{ deltaS | signed:3 }}</span>
+  </div>
+  <div class="gt-laps" data-part="laps">
+    <div class="gt-lt"><span class="gt-lt-n gt-word">Best</span><span class="gt-lt-t gt-digits">{{ bestLapS | lapTime }}</span><span class="gt-lt-d gt-digits" data-class="good: best.good; bad: best.bad">{{ best.deltaS | signed:3 }}</span></div>
+    <div class="gt-lt"><span class="gt-lt-n gt-word">Last</span><span class="gt-lt-t gt-digits">{{ lastLapS | lapTime }}</span><span class="gt-lt-d gt-digits" data-class="good: last.good; bad: last.bad">{{ last.deltaS | signed:3 }}</span></div>
+    <div class="gt-lt"><span class="gt-lt-n gt-word">Ref</span><span class="gt-lt-t gt-digits">{{ refLapS | lapTime }}</span><span class="gt-lt-d"></span></div>
+  </div>
+  <div class="empty">needs a reference lap and one crossing of the line</div>
+</div>

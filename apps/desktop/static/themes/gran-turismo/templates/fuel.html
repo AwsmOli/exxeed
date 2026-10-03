@@ -1,0 +1,36 @@
+<!--
+  Gran Turismo's fuel gauge: an arc from E to F with the level along it and
+  a battery-like bar in the middle, and the laps it lasts in a boxed readout
+  where GT keeps its odometer. Below, what GT does not show — the per-lap
+  use, the usage table and fuel to the finish — in the same style, each
+  switchable in the overlay's options.
+-->
+<div class="panel fuel gt-fuel" data-class="is-empty: empty">
+  <div class="gt-caption keep" data-part="header">
+    <span>Lap {{ lap }}<x-group data-if="lapsTotal">/{{ lapsTotal }}</x-group></span>
+    <span class="gt-digits gt-push">{{ timeRemainS | clock }}</span>
+  </div>
+  <div class="gt-fuel-gauge" data-part="bar">
+    <svg viewBox="0 0 120 66" aria-hidden="true">
+      <path class="gt-arc-track" d="M14 60 A46 46 0 0 1 106 60" pathLength="100"></path>
+      <path class="gt-arc-fill" d="M14 60 A46 46 0 0 1 106 60" pathLength="100" stroke-dasharray="{{ levelPct }} 100"></path>
+      <text x="6" y="64" class="gt-ef">E</text>
+      <text x="108" y="64" class="gt-ef">F</text>
+      <rect class="gt-batt" x="44" y="38" width="32" height="14" rx="1.5"></rect>
+      <rect class="gt-batt-cap" x="76" y="42" width="2.5" height="6"></rect>
+      <rect class="gt-batt-fill" x="46" y="40" width="28" height="10" style="transform:scaleX({{ level }});transform-origin:46px 0"></rect>
+    </svg>
+    <div class="gt-odo"><span class="gt-digits">{{ levelL }}</span><span class="gt-unit">L</span><span class="gt-sep"></span><span class="gt-digits">{{ lapsLeft }}</span><span class="gt-unit">laps</span></div>
+  </div>
+  <div class="gt-kv" data-part="predicted"><span class="gt-label">Per lap</span><span class="gt-digits">{{ perLapL }} L</span><span class="gt-unit" data-if="maxLapL">max {{ maxLapL }}</span></div>
+  <div class="gt-usage" data-part="usage">
+    <span class="gt-label"></span><span class="gt-label">/Lap</span><span class="gt-label">Ends</span>
+    <x-group data-each="usage"><span class="gt-label">{{ label }}</span><span class="gt-digits">{{ perLap }}</span><span class="gt-digits">{{ ends }}</span></x-group>
+  </div>
+  <div class="gt-kv" data-part="finish">
+    <span class="gt-label">To finish</span><span class="gt-digits">{{ toFinishL }} L</span>
+    <span data-if="hasMargin" class="gt-margin" data-class="bad: short">{{ marginL }} L</span>
+    <span data-if="learning" class="gt-unit">learning — one clean lap</span>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>
