@@ -1,0 +1,29 @@
+<!--
+  Fuel as one of the sim's boxes: a gold title, gold labels and white
+  monospace values, a slim level bar, and the usage table in the same
+  style. Each part switchable in the overlay's options.
+-->
+<div class="panel fuel ir-fuel" data-class="is-empty: empty">
+  <div class="card grow ir-box">
+    <div class="ir-title ir-split" data-part="header"><span>Fuel</span><span class="ir-sub">Lap {{ lap }}<x-group data-if="lapsTotal"> / {{ lapsTotal }}</x-group> · {{ timeRemainS | clock }}</span></div>
+    <div class="ir-grid">
+      <span class="ir-l">Level</span><span class="ir-v">{{ levelL }} L</span>
+      <span class="ir-l">Laps left</span><span class="ir-v">{{ lapsLeft }}</span>
+    </div>
+    <div class="fuel-bar ir-fuelbar" data-part="bar"><i style="width:{{ usedPct }}%"></i></div>
+    <div class="ir-grid" data-part="predicted">
+      <span class="ir-l">Per lap</span><span class="ir-v ir-big">{{ perLapL }} L</span>
+      <span class="ir-l">Max lap</span><span class="ir-v">{{ maxLapL | or:— }}</span>
+    </div>
+    <div class="ir-usage ir-ruled" data-part="usage">
+      <span></span><span class="ir-l">/Lap</span><span class="ir-l">Ends</span>
+      <x-group data-each="usage"><span class="ir-l">{{ label | lower }}</span><span class="ir-v">{{ perLap }}</span><span class="ir-v">{{ ends }}</span></x-group>
+    </div>
+    <div class="ir-grid ir-ruled" data-part="finish">
+      <span class="ir-l">To finish</span><span class="ir-v">{{ toFinishL }} L</span>
+      <span class="ir-l">Margin</span>
+      <span class="ir-v" data-class="good: spare; bad: short"><x-group data-if="hasMargin">{{ marginL }} L</x-group><x-group data-if="learning">learning</x-group></span>
+    </div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

@@ -1,0 +1,91 @@
+/* iRacing: what its tokens cannot say.
+
+   A theme's own stylesheet (theme.css), applied over overlay.css while this
+   theme — or a custom theme built on it — is in use.
+
+   Modelled on the sim's 2025 UI (iracing.com/iracing-101-new-sim-ui): every
+   box is the same dark slate, slightly rounded, with its title in gold bold
+   capitals inside it, labels in gold, values in white monospace, a gain in
+   green and a loss in red. The templates beside this file build the boxes
+   the sim has — its inputs box, the split-time box, TIRES — that way. */
+
+/* -- The parts every box is made of ----------------------------------------- */
+
+.ir-box { padding: 10px 12px; gap: 6px; }
+.ir-title {
+  flex: none; color: var(--title-text); font-family: var(--font); font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0; white-space: nowrap;
+}
+.ir-split { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ir-sub { color: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 600; text-transform: none; font-family: var(--num-font); }
+.ir-l { color: var(--label); font-family: var(--font); font-weight: 600; font-size: 13px; white-space: nowrap; }
+.ir-v { color: #ffffff; font-family: var(--num-font); font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ir-big { font-size: 17px; font-weight: 600; }
+.ir-dim { color: rgba(255, 255, 255, 0.6); }
+.ir-wrap { white-space: normal; overflow-wrap: anywhere; }
+.ir-v.good, .ir-d.good { color: var(--green); }
+.ir-v.bad, .ir-d.bad { color: var(--red); }
+/* A thin rule across the box, between its groups. */
+.ir-ruled { border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 6px; }
+
+/* Label, value pairs in two columns. */
+.ir-grid { display: grid; grid-template-columns: auto 1fr; column-gap: 14px; row-gap: 3px; align-items: baseline; flex: none; }
+.ir-grid .ir-v { text-align: right; }
+
+/* -- The inputs box ---------------------------------------------------------- */
+
+.ir-in { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; gap: 14px; }
+.ir-gearspeed { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; min-width: 64px; }
+.ir-gear { font-family: var(--font); font-size: 40px; font-weight: 700; line-height: 1; color: var(--yellow); }
+.ir-speed { font-family: var(--num-font); font-size: 13px; color: rgba(255, 255, 255, 0.85); white-space: nowrap; }
+.ir-speed b { font-weight: 600; color: #ffffff; display: inline-block; min-width: 3ch; text-align: right; }
+/* Slim pedal bars, side by side: clutch blue, brake red, throttle green. */
+.ir-bars { display: flex; gap: 4px; align-self: stretch; flex: none; padding: 6px 0; max-height: 90px; }
+.ir-bar { position: relative; width: 10px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.ir-bar > i { position: absolute; left: 0; right: 0; bottom: 0; }
+.ir-bar.clutch > i { background: var(--blue); }
+.ir-bar.brake > i { background: var(--brake); }
+.ir-bar.throttle > i { background: var(--throttle); }
+.ir-wheel { flex: none; color: #ffffff; }
+.ir-wheel > div { display: flex; }
+.ir-graph { flex: 1 1 auto; align-self: stretch; min-width: 60px; background: var(--well); border-radius: 4px; overflow: hidden; }
+.ir-kv { display: grid; grid-template-columns: auto auto; column-gap: 8px; row-gap: 2px; align-items: baseline; flex: none; }
+.ir-ffb { display: flex; align-items: center; gap: 8px; flex: none; }
+.ir-ffb .pill-h { flex: 1; height: 4px; }
+.ir-ffb .pill-h > i { background: rgba(255, 255, 255, 0.75); }
+
+/* -- Split times ------------------------------------------------------------- */
+
+.ir-rows { display: flex; flex-direction: column; gap: 2px; flex: none; }
+.ir-row { display: grid; grid-template-columns: auto 1fr 64px; column-gap: 12px; align-items: baseline; }
+.ir-row .ir-v, .ir-row .ir-d { text-align: right; font-family: var(--num-font); font-size: 13.5px; }
+.ir-row .ir-d { color: rgba(255, 255, 255, 0.7); }
+.ir-row .ir-d.good { color: var(--green); }
+.ir-row .ir-d.bad { color: var(--red); }
+/* The sector being driven reads brightest; the others are dimmed, as the sim does. */
+.ir-sectors .ir-rows:first-of-type .ir-row:not(.live) .ir-l { opacity: 0.8; }
+.ir-row.live .ir-l { color: var(--yellow); }
+
+/* -- Fuel ------------------------------------------------------------------- */
+
+.ir-fuelbar { height: 5px; border-radius: 2px; flex: none; }
+.ir-usage { display: grid; grid-template-columns: 1fr auto auto; column-gap: 16px; row-gap: 2px; flex: none; }
+.ir-usage .ir-l { text-transform: capitalize; }
+.ir-usage .ir-v { text-align: right; }
+
+/* -- Tyres ------------------------------------------------------------------ */
+
+.ir-tyre-grid { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; align-content: center; }
+.ir-tyre {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px;
+  border-radius: 4px; background: rgba(255, 255, 255, 0.04);
+}
+.ir-tread { display: block; width: 70%; height: 6px; border-radius: 2px; }
+
+/* -- The overlays the sim has no box for -------------------------------------- */
+
+/* The delta, as under the sim's mirror: a thin bar filling from the centre,
+   flat-ended, and the number in its small box. */
+.delta-track { height: 6px; border-radius: 2px; }
+.delta-track > i { border-radius: 0 !important; }
+.delta-readout { font-family: var(--num-font); border-radius: 4px; padding: 3px 12px; }

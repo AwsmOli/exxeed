@@ -1,0 +1,18 @@
+<!--
+  Tyres as the sim's TIRES box: a gold title, and a corner per tyre with
+  its gold label, the temperature, a slim strip across the tread in its
+  temperatures, the pressure and the wear. The pressure, wear, temperature
+  and the pit-read note are each switchable in the overlay's options.
+-->
+<div class="panel tyres ir-tyres" data-class="is-empty: empty">
+  <div class="card grow ir-box">
+    <div class="ir-title ir-split"><span>Tires</span><span class="ir-sub" data-part="note">last pit read</span></div>
+    <div class="ir-tyre-grid">
+      <div class="ir-tyre"><span class="ir-l">LF</span><span class="ir-v ir-big" data-part="temps">{{ lf.tempC }}</span><i class="ir-tread" style="background:{{ lf.gradient }}"></i><span class="ir-v" data-part="pressure">{{ lf.psi }} psi</span><span class="ir-v ir-dim" data-part="wear">{{ lf.wearPct }}%</span></div>
+      <div class="ir-tyre"><span class="ir-l">RF</span><span class="ir-v ir-big" data-part="temps">{{ rf.tempC }}</span><i class="ir-tread" style="background:{{ rf.gradient }}"></i><span class="ir-v" data-part="pressure">{{ rf.psi }} psi</span><span class="ir-v ir-dim" data-part="wear">{{ rf.wearPct }}%</span></div>
+      <div class="ir-tyre"><span class="ir-l">LR</span><span class="ir-v ir-big" data-part="temps">{{ lr.tempC }}</span><i class="ir-tread" style="background:{{ lr.gradient }}"></i><span class="ir-v" data-part="pressure">{{ lr.psi }} psi</span><span class="ir-v ir-dim" data-part="wear">{{ lr.wearPct }}%</span></div>
+      <div class="ir-tyre"><span class="ir-l">RR</span><span class="ir-v ir-big" data-part="temps">{{ rr.tempC }}</span><i class="ir-tread" style="background:{{ rr.gradient }}"></i><span class="ir-v" data-part="pressure">{{ rr.psi }} psi</span><span class="ir-v ir-dim" data-part="wear">{{ rr.wearPct }}%</span></div>
+    </div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

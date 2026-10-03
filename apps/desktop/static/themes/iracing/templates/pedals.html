@@ -1,0 +1,31 @@
+<!--
+  Input Telemetry in the sim's style: its inputs box — gear in gold, speed in
+  white monospace, slim pedal bars, the round wheel — under the rev lights,
+  with the delta in the sim's small box on top. What the sim does not show
+  (the reference's gear and speed, the input trace, force feedback) is in
+  the same gold-label, white-value style, each switchable in the options.
+-->
+<div class="panel tab-wrap pedals-panel ir-pedals">
+  <div class="tab n" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
+  <div class="card grow ir-box">
+    <x-shift-lights data-part="revlights"></x-shift-lights>
+    <x-sweep data-part="revlights"></x-sweep>
+    <div class="ir-in">
+      <div class="ir-gearspeed">
+        <span class="ir-gear">{{ gear }}</span>
+        <span class="ir-speed"><b>{{ speedKph }}</b> km/h</span>
+      </div>
+      <div class="ir-kv" data-part="reference">
+        <span class="ir-l">Ref gear</span><span class="ir-v">{{ refGear | or:– }}</span>
+        <span class="ir-l">Ref speed</span><span class="ir-v">{{ refSpeedKph | or:— }}</span>
+      </div>
+      <div class="ir-bars" data-part="pedals">
+        <div class="ir-bar brake"><i style="height:{{ brake.pct }}%"></i></div>
+        <div class="ir-bar throttle"><i style="height:{{ throttle.pct }}%"></i></div>
+      </div>
+      <div class="ir-wheel" data-part="wheel"><div style="transform:rotate({{ wheelDeg }}deg)"><x-icon name="round-wheel" size="46"></x-icon></div></div>
+      <div class="ir-graph" data-part="graph"><x-timeline></x-timeline></div>
+    </div>
+    <div class="ir-ffb" data-part="ffb"><span class="ir-l">FFB</span><div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
+  </div>
+</div>

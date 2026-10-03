@@ -302,8 +302,9 @@ export const BUILTIN_THEMES: readonly Theme[] = [
     description: "The sim's own UI: dark navy boxes, gold labels, white monospace numbers, your row in gold.",
     // Colours sampled from iRacing's screenshots of the 2025 sim UI
     // (iracing.com/iracing-101-new-sim-ui): the black boxes, the results
-    // table and the settings screen. The row layout that goes with it is in
-    // overlay.css under [data-theme="iracing"].
+    // table and the settings screen. The boxes the sim has — its inputs box,
+    // the split-time box, TIRES — are built in static/themes/iracing/
+    // (theme.css and templates).
     tokens: {
       // A black box: dark navy, nearly opaque, rounded, no edge.
       card: "rgba(27, 28, 36, 0.9)",

@@ -1,0 +1,23 @@
+<!--
+  The sim's split-time box ("VS ALL TIME OPTIMAL LAP"): a gold title, then
+  each sector as a gold label, its time and its gain or loss in monospace,
+  and under a rule the last, best and reference laps the same way.
+-->
+<div class="panel sectors ir-sectors" data-class="is-empty: empty">
+  <div class="card grow ir-box">
+    <div class="ir-title">VS Reference lap</div>
+    <div class="ir-rows">
+      <div data-each="sectors" class="ir-row" data-class="live: live">
+        <span class="ir-l">Sector {{ number }}:</span>
+        <span class="ir-v"><x-group data-if="timeS">{{ timeS | lapTime }}</x-group><x-group data-if="!timeS">-.---</x-group></span>
+        <span class="ir-d" data-class="good: good; bad: bad"><x-group data-if="deltaS">{{ deltaS | signed:2 }}</x-group><x-group data-if="!deltaS">-.--</x-group></span>
+      </div>
+    </div>
+    <div class="ir-rows ir-ruled" data-part="laps">
+      <div class="ir-row"><span class="ir-l">Last:</span><span class="ir-v">{{ lastLapS | lapTime }}</span><span class="ir-d" data-class="good: last.good; bad: last.bad"><x-group data-if="last.deltaS">{{ last.deltaS | signed:2 }}</x-group></span></div>
+      <div class="ir-row"><span class="ir-l">Best:</span><span class="ir-v">{{ bestLapS | lapTime }}</span><span class="ir-d" data-class="good: best.good; bad: best.bad"><x-group data-if="best.deltaS">{{ best.deltaS | signed:2 }}</x-group></span></div>
+      <div class="ir-row"><span class="ir-l">Ref:</span><span class="ir-v">{{ refLapS | lapTime }}</span><span class="ir-d"></span></div>
+    </div>
+  </div>
+  <div class="empty">needs a reference lap and one crossing of the line</div>
+</div>

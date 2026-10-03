@@ -1,0 +1,24 @@
+<!--
+  The sim's own inputs box (bottom left in the cockpit): the gear big in
+  gold with the speed under it in white monospace, slim pedal bars — clutch,
+  brake, throttle — and a round wheel with a red mark at its top. The input
+  trace, which the sim does not show, sits at the end, switchable in the
+  overlay's options like the rest.
+-->
+<div class="panel inputs ir-inputs">
+  <div class="card grow ir-box">
+    <div class="ir-in">
+      <div class="ir-gearspeed" data-part="speed">
+        <span class="ir-gear">{{ gear }}</span>
+        <span class="ir-speed"><b>{{ speedKph }}</b> km/h</span>
+      </div>
+      <div class="ir-bars" data-part="pedals">
+        <div class="ir-bar clutch"><i style="height:{{ clutch.pct }}%"></i></div>
+        <div class="ir-bar brake"><i style="height:{{ brake.pct }}%"></i></div>
+        <div class="ir-bar throttle"><i style="height:{{ throttle.pct }}%"></i></div>
+      </div>
+      <div class="ir-wheel" data-part="wheel"><div style="transform:rotate({{ wheelDeg }}deg)"><x-icon name="round-wheel" size="46"></x-icon></div></div>
+      <div class="ir-graph" data-part="graph"><x-timeline></x-timeline></div>
+    </div>
+  </div>
+</div>

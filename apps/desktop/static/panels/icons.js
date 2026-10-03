@@ -48,6 +48,18 @@ export const disc = (size = 40) =>
     `style="width:${size}px;height:${size}px"`,
   );
 
+/** A round steering wheel with a red mark at its top, as the sim's own inputs box draws it. */
+export const roundWheel = (size = 40) =>
+  svg(
+    40,
+    40,
+    `<circle cx="20" cy="20" r="16.5" stroke-width="3.4"/>
+     <circle cx="20" cy="20" r="4.2" fill="currentColor" stroke="none"/>
+     <path d="M4.5 22h11M24.5 22h11M20 24v12" stroke-width="3.4"/>
+     <path d="M20 2.2v5.6" stroke="#e8262b" stroke-width="3.6"/>`,
+    `style="width:${size}px;height:${size}px"`,
+  );
+
 /** Sun, sun-and-cloud or cloud, by the sim's sky word. */
 export function sky(skies) {
   const sun = `<circle cx="9" cy="8" r="3.5"/><path d="M9 1.5v1.5M2.5 8H4M4.4 3.4l1 1M13.6 3.4l-1 1"/>`;
@@ -63,7 +75,7 @@ export function sky(skies) {
 //   <x-icon name="sky" of="{{ skies }}"></x-icon>
 // ---------------------------------------------------------------------------
 
-const ICONS = { gearbox, wheel, pump, thermometer, droplet, lanes, disc, sky };
+const ICONS = { gearbox, wheel, "round-wheel": roundWheel, pump, thermometer, droplet, lanes, disc, sky };
 
 registerBlock(
   "x-icon",
@@ -71,7 +83,7 @@ registerBlock(
     summary: "A small line icon in the text colour.",
     attributes: {
       name: Object.keys(ICONS).join(" | "),
-      size: "pixels, for wheel, pump and disc",
+      size: "pixels, for wheel, round-wheel, pump and disc",
       of: "for sky: the sky's state (clear, partly cloudy, mostly cloudy, overcast)",
     },
   },

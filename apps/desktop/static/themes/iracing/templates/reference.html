@@ -1,0 +1,11 @@
+<!-- The comparison target as the sim's LAP TIMING box: a gold title, gold labels, white monospace values. -->
+<div class="panel reference ir-reference">
+  <div class="card grow ir-box">
+    <div class="ir-title">Comparison target</div>
+    <div class="ir-grid">
+      <span class="ir-l">Ref lap</span><span class="ir-v ir-big"><x-group data-if="hasReference">{{ lapTimeS | lapTime }}</x-group><x-group data-if="!hasReference">none</x-group></span>
+      <span class="ir-l">Car</span><span class="ir-v">{{ carId | or:— }}</span>
+      <span class="ir-l">Note set</span><span class="ir-v ir-wrap">{{ noteSet }}</span>
+    </div>
+  </div>
+</div>
