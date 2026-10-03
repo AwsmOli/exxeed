@@ -108,10 +108,14 @@ export function refreshColors() {
     danger: resolve("--danger", "#ff3c22"),
     me: resolve("--me", "#4de95f"),
     text: resolve("--text", "#ffffff"),
+    // Neutral lines on the canvases (grids, the reference trace, dials): white
+    // on a dark theme, near-black on a light one.
+    ink: resolve("--ink", "#ffffff"),
     road: resolve("--road", "rgba(200,202,206,0.95)"),
     roadEdge: resolve("--road-edge", "rgba(40,42,46,0.9)"),
     font: resolve("--font", "system-ui, sans-serif"),
     glow: parseFloat(resolve("--glow", "6px")) || 0,
+    shiftStyle: resolve("--shift-style", "lights") === "sweep" ? "sweep" : "lights",
     lapAhead: resolve("--lap-ahead", "#ff8a7a"),
     lapBehind: resolve("--lap-behind", "#7ab8ff"),
     // Licence colours by letter, where the theme sets them; the sim's otherwise.
@@ -128,7 +132,8 @@ export function refreshColors() {
   // own palette, pulled towards the card colour by `--shift-strength` so a
   // quiet theme gets quiet lights. The default theme keeps its hand-picked ramp.
   const strength = Math.max(0, Math.min(1, parseFloat(resolve("--shift-strength", "1"))));
-  const themed = document.documentElement.dataset.theme;
+  // The classic look keeps its hand-picked ramp; every other theme gets one from its palette.
+  const themed = document.documentElement.dataset.base ?? "classic";
   // A theme may give the rev lights their own sweep, as four colours from
   // the first light to the last; the eight lights are spread along it.
   const sweep = ["low", "mid", "high", "max"].map((k) => resolve(`--shift-${k}`, ""));
@@ -140,7 +145,7 @@ export function refreshColors() {
   };
   const ramp = own
     ? [0, 1, 2, 3, 4, 5, 6, 7].map(along)
-    : themed === undefined || themed === "exxeed"
+    : themed === "classic"
       ? ["#2ee88f", "#5de85a", "#9fe24a", "#d9e33a", "#f2d23a", "#ffae2e", "#ff7a26", "#ff4a22"]
       : [
           COLORS.green,

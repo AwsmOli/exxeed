@@ -16,7 +16,7 @@ import { standings, relative, radar } from "./panels/race.js";
 import { map, minimap } from "./panels/track.js";
 import { fuel, tyres, damage, weather } from "./panels/car.js";
 import { callouts, telemetry } from "./panels/exxeed.js";
-import { refreshColors } from "./panels/util.js";
+import { COLORS, refreshColors } from "./panels/util.js";
 
 const PANELS = {
   inputs,
@@ -313,9 +313,11 @@ function applyTheme(theme) {
   themed = Object.keys(theme.variables ?? {});
   for (const name of themed) root.style.setProperty(name, theme.variables[name]);
   root.dataset.theme = theme.id;
+  root.dataset.base = theme.base ?? theme.id;
   // How rows are built (overlay.css [data-layout]): the theme's choice, or its base's.
   root.dataset.layout = theme.layout ?? "wash";
   refreshColors();
+  document.documentElement.dataset.shift = COLORS.shiftStyle;
   // Panels that draw their DOM from state redraw with the new colours. Not the
   // map: its version also keys the heat map, which a theme should not wipe.
   state.v.race++;

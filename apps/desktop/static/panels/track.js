@@ -259,7 +259,7 @@ export function map() {
           ctx.beginPath();
           ctx.arc(bx, by, 7.5 * r, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = "rgba(255,255,255,0.8)";
+          ctx.fillStyle = "rgba(255,255,255,0.8)"; // on its own dark bubble, whatever the theme
           ctx.fillText(String(corner.index), bx, by + 0.5 * r);
         }
         ctx.textAlign = "start";

@@ -308,7 +308,7 @@ export function radar() {
 
       // The range rings. In a theme that glows they take its colours.
       const neon = COLORS.glow > 6;
-      ctx.strokeStyle = neon ? alpha(COLORS.red, 0.75) : "rgba(255,255,255,0.55)";
+      ctx.strokeStyle = neon ? alpha(COLORS.red, 0.75) : alpha(COLORS.ink, 0.55);
       ctx.lineWidth = 1 * r;
       if (neon) {
         ctx.shadowColor = COLORS.red;
@@ -318,7 +318,7 @@ export function radar() {
       ctx.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
       ctx.stroke();
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = neon ? alpha(COLORS.orange, 0.5) : "rgba(255,255,255,0.12)";
+      ctx.strokeStyle = neon ? alpha(COLORS.orange, 0.5) : alpha(COLORS.ink, 0.12);
       ctx.beginPath();
       ctx.arc(cx, cy, R * 0.25, 0, Math.PI * 2);
       ctx.stroke();
@@ -333,7 +333,7 @@ export function radar() {
         ctx.strokeStyle = rim;
         ctx.lineWidth = 1.6 * r;
       } else {
-        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.strokeStyle = alpha(COLORS.ink, 0.18);
         ctx.lineWidth = 1 * r;
       }
       ctx.beginPath();

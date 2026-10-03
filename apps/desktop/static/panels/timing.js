@@ -5,7 +5,7 @@
 // and subtracted, which is exact on the pct grid (§4.3) and needs no timing of
 // its own.
 
-import { $, COLORS, deltaClass, deltaTrend, fit, html, kph, lapTime, pctDelta, sample, setText, signed } from "./util.js";
+import { $, alpha, COLORS, deltaClass, deltaTrend, fit, html, kph, lapTime, pctDelta, sample, setText, signed } from "./util.js";
 
 /** Did the car cross `boundary` between `from` and `to`? Forwards only. */
 const crossed = (from, to, boundary) =>
@@ -79,7 +79,7 @@ export function delta() {
       const top = -Math.PI / 2;
       ctx.lineCap = "round";
       ctx.lineWidth = 5 * r;
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.strokeStyle = alpha(COLORS.ink, 0.12);
       ctx.beginPath();
       ctx.arc(w / 2, h / 2, R, 0, Math.PI * 2);
       ctx.stroke();
@@ -288,7 +288,7 @@ export function corners() {
         ctx.setLineDash([]);
       };
       stroke(line(result.mine), result.delta <= 0 ? COLORS.green : COLORS.red, 2.4 * r, []);
-      stroke(line(result.theirs), "rgba(255,255,255,0.9)", 2 * r, [2 * r, 3 * r]);
+      stroke(line(result.theirs), alpha(COLORS.ink, 0.9), 2 * r, [2 * r, 3 * r]);
     },
   };
 }

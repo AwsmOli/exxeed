@@ -91,6 +91,7 @@
   --fuel-empty: #2b1411;       /* the used part of the fuel bar */
   --me: var(--green);          /* your own row */
   --me-text: var(--text);
+  --ink: #ffffff;              /* neutral lines on charts and dials */
   --me-bg: transparent;        /* a solid band behind your own row */
   --chip-bg: var(--well);      /* the small chips in a row */
   --chip-text: var(--text-2);
@@ -101,6 +102,7 @@
   --road-edge: rgba(40, 42, 46, 0.9);
   /* Shape and type. */
   --pill-radius: 99px;
+  --shift-style: lights;       /* "sweep": one curved line instead of the row */
   --glow: 6px;                 /* how far lit things glow; 0px for none */
   --shift-strength: 1;         /* shift-light colour strength, 0..1 */
   --card-border: 0px solid transparent;
@@ -183,6 +185,16 @@ body.overlay .panel { width: 100%; height: 100%; }
   white-space: nowrap;
 }
 .titlebar.split { justify-content: space-between; }
+/* Text on a title strip takes its shades from the strip's own text colour,
+   not the card's: a theme with a dark strip on light cards (Gran Turismo)
+   would otherwise put grey-on-black captions on it. Where the strip and the
+   card share a text colour, this changes nothing. */
+.titlebar {
+  --text: var(--title-text);
+  --text-2: color-mix(in srgb, var(--title-text) 66%, transparent);
+  --text-3: color-mix(in srgb, var(--title-text) 44%, transparent);
+  --label: color-mix(in srgb, var(--title-text) 66%, transparent);
+}
 
 body.overlay.editing { cursor: grab; }
 body.overlay.editing.dragging { cursor: grabbing; }
@@ -331,7 +343,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 
 /* The shift lights: sixteen short pills, lighting from both ends inward. */
 .shift { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; margin-bottom: 10px; flex: none; }
-.shift i { height: 6px; border-radius: var(--pill-radius); background: rgba(255, 255, 255, 0.08); }
+.shift i { height: 6px; border-radius: var(--pill-radius); background: var(--track); }
 
 /* The Rev Lights overlay: just the row, filling its window, lights as tall as it allows. */
 /* Thin padding, so a short window is still mostly lights. */
@@ -363,7 +375,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
   position: absolute; top: 0; bottom: 0; left: 0; border-radius: var(--pill-radius);
   background: linear-gradient(90deg, color-mix(in srgb, var(--brake) 60%, black), var(--brake));
 }
-.brake-bar > s { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.35); }
+.brake-bar > s { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--ink) 35%, transparent); }
 .brake-bar.now > i { background: var(--brake); box-shadow: 0 0 calc(var(--glow) * 2) var(--brake); }
 .brake-marks { position: relative; height: 16px; margin-top: 6px; font-size: 12px; color: var(--text-2); }
 .brake-marks span { position: absolute; transform: translateX(-50%); }
@@ -373,7 +385,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .delta-track > i { position: absolute; top: 0; bottom: 0; }
 .delta-track::after {
   content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
-  background: rgba(255, 255, 255, 0.35);
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
 }
 .delta-readout {
   align-self: center; background: var(--card); border: var(--card-border); border-radius: var(--radius);
@@ -387,7 +399,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .sector .name.good { background: linear-gradient(90deg, color-mix(in srgb, var(--green) 40%, transparent), transparent); }
 .sector .name.bad { background: linear-gradient(90deg, color-mix(in srgb, var(--red) 45%, transparent), transparent); }
 .sector.live { background: var(--card-hi); }
-.sector.live .t { border-right: 1px solid rgba(255, 255, 255, 0.2); }
+.sector.live .t { border-right: 1px solid color-mix(in srgb, var(--ink) 20%, transparent); }
 .sector .t { text-align: center; font-weight: var(--num-weight); color: var(--text-2); }
 .sector .d { text-align: right; padding-right: 12px; font-weight: var(--num-weight); }
 .laps3 { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; row-gap: 2px; }
@@ -662,3 +674,63 @@ body[data-style="stack"] .wx-wind b { font-size: 22px; }
 
 /* Orbitron is wide: three lap times side by side need a size down to fit. */
 [data-theme="synthwave"] .laps3 .t { font-size: 12.5px; }
+
+/* -- Gran Turismo: what its tokens cannot say -----------------------------------
+   GT7's race screen: every row its own slab with the scene showing between,
+   the position in a square box with a thin light edge, your own row light
+   grey with dark type, and thin square numbers. */
+[data-theme="gran-turismo"] .card.rows { background: transparent; display: flex; flex-direction: column; gap: 2px; }
+[data-theme="gran-turismo"] .rows .row { background: var(--card); }
+[data-theme="gran-turismo"] .rows .row + .row { border-top: 0; }
+[data-theme="gran-turismo"] .row .pos {
+  background: var(--chip-bg) !important; color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+  font-weight: 500; font-size: 1.08em;
+}
+[data-theme="gran-turismo"] .rows .row.me {
+  background: var(--me-bg); color: var(--me-text);
+  --text-2: rgba(17, 20, 24, 0.64);
+  --text-3: rgba(17, 20, 24, 0.46);
+}
+[data-theme="gran-turismo"] .row.me .pos {
+  background: var(--me-bg) !important; color: var(--me-text);
+  box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 3px rgba(17, 20, 24, 0.35);
+}
+/* Car numbers as plain square chips in the class colour. */
+[data-theme="gran-turismo"] .row .num { border-radius: 0 !important; }
+[data-theme="gran-turismo"] .irk,
+[data-theme="gran-turismo"] .tag { border-radius: 0; }
+/* The class header: the class name on a square tab, the rest plain white caps. */
+[data-theme="gran-turismo"] .class-head .tag.outline { border-radius: 0; }
+/* Big numbers thin and square, like GT's speed and gear. */
+[data-theme="gran-turismo"] .xl,
+[data-theme="gran-turismo"] .lg { font-family: var(--title-font); font-weight: 400; letter-spacing: 0.01em; }
+[data-theme="gran-turismo"] .xl { font-size: 30px; }
+[data-theme="gran-turismo"] .cap { color: var(--label); letter-spacing: 0.08em; }
+/* The live delta tab: the gap in GT's red box when you are behind. */
+[data-theme="gran-turismo"] .tab-wrap .tab { border-radius: 0; }
+/* GT puts a time gap in a filled box: white type on red when losing, on green when gaining. */
+[data-theme="gran-turismo"] .tab-wrap .tab.bad,
+[data-theme="gran-turismo"] .delta-readout.bad { background: var(--red); color: #ffffff; }
+[data-theme="gran-turismo"] .tab-wrap .tab.good,
+[data-theme="gran-turismo"] .delta-readout.good { background: #1f9a4a; color: #ffffff; }
+[data-theme="gran-turismo"] .delta-track > i,
+[data-theme="gran-turismo"] .pill-h > i,
+[data-theme="gran-turismo"] .pedal .pill-v > i { border-radius: 0 !important; }
+[data-theme="gran-turismo"] .pedal.knob .pill-v > b { border-radius: 0; left: 0; right: 0; height: 3px; }
+
+/* -- Rev lights as a sweep (shift-style: sweep) -----------------------------------
+   One curved line rising to the right: a dark edge so it reads on any card,
+   a faint track, and a white fill with the revs. renderer.js sets
+   data-shift on :root from the theme. */
+.shift-sweep { display: none; width: 100%; height: 26px; flex: none; margin-bottom: 8px; overflow: visible; }
+.shift-sweep path { fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.shift-sweep .sweep-edge { stroke: rgba(0, 0, 0, 0.45); stroke-width: 9px; }
+.shift-sweep .sweep-track { stroke: rgba(255, 255, 255, 0.28); stroke-width: 5px; }
+.shift-sweep .sweep-fill { stroke: #ffffff; stroke-width: 5px; }
+.shift-sweep .sweep-fill.shift-now { stroke: var(--danger); }
+:root[data-shift="sweep"] .shift { display: none; }
+:root[data-shift="sweep"] .shift-sweep { display: block; }
+/* Standalone, the sweep floats over the sim like the game's own, with no box behind it. */
+:root[data-shift="sweep"] .revlights-card { background: transparent; border: 0; box-shadow: none; padding: 2px 6px; }
+:root[data-shift="sweep"] .revlights-card .shift-sweep { height: 100%; margin: 0; }

@@ -1,0 +1,8 @@
+{
+  "$schema": "./theme.schema.json",
+  "name": "goOverlays",
+  "description": "Stacked near-black cards, big light numbers, rounded pill bars and a class-colour wash behind each position.",
+  "base": "classic",
+  "layout": "wash",
+  "tokens": {}
+}

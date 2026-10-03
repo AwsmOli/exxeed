@@ -2,7 +2,7 @@
   "$schema": "./theme.schema.json",
   "name": "RaceLab style",
   "description": "Near-black striped rows, white position chips, car numbers in class-coloured blocks, bold geometric type.",
-  "base": "exxeed",
+  "base": "classic",
   "layout": "blocks",
   "tokens": {
     "card": "rgba(20, 25, 30, 0.93)",

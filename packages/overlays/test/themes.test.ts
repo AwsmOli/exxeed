@@ -23,8 +23,21 @@ describe("themes", () => {
   });
 
   it("falls back to the default theme for an unknown id", () => {
-    expect(themeById("no-such-theme").id).toBe("exxeed");
-    expect(themeById(null).id).toBe("exxeed");
+    expect(themeById("no-such-theme").id).toBe("iracing");
+    expect(themeById(null).id).toBe("iracing");
+  });
+
+  it("still reads a theme built on the old default, by its old name", () => {
+    const { theme, problems } = parseTheme(JSON.stringify({ base: "exxeed", tokens: { radius: "3px" } }), "old");
+    expect(problems).toEqual([]);
+    expect(theme?.base).toBe("classic");
+    expect(themeView(theme!).layout).toBe("wash");
+    // The classic look is the stylesheet's: the theme adds only what it sets.
+    expect(themeView(theme!).variables).toEqual({ "--radius": "3px" });
+  });
+
+  it("does not offer the classic look in the picker", () => {
+    expect(BUILTIN_THEMES.map((t) => t.id)).toEqual(["iracing", "gran-turismo", "synthwave"]);
   });
 
   it("names a font stack rather than passing a font string through", () => {

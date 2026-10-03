@@ -204,9 +204,9 @@ export function weather() {
           </div>
           <div class="wx-wind" data-part="wind">
             <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
-              <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
-              <path d="M22 1.5l3 4h-6z" fill="#fff"/>
-              <g data-k="arrow"><path d="M22 12l7 16-7-4-7 4z" fill="#fff"/></g>
+              <circle cx="22" cy="22" r="19" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.2"/>
+              <path d="M22 1.5l3 4h-6z" fill="currentColor"/>
+              <g data-k="arrow"><path d="M22 12l7 16-7-4-7 4z" fill="currentColor"/></g>
             </svg>
             <div><b class="md n" data-k="wind">—</b> <span class="cap">kph</span><div class="cap" data-k="dir"></div></div>
           </div>

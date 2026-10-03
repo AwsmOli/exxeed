@@ -59,6 +59,10 @@ export const THEME_TOKENS = {
   "chip-text": "color",
   road: "color",
   "road-edge": "color",
+  /** Neutral lines on charts and dials: grids, the reference trace. White on a dark theme, dark on a light one. */
+  ink: "color",
+  /** The used part of the fuel bar. */
+  "fuel-empty": "color",
   // On the Relatives: a car a lap ahead of you, and one a lap behind.
   "lap-ahead": "color",
   "lap-behind": "color",
@@ -83,6 +87,8 @@ export const THEME_TOKENS = {
   glow: "length",
   /** How strongly the shift lights are coloured, 0..1: lower is more muted. */
   "shift-strength": "number",
+  /** The rev lights as a row of lights, or as one curved line that fills (Gran Turismo's). */
+  "shift-style": "shiftStyle",
   // Type.
   font: "font",
   /** The face numbers are set in. */
@@ -135,7 +141,12 @@ export const THEME_LAYOUTS = ["wash", "chips", "blocks"] as const;
 export type ThemeLayout = (typeof THEME_LAYOUTS)[number];
 
 /** The layout each built-in theme uses, which a theme based on it inherits. */
-const BUILTIN_LAYOUT: Record<string, ThemeLayout> = { exxeed: "wash", iracing: "chips", synthwave: "wash" };
+const BUILTIN_LAYOUT: Record<string, ThemeLayout> = {
+  classic: "wash",
+  iracing: "chips",
+  "gran-turismo": "chips",
+  synthwave: "wash",
+};
 
 export interface Theme {
   readonly id: string;
@@ -167,6 +178,7 @@ const VALID: Record<TokenKind, (value: string) => boolean> = {
   number: (v) => /^(0(\.\d+)?|1(\.0+)?)$/.test(v),
   case: (v) => v === "none" || v === "uppercase",
   justify: (v) => v === "center" || v === "flex-start",
+  shiftStyle: (v) => v === "lights" || v === "sweep",
 };
 
 /**
@@ -185,16 +197,25 @@ export function themeVariables(theme: Theme): Record<string, string> {
   return out;
 }
 
-export const DEFAULT_THEME_ID = "exxeed";
+/** The theme a new install wears. */
+export const DEFAULT_THEME_ID = "iracing";
 
+/**
+ * The look overlay.css draws with no theme at all: stacked near-black cards,
+ * big light numbers, pill bars, a class-colour wash behind each position. Not
+ * offered in the picker — the goOverlays community theme wears it — but kept
+ * as a base, so a theme built on it gets exactly that and nothing else.
+ * "exxeed" is its old name, from when it was the default, and still accepted.
+ */
+const CLASSIC: Theme = {
+  id: "classic",
+  name: "Classic",
+  description: "The stylesheet's own look, with no theme applied.",
+  tokens: {},
+};
+
+/** Themes offered in the picker, the default first. */
 export const BUILTIN_THEMES: readonly Theme[] = [
-  {
-    id: "exxeed",
-    name: "Exxeed",
-    description: "The default: stacked near-black cards, big light numbers, rounded bars.",
-    // The default look is overlay.css itself.
-    tokens: {},
-  },
   {
     id: "iracing",
     name: "iRacing",
@@ -251,6 +272,76 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       "title-size": "13px",
       "title-weight": "700",
       "title-spacing": "0em",
+      "title-case": "uppercase",
+      "title-justify": "flex-start",
+    },
+  },
+  {
+    id: "gran-turismo",
+    name: "Gran Turismo",
+    description: "GT7's race screen: dark slate slabs, white type, your own row in light grey and gaps in red.",
+    // Taken from GT7's race HUD: each row its own dark slate slab with a gap
+    // of scene between, the position in a square box with a thin light edge,
+    // your own row turned light grey with dark type, the gap to the car ahead
+    // in a red box, captions in white capitals, and a white outline for the
+    // course map. The shapes it cannot say in tokens are in overlay.css.
+    tokens: {
+      card: "rgba(22, 27, 33, 0.78)",
+      "card-hi": "rgba(255, 255, 255, 0.05)",
+      well: "rgba(0, 0, 0, 0.22)",
+      line: "rgba(255, 255, 255, 0.07)",
+      track: "rgba(255, 255, 255, 0.16)",
+      "card-border": "0px solid transparent",
+      radius: "0px",
+      gap: "3px",
+      "pill-radius": "0px",
+      glow: "0px",
+      // GT's tachometer: one curved line that fills white and flashes red at the shift point.
+      "shift-style": "sweep",
+
+      text: "#ffffff",
+      "text-2": "rgba(255, 255, 255, 0.72)",
+      "text-3": "rgba(255, 255, 255, 0.48)",
+      label: "rgba(255, 255, 255, 0.92)",
+      ink: "#ffffff",
+
+      green: "#3ccf6b",
+      mint: "#3ccf6b",
+      red: "#d7141e",
+      yellow: "#f2c230",
+      orange: "#f07a12",
+      cyan: "#3aa8f0",
+      purple: "#b05cf0",
+      blue: "#3aa8f0",
+      throttle: "#3ccf6b",
+      brake: "#d7141e",
+      danger: "#e0141e",
+      warm: "#f2c230",
+      // Your own row: light grey with dark type, as GT marks the player.
+      me: "#111418",
+      "me-text": "#111418",
+      "me-bg": "rgba(226, 228, 230, 0.94)",
+      "chip-bg": "rgba(12, 15, 19, 0.92)",
+      "chip-text": "#ffffff",
+      "lap-ahead": "#ff4a4a",
+      "lap-behind": "#5ab8ff",
+      "fuel-empty": "rgba(255, 255, 255, 0.12)",
+      // The course map: a white outline with the scene showing through.
+      road: "rgba(16, 20, 24, 0.45)",
+      "road-edge": "rgba(255, 255, 255, 0.98)",
+
+      font: "ui",
+      "num-font": "ui",
+      "title-font": "condensed",
+      "num-weight": "500",
+      "body-weight": "500",
+
+      // Captions sit on the scene in white capitals, the way POSITION and LAP do.
+      "title-bg": "rgba(12, 15, 19, 0.88)",
+      "title-text": "#ffffff",
+      "title-size": "13px",
+      "title-weight": "600",
+      "title-spacing": "0.04em",
       "title-case": "uppercase",
       "title-justify": "flex-start",
     },
@@ -355,18 +446,27 @@ export interface ThemeView {
   readonly id: string;
   /** The row layout to use (`data-layout` in overlay.css). */
   readonly layout: ThemeLayout;
+  /** The built-in this theme is built on, or its own id when it is one. */
+  readonly base: string;
   readonly variables: Readonly<Record<string, string>>;
 }
 
+/** Everything a theme may name as its base: the built-ins and the classic look. */
+const BASES: readonly Theme[] = [...BUILTIN_THEMES, CLASSIC];
+/** Base ids a theme file may use, old names included. */
+export const THEME_BASE_IDS: readonly string[] = [...BASES.map((t) => t.id), "exxeed"];
+const baseById = (id: string): Theme | undefined => BASES.find((t) => t.id === (id === "exxeed" ? "classic" : id));
+
 /** A theme's base built-in, or itself when it is one. */
 const baseOf = (theme: Theme): Theme =>
-  theme.base === undefined ? theme : (BUILTIN_THEMES.find((t) => t.id === theme.base) ?? BUILTIN_THEMES[0]!);
+  theme.base === undefined ? theme : (baseById(theme.base) ?? BUILTIN_THEMES[0]!);
 
 export const themeView = (theme: Theme): ThemeView => {
   const base = baseOf(theme);
   return {
     id: theme.id,
     layout: theme.layout ?? BUILTIN_LAYOUT[base.id] ?? "wash",
+    base: base.id,
     // The base's tokens first, the theme's own over them.
     variables: base === theme ? themeVariables(theme) : { ...themeVariables(base), ...themeVariables(theme) },
   };
@@ -386,6 +486,7 @@ const KIND_HELP: Record<TokenKind, string> = {
   number: 'a number from "0" to "1"',
   case: '"none" or "uppercase"',
   justify: '"center" or "flex-start"',
+  shiftStyle: '"lights" or "sweep"',
 };
 
 export interface ParsedTheme {
@@ -415,8 +516,8 @@ export function parseTheme(text: string, id: string): ParsedTheme {
 
   let base = DEFAULT_THEME_ID;
   if (r["base"] !== undefined) {
-    if (typeof r["base"] === "string" && BUILTIN_THEMES.some((t) => t.id === r["base"])) base = r["base"];
-    else problems.push(`"base" must be one of ${BUILTIN_THEMES.map((t) => `"${t.id}"`).join(", ")}`);
+    if (typeof r["base"] === "string" && baseById(r["base"]) !== undefined) base = baseById(r["base"])!.id;
+    else problems.push(`"base" must be one of ${BASES.map((t) => `"${t.id}"`).join(", ")}`);
   }
 
   let layout: ThemeLayout | undefined;
@@ -489,6 +590,7 @@ export function themeJsonSchema(): Record<string, unknown> {
     weight: { enum: ["100", "200", "300", "400", "500", "600", "700", "800", "900"] },
     case: { enum: ["none", "uppercase"] },
     justify: { enum: ["center", "flex-start"] },
+    shiftStyle: { enum: ["lights", "sweep"] },
   };
   return {
     $schema: "http://json-schema.org/draft-07/schema#",
@@ -501,8 +603,9 @@ export function themeJsonSchema(): Record<string, unknown> {
       description: { type: "string", maxLength: 160 },
       author: { type: "string", maxLength: 60 },
       base: {
-        enum: BUILTIN_THEMES.map((t) => t.id),
-        description: "The built-in theme this one starts from. Its tokens fill whatever you leave out, and its row layout is used.",
+        enum: BASES.map((t) => t.id),
+        description:
+          "The theme this one starts from. Its tokens fill whatever you leave out, and its row layout is used. classic is the plain stylesheet look.",
       },
       layout: {
         enum: [...THEME_LAYOUTS],
@@ -559,6 +662,8 @@ const TOKEN_HELP: Record<ThemeToken, string> = {
   "chip-text": "The text of those chips.",
   road: "The track surface on the maps.",
   "road-edge": "The outline of the track on the maps.",
+  ink: "Neutral lines on charts and dials: grid lines, the reference trace, the wheel. Use #rrggbb.",
+  "fuel-empty": "The used part of the fuel bar.",
   "lap-ahead": "On Relatives, a car that is a lap ahead of you.",
   "lap-behind": "On Relatives, a car that is a lap behind you.",
   "lic-r": "The Rookie licence colour, in place of the sim's. Use #rrggbb.",
@@ -577,6 +682,7 @@ const TOKEN_HELP: Record<ThemeToken, string> = {
   "pill-radius": "How rounded bars are. 99px is a pill, 0px is square.",
   glow: "How far lit things glow (shift lights, pedal knobs). 0px for none.",
   "shift-strength": "How strongly the shift lights are coloured. Lower is more muted.",
+  "shift-style": "The rev lights as a row of lights, or as one curved line that fills white and flashes red at the shift point.",
   font: "The typeface for text.",
   "num-font": "The typeface for numbers.",
   "title-font": "The typeface for panel titles.",

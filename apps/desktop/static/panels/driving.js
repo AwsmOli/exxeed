@@ -26,7 +26,7 @@ function drawTimeline(canvas, timeline) {
 
   const top = 4 * r;
   const bottom = h - 3 * r;
-  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.strokeStyle = alpha(COLORS.ink, 0.05);
   ctx.lineWidth = 1 * r;
   for (const q of [0.25, 0.5, 0.75]) {
     const y = bottom - q * (bottom - top);
@@ -130,7 +130,7 @@ function drawDial(canvas, f) {
   const ring = 7 * r;
 
   ctx.lineWidth = ring;
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.strokeStyle = alpha(COLORS.ink, 0.08);
   ctx.beginPath();
   ctx.arc(cx, cy, R - ring / 2, 0, Math.PI * 2);
   ctx.stroke();
@@ -138,7 +138,7 @@ function drawDial(canvas, f) {
   // How far the wheel is turned, as an arc from the top.
   const a = (wheelDeg(f) * Math.PI) / 180;
   if (Math.abs(a) > 0.01) {
-    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.strokeStyle = alpha(COLORS.ink, 0.3);
     ctx.beginPath();
     ctx.arc(cx, cy, R - ring / 2, -Math.PI / 2, -Math.PI / 2 + a, a < 0);
     ctx.stroke();
@@ -147,7 +147,7 @@ function drawDial(canvas, f) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(a);
-  ctx.strokeStyle = "#fff";
+  ctx.strokeStyle = COLORS.ink;
   ctx.lineWidth = 2 * r;
   ctx.beginPath();
   ctx.moveTo(0, -R);
@@ -161,7 +161,45 @@ function drawDial(canvas, f) {
  * against the car's shift points, and all of them blinking past the blink point.
  * Shared by Input Telemetry's row and the Rev Lights overlay.
  */
-function drawShiftLights(lights, s) {
+/**
+ * The other way to show the revs, for themes that ask for it (shift-style
+ * "sweep"): one curved line, low on the left and rising to the right, that
+ * fills white with the revs and flashes red, fast, from the shift point on.
+ * Gran Turismo's tachometer works this way.
+ *
+ * The fill is the whole line, revealed from the left by a clip. A dash along
+ * the path would follow the curve more exactly, but the SVG is stretched to
+ * its window (preserveAspectRatio none) and Chromium breaks a dash on a
+ * stretched, non-scaling stroke into pieces. The line only ever rises to the
+ * right, so revealing it by x is the same thing.
+ */
+const SWEEP_PATH = "M 6 50 C 110 50, 210 48, 282 36 S 372 12, 394 6";
+let sweepIds = 0;
+const sweepHtml = (part = "") => {
+  const clip = `sweep-reveal-${++sweepIds}`;
+  return `
+  <svg class="shift-sweep" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true"${part}>
+    <clipPath id="${clip}"><rect class="sweep-reveal" x="-10" y="-20" width="0" height="96" /></clipPath>
+    <path d="${SWEEP_PATH}" class="sweep-edge" />
+    <path d="${SWEEP_PATH}" class="sweep-track" />
+    <path d="${SWEEP_PATH}" class="sweep-fill" clip-path="url(#${clip})" />
+  </svg>`;
+};
+
+function drawSweep(fill, fraction, shifting) {
+  if (fill === null) return;
+  const reveal = fill.ownerSVGElement.querySelector(".sweep-reveal");
+  // From the line's left end (x 6, round cap and all) to its right end (x 394).
+  const f = shifting ? 1 : Math.max(0, Math.min(1, fraction));
+  reveal.setAttribute("width", f === 0 ? "0" : (16 + f * 388 + (f === 1 ? 20 : 0)).toFixed(1));
+  // At the shift point the whole line takes over: full, red, and blinking
+  // hard enough to catch in the corner of an eye.
+  const flash = shifting && Math.floor(performance.now() / 55) % 2 === 0;
+  fill.classList.toggle("shift-now", shifting);
+  fill.style.visibility = shifting && !flash ? "hidden" : "";
+}
+
+function drawShiftLights(lights, s, sweep = null) {
   const sl = s.race?.shiftLights ?? null;
   const rpm = s.frame?.rpm ?? null;
   let lit = 0;
@@ -169,6 +207,9 @@ function drawShiftLights(lights, s) {
   if (sl !== null && rpm !== null && sl.shiftRpm > sl.firstRpm) {
     lit = Math.max(0, Math.min(8, Math.ceil(((rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm)) * 8)));
     blink = rpm >= sl.blinkRpm && Math.floor(performance.now() / 90) % 2 === 0;
+    drawSweep(sweep, (rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm), rpm >= sl.shiftRpm);
+  } else {
+    drawSweep(sweep, 0, false);
   }
   lights.forEach((light, i) => {
     const j = i < 8 ? i : 15 - i;
@@ -189,10 +230,12 @@ export function revlights() {
     <div class="panel">
       <div class="card grow revlights-card">
         <div class="shift">${"<i></i>".repeat(16)}</div>
+        ${sweepHtml()}
       </div>
       <div class="empty">waiting for the sim</div>
     </div>`);
   const lights = [...el.querySelectorAll(".shift i")];
+  const sweep = $(el, ".sweep-fill");
 
   return {
     el,
@@ -200,7 +243,7 @@ export function revlights() {
       // The shift points come with the race data: without them there is
       // nothing to light the row against.
       el.classList.toggle("is-empty", s.race?.shiftLights == null);
-      drawShiftLights(lights, s);
+      drawShiftLights(lights, s, sweep);
     },
   };
 }
@@ -211,6 +254,7 @@ export function pedals() {
       <div class="tab n" data-k="delta" data-part="delta">—</div>
       <div class="card grow">
         <div class="shift" data-part="revlights">${"<i></i>".repeat(16)}</div>
+        ${sweepHtml(' data-part="revlights"')}
         <div class="inputs-body">
           <div class="graph" data-part="graph"><canvas class="fill" data-k="graph"></canvas></div>
           <div class="pedals" data-part="pedals">
@@ -222,7 +266,7 @@ export function pedals() {
               <span class="gear good">${gearbox()}<span class="xl n" data-k="gear">N</span></span></div>
             <div class="line ref" data-part="reference"><span class="xl n" data-k="rspeed">—</span><span class="u">km/h</span>
               <span class="gear">${gearbox()}<span class="xl n" data-k="rgear">–</span></span></div>
-            <div class="ffb" data-part="ffb">FF<div class="pill-h"><i data-k="ffb" style="background:rgba(255,255,255,0.75)"></i></div></div>
+            <div class="ffb" data-part="ffb">FF<div class="pill-h"><i data-k="ffb" style="background:color-mix(in srgb, var(--text) 75%, transparent)"></i></div></div>
           </div>
           <div class="wheel" style="position:relative;width:64px;height:64px" data-part="wheel">
             <canvas class="fill" data-k="dial"></canvas>
@@ -233,6 +277,7 @@ export function pedals() {
     </div>`);
   const k = (name) => $(el, `[data-k="${name}"]`);
   const lights = [...el.querySelectorAll(".shift i")];
+  const sweepFill = $(el, ".sweep-fill");
   const brakeP = $(el, '[data-p="brake"]');
   const throttleP = $(el, '[data-p="throttle"]');
 
@@ -259,7 +304,7 @@ export function pedals() {
       k("ffb").style.width = `${Math.round(Math.max(0, Math.min(1, f?.ffb ?? 0)) * 100)}%`;
       k("wheel").style.transform = `rotate(${wheelDeg(f)}deg)`;
 
-      drawShiftLights(lights, s);
+      drawShiftLights(lights, s, sweepFill);
 
       drawTimeline(k("graph"), s.timeline);
       drawDial(k("dial"), f);
@@ -279,16 +324,16 @@ const GUTTER = 22;
 
 function chrome(ctx, w, h, r, title, yLabels, lengthM, here) {
   ctx.font = `700 ${9 * r}px ${font()}`;
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillStyle = alpha(COLORS.ink, 0.7);
   ctx.textBaseline = "top";
   ctx.fillText(title, (GUTTER + 4) * r, 4 * r);
 
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.fillStyle = alpha(COLORS.ink, 0.5);
   ctx.textAlign = "right";
   for (const [label, y] of yLabels) {
     ctx.textBaseline = "middle";
     ctx.fillText(label, (GUTTER - 5) * r, y);
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = alpha(COLORS.ink, 0.05);
     ctx.lineWidth = 1 * r;
     ctx.beginPath();
     ctx.moveTo(GUTTER * r, y);
@@ -356,7 +401,7 @@ function livePoints(history, here, x, pick, yOf) {
 }
 
 function cursor(ctx, x, top, bottom, r) {
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.strokeStyle = alpha(COLORS.ink, 0.85);
   ctx.lineWidth = 1.2 * r;
   ctx.beginPath();
   ctx.moveTo(x, top);
@@ -413,8 +458,8 @@ export function trace() {
       // live colours. Behind: a thin ghost under your own trace.
       areaLine(ctx, thr.ahead, top, bottom, alpha(COLORS.throttle, 0.45), 0.14, 1.4 * r);
       areaLine(ctx, brk.ahead, top, bottom, alpha(COLORS.brake, 0.5), 0.16, 1.4 * r);
-      areaLine(ctx, thr.behind, top, bottom, "rgba(255,255,255,0.28)", 0, 1 * r);
-      areaLine(ctx, brk.behind, top, bottom, "rgba(255,255,255,0.28)", 0, 1 * r);
+      areaLine(ctx, thr.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
+      areaLine(ctx, brk.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
       areaLine(ctx, livePoints(s.history, here, x, (p) => p.throttle, y), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
       areaLine(ctx, livePoints(s.history, here, x, (p) => p.brake, y), top, bottom, COLORS.brake, 0.32, 2.2 * r);
 
@@ -474,7 +519,7 @@ export function speed() {
 
       const refPts = referenceSplit(ref.speedMps, ref.gridSize, here, x, (v) => y(kph(v)));
       areaLine(ctx, refPts.ahead, top, bottom, alpha(COLORS.cyan, 0.45), 0.14, 1.4 * r);
-      areaLine(ctx, refPts.behind, top, bottom, "rgba(255,255,255,0.28)", 0, 1 * r);
+      areaLine(ctx, refPts.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
       areaLine(ctx, livePoints(s.history, here, x, (p) => kph(p.speed), y), top, bottom, COLORS.cyan, 0.26, 2.2 * r);
       cursor(ctx, x(here), top - 4 * r, bottom, r);
     },
