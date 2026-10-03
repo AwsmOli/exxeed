@@ -1,8 +1,10 @@
 <!--
-  Gran Turismo's tyre display: the car from above between two brackets, a
-  tyre at each corner coloured by its temperature — blue cold, white right,
-  red hot (the temp-* tokens). Beside each tyre, its temperature, pressure
-  and wear; each of those can be switched off in the overlay's options.
+  Gran Turismo's tyre display: a drivetrain diagram in the middle — two
+  axles, a small car, the front's turning arrows — between two brackets,
+  and a tall tyre at each corner, red from the top as far as it is worn,
+  the rest coloured by its temperature (blue cold, white right, red hot:
+  the temp-* tokens). Beside each tyre its temperature, pressure and wear,
+  which GT does not show; each can be switched off in the overlay's options.
 -->
 <div class="panel tyres gt-tyres" data-class="is-empty: empty">
   <div class="gt-ty">
@@ -10,25 +12,27 @@
     <div class="gt-ty-side left">
       <div class="gt-tyre">
         <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ lf.tempC }}</span><span data-part="pressure">{{ lf.psi }} psi</span><span data-part="wear">{{ lf.wearPct }}%</span></div>
-        <i class="gt-pill" style="background:{{ lf.colour }}"></i>
+        <i class="gt-pill" style="background:{{ lf.colour }}"><b style="height:{{ lf.wornPct }}%"></b></i>
       </div>
       <div class="gt-tyre">
         <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ lr.tempC }}</span><span data-part="pressure">{{ lr.psi }} psi</span><span data-part="wear">{{ lr.wearPct }}%</span></div>
-        <i class="gt-pill" style="background:{{ lr.colour }}"></i>
+        <i class="gt-pill" style="background:{{ lr.colour }}"><b style="height:{{ lr.wornPct }}%"></b></i>
       </div>
     </div>
-    <svg class="gt-car" viewBox="0 0 34 60" aria-hidden="true">
-      <path d="M9.5 3 Q17 0.5 24.5 3 Q30.5 6 31.5 15 L31.5 51 Q31.5 57 27 58 L7 58 Q2.5 57 2.5 51 L2.5 15 Q3.5 6 9.5 3 Z" fill="rgba(255,255,255,0.1)" stroke="#ffffff" stroke-width="1.6"></path>
-      <path d="M6.5 18 Q17 14 27.5 18 L26 26 Q17 24 8 26 Z" fill="#ffffff" opacity="0.85"></path>
-      <path d="M8 46 Q17 47.5 26 46 L27 52 L7 52 Z" fill="#ffffff" opacity="0.6"></path>
+    <svg class="gt-chassis" viewBox="0 0 40 70" aria-hidden="true">
+      <path class="gt-ax" d="M4 14h32M4 56h32M20 14v42"></path>
+      <path class="gt-turn" d="M7 7 Q20 1 33 7"></path>
+      <path class="gt-turn-head" d="M5 9l2-4 3 3zM35 9l-2-4-3 3z"></path>
+      <rect class="gt-body" x="13" y="24" width="14" height="22" rx="5"></rect>
+      <path class="gt-ax-end" d="M2 10v8M38 10v8M2 52v8M38 52v8"></path>
     </svg>
     <div class="gt-ty-side right">
       <div class="gt-tyre">
-        <i class="gt-pill" style="background:{{ rf.colour }}"></i>
+        <i class="gt-pill" style="background:{{ rf.colour }}"><b style="height:{{ rf.wornPct }}%"></b></i>
         <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ rf.tempC }}</span><span data-part="pressure">{{ rf.psi }} psi</span><span data-part="wear">{{ rf.wearPct }}%</span></div>
       </div>
       <div class="gt-tyre">
-        <i class="gt-pill" style="background:{{ rr.colour }}"></i>
+        <i class="gt-pill" style="background:{{ rr.colour }}"><b style="height:{{ rr.wornPct }}%"></b></i>
         <div class="gt-ty-vals"><span class="gt-digits" data-part="temps">{{ rr.tempC }}</span><span data-part="pressure">{{ rr.psi }} psi</span><span data-part="wear">{{ rr.wearPct }}%</span></div>
       </div>
     </div>

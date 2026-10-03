@@ -220,7 +220,7 @@ trend colour: green gaining, red losing), `fraction` (0–1 of a side),
 
 **Tyres** (`tyres`) — `empty`, and `lf`, `rf`, `lr`, `rr`: `psi`, `tempC`
 ("88°"), `tempsC` (outer/centre/inner), `gradient` (a CSS gradient of the
-tread's temperatures), `colour` (the tyre as one colour), `wearPct`, `edges`
+tread's temperatures), `colour` (the tyre as one colour), `wearPct` (tread left), `wornPct` (worn away), `edges`
 (`["O","C","I"]` as the car sees them).
 
 **Damage** (`damage`) — `empty`, `repairS`, `optionalS`, `needsRepair`.

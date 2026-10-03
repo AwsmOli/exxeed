@@ -121,6 +121,8 @@ function tyresModel(s) {
       tempC: mid > 0 ? `${mid.toFixed(0)}°` : "—",
       psi: t.coldPressureKpa > 0 ? (t.coldPressureKpa * KPA_TO_PSI).toFixed(1) : "—",
       wearPct: Math.round(Math.min(...t.wear) * 100),
+      /** How much is worn away, 0–100: the tread left's complement. */
+      wornPct: 100 - Math.round(Math.min(...t.wear) * 100),
     };
   };
   const left = ["O", "C", "I"];
