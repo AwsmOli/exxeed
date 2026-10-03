@@ -106,8 +106,8 @@
 .sw-radar x-radar { position: relative; z-index: 1; }
 .sw-sky {
   position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
-  background: radial-gradient(circle, rgba(40, 10, 70, 0.9), rgba(14, 6, 28, 0.92) 70%);
-  box-shadow: 0 0 18px rgba(0, 240, 255, 0.35), inset 0 0 0 1.5px rgba(0, 240, 255, 0.45);
+  /* Fading out at the edge too, so there is no hard rim. */
+  background: radial-gradient(circle, rgba(40, 10, 70, 0.9), rgba(14, 6, 28, 0.85) 62%, rgba(14, 6, 28, 0) 100%);
 }
 /* A square grid, brightest in the middle, fading out towards the rim. */
 .sw-grid {

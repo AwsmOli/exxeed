@@ -435,6 +435,7 @@ function radarBlock(el) {
       ctx.stroke();
       ctx.restore();
 
+      const rimless = el.getAttribute("rim") === "none";
       if (neon) {
         // The rim as a sweep from one warning colour to the next.
         const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
@@ -447,9 +448,12 @@ function radarBlock(el) {
         ctx.strokeStyle = alpha(COLORS.ink, bare ? 0.4 : 0.18);
         ctx.lineWidth = 1 * r;
       }
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.stroke();
+      // No outer ring with rim="none": the theme's backdrop is the edge.
+      if (!rimless) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R, 0, Math.PI * 2);
+        ctx.stroke();
+      }
 
       const drawCar = (x, y) => {
         const cw = CAR_W_M * m;
@@ -495,6 +499,7 @@ registerBlock(
       cars: "car (default, a top-down car) | chevron — arrowheads, yours in red",
       disc: "shaded (default) | none — just the rings, over the scene",
       road: "none (default) | strip — the road as a lighter strip with a crosshair, as Gran Turismo's",
+      rim: "shown (default) | none — no outer ring",
       look: "rings (default) | glow — no disc or rings: red bars beside you for a car alongside, a yellow glow for one close behind or ahead, as RaceLab's",
     },
   },

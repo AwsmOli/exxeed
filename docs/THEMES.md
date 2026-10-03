@@ -221,7 +221,7 @@ with the template and `theme.css`. Their attributes are their options.
 | `<x-corner-chart>` | your speed through the last corner over the reference's (Corner Analysis only) |
 | `<x-map dark road="outline" cars="chevron">` | the whole track, heat map, sectors, callout points and cars. `dark` numbers the turns; `road="outline"` is a hollow white line; `cars="chevron"` draws arrowheads, yours red |
 | `<x-minimap ahead="260" road cars disc="none">` | the road around the car, turned so ahead is up. `disc="none"` fades the road out instead of framing it |
-| `<x-radar cars="chevron" disc="none" road="strip" look="glow">` | cars alongside, ahead and behind. `road="strip"` is Gran Turismo's; `look="glow"` is RaceLab's red bars and yellow glow |
+| `<x-radar cars="chevron" disc="none" road="strip" look="glow" rim="none">` | cars alongside, ahead and behind. `rim="none"` leaves out the outer ring. `road="strip"` is Gran Turismo's; `look="glow"` is RaceLab's red bars and yellow glow |
 
 The blocks' colours come from the tokens: tyre temperatures from `temp-cold`,
 `temp-cool`, `temp-ok`, `temp-warm` and `temp-hot`, chevrons from `blue` and
