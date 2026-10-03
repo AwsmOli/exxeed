@@ -1,6 +1,9 @@
-<!-- The delta bar with its fill glowing in the trend colour, and the number glowing with it. -->
+<!-- The delta bar with only its coloured fill glowing, in the trend colour, and the number glowing with it. -->
 <div class="panel delta sw-delta" data-class="is-empty: empty">
-  <div class="sw-dglow" style="color:{{ colour }}"><div class="delta-track"><i style="left:{{ fillLeft }}%;width:{{ fillWidth }}%;border-radius:{{ fillRadius }};background:{{ colour }}"></i></div></div>
+  <div class="sw-dwrap">
+    <i class="sw-dglow" style="left:{{ fillLeft }}%;width:{{ fillWidth }}%;color:{{ colour }}"></i>
+    <div class="delta-track"><i style="left:{{ fillLeft }}%;width:{{ fillWidth }}%;border-radius:{{ fillRadius }};background:{{ colour }}"></i></div>
+  </div>
   <div class="delta-readout n" data-part="number" data-class="good: good; bad: bad">{{ deltaS | signed:2 }}</div>
   <div class="delta-dial">
     <x-delta-dial glow="14"></x-delta-dial>
