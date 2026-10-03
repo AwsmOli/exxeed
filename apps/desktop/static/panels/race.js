@@ -4,7 +4,7 @@
 
 import { canvasIn, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { alpha, chevron, classColour, COLORS, licenceColour, fit, roundRect } from "./util.js";
+import { alpha, chevron, classColour, COLORS, licenceColour, fit, playerClassColour, roundRect } from "./util.js";
 
 const NO_RACE = (s) =>
   s.status?.phase === "running" ? "live sim only — this source has no other cars" : "waiting for the sim";
@@ -35,8 +35,8 @@ function sessionLetter(race) {
 //   player           your row (below), or null
 //   playerClass      your class (as in classes[]), or null
 //   fieldSize        cars in your class
-//   classes[]        name, colour, sof, size, rows[]
-//     rows[]         colour (the class's), position, carNumber, name, onPitRoad, isPlayer,
+//   classes[]        name, colour, mine (your class), sof, size, rows[]
+//     rows[]         colour (the class's), myClass, position, carNumber, name, onPitRoad, isPlayer,
 //                    license, licenceColour, iRating, gapS, intervalS,
 //                    lastLapS, bestLapS, fastest,
 //                    aheadOfPlayer, behindPlayer (the cars either side of you),
@@ -104,6 +104,7 @@ function standingsModel(s) {
       const at = all.indexOf(r);
       const row = {
         colour,
+        myClass: me >= 0,
         position: r.classPosition || "",
         carNumber: r.carNumber,
         name: r.name,
@@ -124,7 +125,7 @@ function standingsModel(s) {
       if (r.isPlayer) player = row;
       return row;
     });
-    const cls = { name: sim.className || "", colour, sof: sim.sof ?? null, size: all.length, rows };
+    const cls = { name: sim.className || "", colour, mine: me >= 0, sof: sim.sof ?? null, size: all.length, rows };
     if (me >= 0) playerClass = cls;
     return cls;
   });
@@ -179,7 +180,7 @@ export const standings = templated({ template: STANDINGS, model: standingsModel,
 //   show.*        number, lap, license, irating, chip, header, footer
 //   cols          grid-template-columns for those columns
 //   rows[]        position, carNumber, name, lap, lapState (1 lapping you,
-//                 −1 being lapped), lappingYou, lappedByYou, classColour, license, licenceColour, iRating, gapS
+//                 −1 being lapped), lappingYou, lappedByYou, classColour, myClass, license, licenceColour, iRating, gapS
 //                 (unsigned seconds), ahead (true for cars in front),
 //                 isPlayer, onPitRoad
 // ---------------------------------------------------------------------------
@@ -202,6 +203,7 @@ function relativeModel(s) {
       lappingYou: r.lapState > 0,
       lappedByYou: r.lapState < 0,
       classColour: colour,
+      myClass: r.classColor === playerClassColour(race),
       license: r.license,
       licenceColour: licenceColour(r.license, r.licenseColor),
       iRating: r.iRating,

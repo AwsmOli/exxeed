@@ -164,7 +164,7 @@ whether the driver has that part switched on in the overlay's options.
 interval, last, best}`, `cols` (grid columns for those), `fieldSize`,
 `player` (your row), `playerClass` (your class) and `classes[]`: `name`,
 `colour`, `sof`, `size`, `rows[]`. Each row: `position`, `carNumber`, `name`,
-`colour`, `isPlayer`, `onPitRoad`, `license`, `licenceColour`, `iRating`,
+`colour`, `myClass`, `isPlayer`, `onPitRoad`, `license`, `licenceColour`, `iRating`,
 `gapS` (to the leader), `intervalS` (to the car ahead), `lastLapS`, `bestLapS`,
 `fastest`, `aheadOfPlayer`, `behindPlayer`, `behindS` (on your row: the car
 behind's interval to you). Long classes are condensed to the top three and the
@@ -173,7 +173,7 @@ cars around you.
 **Relatives** (`relative`) — the session values above, `airC`, `trackC`, `sof`,
 `brakeBiasPct`, `clock` (time of day), `show.{header, number, lap, license,
 irating, chip, footer}`, `cols`, and `rows[]`: `position`, `carNumber`, `name`,
-`lap`, `lappingYou`, `lappedByYou`, `classColour`, `license`, `licenceColour`,
+`lap`, `lappingYou`, `lappedByYou`, `classColour`, `myClass`, `license`, `licenceColour`,
 `iRating`, `gapS` (unsigned), `ahead`, `isPlayer`, `onPitRoad`.
 
 **Essential Inputs** (`inputs`) — `clutch`, `brake`, `throttle` (each `pct`

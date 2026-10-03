@@ -84,6 +84,8 @@ export const THEME_TOKENS = {
   "class-3": "color",
   "class-4": "color",
   "class-5": "color",
+  "class-mine": "color",
+  "class-other": "color",
   // Shape.
   radius: "length",
   gap: "length",
@@ -410,6 +412,9 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       "chip-text": "#ffffff",
       "lap-ahead": "#ff5a5a",
       "lap-behind": "#6cc0ff",
+      // Classes as GT would: yours white, everyone else's in its red.
+      "class-mine": "#ffffff",
+      "class-other": "#d0101b",
       "fuel-empty": "rgba(255, 255, 255, 0.12)",
       // The course map: a white outline with the scene showing through.
       road: "rgba(16, 20, 24, 0.45)",
@@ -796,6 +801,8 @@ const TOKEN_HELP: Record<ThemeToken, string> = {
   "class-3": "The colour of the third class. Use #rrggbb.",
   "class-4": "The colour of the fourth class. Use #rrggbb.",
   "class-5": "The colour of the fifth class. Use #rrggbb.",
+  "class-mine": "Your own class's colour, with class-other for every other class — instead of a colour per class. Use #rrggbb; set both.",
+  "class-other": "Every class but yours, with class-mine. Use #rrggbb; set both.",
   radius: "How rounded a panel's corners are.",
   gap: "The space between a panel's stacked boxes.",
   "pill-radius": "How rounded bars are. 99px is a pill, 0px is square.",

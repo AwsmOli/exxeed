@@ -126,6 +126,9 @@ export function refreshColors() {
     ),
     // The theme's class colours, fastest class first; empty means the sim's own.
     classes: [1, 2, 3, 4, 5].map((i) => resolve(`--class-${i}`, "")).filter((c) => /^#[0-9a-f]{6}$/i.test(c)),
+    // Or, when a theme names them, one colour for your class and one for every other.
+    classMine: resolve("--class-mine", ""),
+    classOther: resolve("--class-other", ""),
   });
 
   // The shift lights: green through yellow and orange to red, in the theme's
@@ -227,9 +230,17 @@ export function deltaTrend() {
  * fastest first, so "class 1" is the same class on every panel.
  */
 export function classColour(race, simColour) {
+  if (COLORS.classMine !== "" && COLORS.classOther !== "") {
+    return simColour === playerClassColour(race) ? COLORS.classMine : COLORS.classOther;
+  }
   if (COLORS.classes.length === 0) return simColour;
   const index = (race?.classes ?? []).findIndex((c) => c.classColor === simColour);
   return index < 0 ? simColour : COLORS.classes[index % COLORS.classes.length];
+}
+
+/** The sim's colour for the player's own class, or null. */
+export function playerClassColour(race) {
+  return (race?.classes ?? []).find((c) => c.rows.some((r) => r.isPlayer))?.classColor ?? null;
 }
 
 /** A licence's colour: the theme's for that letter ("A 3.12" → A), otherwise the sim's. */

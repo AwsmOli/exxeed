@@ -12,7 +12,7 @@
     <span>{{ incidents }}x</span><span class="gt-digits">{{ clock }}</span>
   </div>
   <div class="gt-list grow">
-    <div data-each="rows" class="gt-row" data-class="me: isPlayer; pit: onPitRoad; lapping: lappingYou; lapped: lappedByYou" style="--cls:{{ classColour }}">
+    <div data-each="rows" class="gt-row" data-class="me: isPlayer; pit: onPitRoad; lapping: lappingYou; lapped: lappedByYou; other-class: !myClass" style="--cls:{{ classColour }}">
       <span class="gt-pos">{{ position }}</span>
       <span class="gt-slab">
         <span class="gt-name">{{ name }}</span>

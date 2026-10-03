@@ -85,6 +85,9 @@
   flex: none; min-width: 30px; height: 20px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
   background: var(--cls); color: #111418; font-size: 12px; font-weight: 700;
 }
+/* Another class's number: white on GT's red. Yours, white, gets an edge on your light row. */
+.gt-row.other-class .gt-num { color: #ffffff; }
+.gt-row.me .gt-num { box-shadow: inset 0 0 0 1px rgba(17, 20, 24, 0.35); }
 .gt-chip {
   flex: none; height: 20px; padding: 0 6px; display: flex; align-items: center;
   background: rgba(0, 0, 0, 0.35); box-shadow: inset 2px 0 0 var(--lic); color: rgba(255, 255, 255, 0.85);
@@ -100,7 +103,10 @@
 .gt-row.me .gt-pos { background: var(--me-bg); color: var(--me-text); box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 3px rgba(17, 20, 24, 0.35); }
 .gt-row.me .gt-slab { background: var(--gt-me); color: var(--me-text); }
 .gt-row.me .gt-chip, .gt-row.me .gt-time-cell, .gt-row.me .gt-lapn { color: rgba(17, 20, 24, 0.75); }
-.gt-row.me .gt-chip { background: rgba(0, 0, 0, 0.08); }
+.gt-row.me /* Another class's number: white on GT's red. Yours, white, gets an edge on your light row. */
+.gt-row.other-class .gt-num { color: #ffffff; }
+.gt-row.me .gt-num { box-shadow: inset 0 0 0 1px rgba(17, 20, 24, 0.35); }
+.gt-chip { background: rgba(0, 0, 0, 0.08); }
 
 /* Your gap to the leader: a red box off the end of your row. Every row keeps
    the room, so the slabs line up. */

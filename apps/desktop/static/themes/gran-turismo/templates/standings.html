@@ -30,7 +30,7 @@
   <div class="gt-list">
     <x-group data-each="playerClass.rows">
       <x-group data-if="isPlayer"><div data-if="intervalS" class="gt-gap" data-part="interval">+ {{ intervalS | fixed:3 }}</div></x-group>
-      <div class="gt-row" data-class="me: isPlayer; pit: onPitRoad" style="--cls:{{ colour }}">
+      <div class="gt-row" data-class="me: isPlayer; pit: onPitRoad; other-class: !myClass" style="--cls:{{ colour }}">
         <span class="gt-pos">{{ position }}</span>
         <span class="gt-slab">
           <span class="gt-name">{{ name }}</span>
