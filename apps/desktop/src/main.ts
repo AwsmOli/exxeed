@@ -1857,13 +1857,13 @@ void app.whenReady().then(() => {
       if (command.id === profileStore().activeId) {
         const message: PanelSettingsMessage = { panel: command.panel, settings: next };
         overlayLayout?.broadcast(PANEL_SETTINGS_CHANNEL, message);
-        // A pair just made mirrored lines up at once, the other one following this one.
-        if (command.kind === "setPanelStyle" && MIRROR_PAIRS[command.panel] !== undefined) {
-          const partner = MIRROR_PAIRS[command.panel]!;
-          // Both halves of the pair share the choice.
-          profileStore().setSettings(command.id, partner, (current) => ({ ...current, style: command.style }));
+        // Both halves of a left/right pair share their choices; a pair just
+        // made mirrored lines up at once, the other one following this one.
+        const partner = MIRROR_PAIRS[command.panel];
+        if (partner !== undefined) {
+          profileStore().setSettings(command.id, partner, (current) => ({ ...current, style: next.style, hidden: [...next.hidden] }));
           overlayLayout?.broadcast(PANEL_SETTINGS_CHANNEL, { panel: partner, settings: profileStore().settingsOf(command.id, partner) });
-          overlayLayout?.mirrorFrom(command.panel);
+          if (command.kind === "setPanelStyle") overlayLayout?.mirrorFrom(command.panel);
         }
       }
       broadcastProfiles();

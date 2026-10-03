@@ -1,10 +1,11 @@
 <!--
   The sim's own spotter indicator, one window per side (Blind Spot Left and
   Right both use this file): a yellow bubble with LEFT or RIGHT in dark bold
-  type, shown only while a car is alongside on that side. While the overlays
-  are being arranged, a faint outline shows where it sits.
+  type, lit while a car is alongside on that side and a faint outline
+  otherwise — or nothing, with the overlay's "Show while no car is
+  alongside" option off.
 -->
-<div class="panel spotter ir-spotter" data-class="is-empty: empty">
+<div class="panel spotter ir-spotter" data-class="is-empty: empty; idle: !on">
   <div class="ir-bubble" data-class="on: on">{{ side | upper }}</div>
   <div class="empty">{{ empty }}</div>
 </div>

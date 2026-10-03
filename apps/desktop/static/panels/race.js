@@ -537,7 +537,7 @@ function spotterModel(side) {
 }
 
 const SPOTTER_TEMPLATE = `
-<div class="panel spotter" data-class="is-empty: empty">
+<div class="panel spotter" data-class="is-empty: empty; idle: !on">
   <div class="spot-box" data-class="on: on">
     <span class="spot-cap">Blind spot</span><i></i><span class="spot-cap">{{ side | upper }}</span>
   </div>

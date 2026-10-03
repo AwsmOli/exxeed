@@ -734,3 +734,8 @@ body[data-style="stack"] .wx-wind b { font-size: 22px; }
 .flag-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .flag-words b { font-size: 22px; font-weight: var(--num-weight); color: var(--text); text-transform: uppercase; }
 .flag-words span { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+
+/* Blind spot with "Show while no car is alongside" off: nothing until a car is
+   there — but while the overlays are being arranged, faintly, to find it. */
+body[data-hidden~="idle"] .panel.spotter.idle > :not(.empty) { visibility: hidden; }
+body.overlay.editing[data-hidden~="idle"] .panel.spotter.idle > :not(.empty) { visibility: visible; opacity: 0.35; }

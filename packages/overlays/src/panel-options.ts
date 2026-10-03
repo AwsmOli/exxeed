@@ -69,6 +69,8 @@ export const PANEL_PARTS: Partial<Record<PanelId, readonly PanelChoice[]>> = {
     { id: "cars", label: "Other cars" },
   ],
   radar: [{ id: "label", label: "Caption (themes that have one)" }],
+  "spotter-left": [{ id: "idle", label: "Show while no car is alongside" }],
+  "spotter-right": [{ id: "idle", label: "Show while no car is alongside" }],
   minimap: [
     { id: "cars", label: "Other cars" },
     { id: "label", label: "Caption (themes that have one)" },
