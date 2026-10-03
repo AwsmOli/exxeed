@@ -287,6 +287,8 @@ function applyPanelSettings(settings) {
   state.options = { hidden: new Set(hidden), style: typeof settings.style === "string" ? settings.style : null };
   partRules.textContent = hidden.map((id) => `[data-part~="${id}"]{display:none!important}`).join("\n");
   document.body.dataset.style = state.options.style ?? "";
+  // For a theme's stylesheet: body[data-hidden~="revlights"] when the rev lights are off.
+  document.body.dataset.hidden = hidden.join(" ");
   // Rows are rebuilt from columns, so they need telling.
   state.v.race++;
 }

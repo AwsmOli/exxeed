@@ -125,15 +125,25 @@
 
 /* -- The speed cluster (Input Telemetry, Essential Inputs) --------------------- */
 
-/* A dark body under the arch: clear above the band, near-black below it. */
-.gt-cluster { gap: 4px; }
+/* A dark body whose top edge is the arch: the band's own fill (sweep-body)
+   down to its foot, then the box below in the same colour. Above the arch,
+   the scene. */
+.gt-cluster { gap: 4px; --gt-body: rgba(14, 16, 19, 0.84); }
 .gt-cl-top { display: flex; justify-content: flex-end; flex: none; }
-.gt-cl-box {
-  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px;
-  padding: 0 0 6px;
-  background: linear-gradient(180deg, rgba(14, 16, 19, 0) 0, rgba(14, 16, 19, 0.72) 26px, rgba(14, 16, 19, 0.86));
-}
-.gt-cluster .shift-sweep { height: 30px; margin: 0; }
+.gt-cl-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; }
+/* The band's height follows its width, so the arch drops about as far, for
+   its size, as GT's does — wide or narrow. */
+/* Whole pixels, so the band's body meets the box under it with no seam. */
+.gt-cl-box { container-type: inline-size; }
+.gt-cluster .shift-sweep { height: min(48px, round(down, 100cqw / 15, 1px)); margin: 0; flex: none; }
+.gt-cl-row { overflow: hidden; }
+.gt-cl-graph { max-height: 100%; overflow: hidden; }
+.gt-rev .sweep-body { fill: var(--gt-body, rgba(14, 16, 19, 0.84)); }
+/* Under the band, the body goes on in the same colour. */
+.gt-cl-row, .gt-cl-ffb { background: var(--gt-body); }
+.gt-cl-ffb { padding-bottom: 8px; padding-top: 2px; }
+body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
+
 /* Speed, hairline, gear in the middle; what GT does not have either side. */
 .gt-cl-row {
   flex: 1 1 auto; min-height: 0; display: grid; align-items: center; column-gap: 16px; padding: 0 14px;
@@ -168,7 +178,7 @@
 .gt-line { position: relative; flex: 1; height: 2px; background: rgba(255, 255, 255, 0.18); }
 .gt-line > i { position: absolute; left: 0; top: 0; bottom: 0; background: #ffffff; }
 /* Essential Inputs has no band: its body is dark all the way up. */
-.inputs.gt-cluster .gt-cl-box { background: linear-gradient(180deg, rgba(14, 16, 19, 0.6), rgba(14, 16, 19, 0.86)); padding-top: 4px; }
+.inputs.gt-cluster .gt-cl-row { padding-top: 6px; padding-bottom: 6px; }
 
 /* -- The rev band ---------------------------------------------------------- */
 
@@ -181,7 +191,7 @@
 .gt-revlights { justify-content: center; align-items: center; }
 /* The band keeps the cluster's proportions, centred: stretched to a long
    thin window, the arch would flatten into a straight line. */
-.gt-revlights .shift-sweep { height: 100%; width: auto; max-width: 100%; aspect-ratio: 13 / 1; }
+.gt-revlights .shift-sweep { height: 100%; width: auto; max-width: 100%; aspect-ratio: 15 / 1; }
 
 /* -- Tyres ----------------------------------------------------------------- */
 

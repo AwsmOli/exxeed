@@ -2,7 +2,7 @@
   Gran Turismo's speed cluster: a hatched rev band arching across the top —
   flat in the middle, its ends bending down — over a dark body with the speed
   in thin squared digits, km/h under it, a hairline, and the gear, heavier,
-  with a small label beside it where GT says AT. The gap to the reference
+  with a small label beside it where GT says AT, and GT's small red arrow at the redline. The gap to the reference
   sits in GT's red (or green) box above.
 
   Added to what GT shows, each switchable in the overlay's options: the input
@@ -14,7 +14,7 @@
     <div class="gt-delta n" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
   </div>
   <div class="gt-cl-box">
-    <x-sweep class="gt-rev" shape="arch" hatch redline="0.82" data-part="revlights"></x-sweep>
+    <x-sweep class="gt-rev" shape="arch" hatch redline="0.82" mark data-part="revlights"></x-sweep>
     <div class="gt-cl-row">
       <div class="gt-cl-side left">
         <div class="gt-cl-graph" data-part="graph"><x-timeline></x-timeline></div>

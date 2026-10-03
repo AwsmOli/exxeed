@@ -69,7 +69,9 @@ nothing. Fonts and images have to be ones the app already has.
 | `data-shift` | `lights` or `sweep` (the `shift-style` token) |
 
 `body` carries `data-style` when the driver has chosen a different structure
-for that overlay (`dial` for the Delta, `stack` for Weather, `dark` for the Track Map).
+for that overlay (`dial` for the Delta, `stack` for Weather, `dark` for the Track Map),
+and `data-hidden` with the parts switched off, space-separated:
+`body[data-hidden~="revlights"]` styles the overlay without its rev lights.
 
 ### Templates
 

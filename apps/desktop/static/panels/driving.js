@@ -173,11 +173,45 @@ function sweepPath(shape, w, h, pad) {
   if (shape === "arch") {
     // Gran Turismo's: flat across the middle, the ends bending down at the sides.
     const span = right - left;
-    const bend = top + (bottom - top) * 0.12;
-    return `M ${left} ${bottom} C ${left + span * 0.04} ${bend}, ${left + span * 0.16} ${top}, ${w / 2} ${top} C ${right - span * 0.16} ${top}, ${right - span * 0.04} ${bend}, ${right} ${bottom}`;
+    const bend = top + (bottom - top) * 0.3;
+    return `M ${left} ${bottom} C ${left + span * 0.03} ${bend}, ${left + span * 0.24} ${top}, ${w / 2} ${top} C ${right - span * 0.24} ${top}, ${right - span * 0.03} ${bend}, ${right} ${bottom}`;
   }
   // The swoop: low and flat on the left, rising to the right.
   return `M ${x(6)} ${y(50)} C ${x(110)} ${y(50)}, ${x(210)} ${y(48)}, ${x(282)} ${y(36)} S ${x(372)} ${y(12)}, ${x(394)} ${y(6)}`;
+}
+
+/**
+ * A small arrowhead just outside the line at x, pointing at it: where the
+ * redline is. The line's height there is found along the path, which only
+ * ever moves rightwards, by halving.
+ */
+function markAt(path, x, half) {
+  const total = path.getTotalLength();
+  let lo = 0;
+  let hi = total;
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (path.getPointAtLength(mid).x < x) lo = mid;
+    else hi = mid;
+  }
+  const p = path.getPointAtLength(lo);
+  const q = path.getPointAtLength(Math.min(total, lo + 1));
+  // Outwards from the curve (up, for an arch), along its normal.
+  let nx = -(q.y - p.y);
+  let ny = q.x - p.x;
+  const len = Math.hypot(nx, ny) || 1;
+  nx /= len;
+  ny /= len;
+  if (ny > 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const tip = [p.x + nx * (half + 1), p.y + ny * (half + 1)];
+  const size = Math.max(4, half);
+  const back = [tip[0] + nx * size * 1.3, tip[1] + ny * size * 1.3];
+  const side = [-ny * size * 0.75, nx * size * 0.75];
+  const pt = (a) => `${a[0].toFixed(1)} ${a[1].toFixed(1)}`;
+  return `M ${pt(tip)} L ${pt([back[0] + side[0], back[1] + side[1]])} L ${pt([back[0] - side[0], back[1] - side[1]])} Z`;
 }
 
 function sweepBlock(el) {
@@ -191,14 +225,19 @@ function sweepBlock(el) {
           <stop class="sweep-stop-red" offset="1" /><stop class="sweep-stop-red" offset="1" />
         </linearGradient>
       </defs>
-      <path class="sweep-edge" /><path class="sweep-track" />
+      <path class="sweep-body" /><path class="sweep-edge" /><path class="sweep-track" />
       <path class="sweep-fill" clip-path="url(#sweep-reveal-${id})" stroke="url(#sweep-lit-${id})" />
+      <path class="sweep-mark" />
     </svg>`;
   const svg = el.firstElementChild;
   const reveal = svg.querySelector(".sweep-reveal");
   const gradient = svg.querySelector("linearGradient");
   const stops = [...gradient.children];
-  const paths = [...svg.querySelectorAll("path")];
+  /** Everything under the line, down to the block's foot: a body whose top edge is the band (theme.css fills it). */
+  const body = svg.querySelector(".sweep-body");
+  /** The small arrow at the redline (attribute mark). */
+  const mark = svg.querySelector(".sweep-mark");
+  const paths = [...svg.querySelectorAll("path:not(.sweep-body):not(.sweep-mark)")];
   const fill = svg.querySelector(".sweep-fill");
   let built = "";
   let from = 0;
@@ -215,7 +254,7 @@ function sweepBlock(el) {
       const shape = el.getAttribute("shape") ?? "swoop";
       const redline = Math.max(0, Math.min(1, numberAttr(el, "redline", 1)));
       const hatch = el.hasAttribute("hatch");
-      const key = `${w}x${h}:${shape}:${redline}:${hatch}`;
+      const key = `${w}x${h}:${shape}:${redline}:${hatch}:${el.hasAttribute("mark")}`;
       if (key !== built) {
         built = key;
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
@@ -223,6 +262,8 @@ function sweepBlock(el) {
         half = Math.max(...paths.map((p) => parseFloat(getComputedStyle(p).strokeWidth) || 0)) / 2 + 1;
         const d = sweepPath(shape, w, h, half);
         for (const p of paths) p.setAttribute("d", d);
+        body.setAttribute("d", `${d} L ${w} ${h} L 0 ${h} Z`);
+        mark.setAttribute("d", el.hasAttribute("mark") && redline < 1 ? markAt(paths[0], half + redline * (w - 2 * half), half) : "");
         from = half;
         to = w - half;
         reveal.setAttribute("y", "-1000");
@@ -296,6 +337,7 @@ registerBlock(
       shape: "swoop (default, rising to the right) | arch (flat, the ends bending down — Gran Turismo's) | arc | line",
       hatch: "fine ticks instead of a solid line, as Gran Turismo's rev band",
       redline: "0–1: how far along the lit part turns red; 1 (default) for never",
+      mark: "a small arrow at the redline, pointing at the band, as Gran Turismo's",
     },
   },
   sweepBlock,
