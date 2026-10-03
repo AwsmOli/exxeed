@@ -125,25 +125,25 @@
 
 /* -- The speed cluster (Input Telemetry, Essential Inputs) --------------------- */
 
-/* A dark body whose top edge is the arch: the band's own fill (sweep-body)
-   down to its foot, then the box below in the same colour. Above the arch,
+/* A dark body whose top edge is the band's curve: the band's own fill (sweep-body)
+   down to its foot, then the box below in the same colour. Above the curve,
    the scene. */
 .gt-cluster { gap: 4px; --gt-body: rgba(14, 16, 19, 0.84); }
 .gt-cl-top { display: flex; justify-content: flex-end; flex: none; }
 .gt-cl-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; }
-/* The band's height follows its width, so the arch drops about as far, for
+/* The band's height follows its width, so the curve drops about as far, for
    its size, as GT's does — wide or narrow. */
 /* Whole pixels, so the band's body meets the box under it with no seam. */
 .gt-cl-box { container-type: inline-size; }
-.gt-cluster .shift-sweep { height: min(52px, round(down, 100cqw / 14, 1px)); margin: 0; flex: none; }
+.gt-cluster .shift-sweep { height: min(60px, round(down, 100cqw / 14, 1px)); margin: 0; flex: none; overflow: visible; }
 .gt-cl-row { overflow: hidden; }
 .gt-cl-graph { max-height: 100%; overflow: hidden; }
 /* Only in the cluster: the Rev Lights overlay is the band alone, over the scene. */
 .gt-cluster .gt-rev .sweep-body { fill: var(--gt-body, rgba(14, 16, 19, 0.84)); }
-/* Under the band the body tapers in from its ends, as GT's does. */
-/* (Open at the top, so the redline arrow above the band is not cut off.) */
-.gt-cluster .gt-cl-box { clip-path: polygon(0 -24px, 100% -24px, 100% 18%, calc(100% - 22px) 100%, 22px 100%, 0 18%); }
-.gt-cluster .gt-cl-ffb { padding-left: 34px; padding-right: 34px; }
+/* The body: straight sides down from the band's ends, then chamfered in to a
+   flat foot, as GT's. Open above, so the redline arrow is not cut off. */
+.gt-cluster .gt-cl-box { clip-path: polygon(0 -24px, 100% -24px, 100% 42%, calc(100% - 6%) 100%, 6% 100%, 0 42%); }
+.gt-cluster .gt-cl-ffb { padding-left: 8%; padding-right: 8%; }
 /* Under the band, the body goes on in the same colour. */
 .gt-cl-row, .gt-cl-ffb { background: var(--gt-body); }
 .gt-cl-ffb { padding-bottom: 8px; padding-top: 2px; }
@@ -160,10 +160,18 @@ body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
 .gt-cl-graph { flex: 1 1 auto; align-self: stretch; margin: 6px 0; min-width: 40px; max-width: 200px; background: rgba(0, 0, 0, 0.25); }
 /* Thin, wide squared digits for the speed, km/h under its right end. */
 .gt-cl-speed { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
-.gt-speed { font-size: 40px; font-weight: 200; letter-spacing: 0.1em; display: inline-block; width: 3.3ch; text-align: right; margin-right: -0.1em; }
+/* GT's digits are squared and wide — wider than tall. The face is narrower,
+   so it is stretched; the box keeps the stretched width. */
+.gt-speed {
+  font-size: 40px; font-weight: 350; letter-spacing: 0.04em; display: inline-block; width: 3.1ch; text-align: right;
+  transform: scaleX(1.32); transform-origin: right center; margin-left: 1.1ch;
+}
 /* The gear: bigger and heavier, with GT's small AT spot at its foot. */
 .gt-cl-gear { display: flex; align-items: flex-end; gap: 8px; line-height: 1; }
-.gt-gear { font-size: 52px; font-weight: 500; display: inline-block; width: 0.75em; text-align: center; }
+.gt-gear {
+  font-size: 54px; font-weight: 500; display: inline-block; width: 0.7em; text-align: left;
+  transform: scaleX(1.45); transform-origin: left center; margin-right: 0.35em;
+}
 .gt-at { padding-bottom: 4px; white-space: nowrap; }
 .gt-unit { font-family: var(--font); font-size: 11px; color: rgba(255, 255, 255, 0.7); }
 .gt-cl-rule { width: 1px; align-self: stretch; margin: 8px 0 4px; background: rgba(255, 255, 255, 0.55); }
@@ -187,16 +195,12 @@ body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
 
 /* -- The rev band ---------------------------------------------------------- */
 
-/* Tall, dense ticks: grey unlit, white lit, red past the redline. */
-.gt-rev .sweep-edge { stroke: rgba(0, 0, 0, 0.35); stroke-width: 15px; }
-.gt-rev .sweep-track { stroke: rgba(150, 152, 156, 0.62); stroke-width: 12px; }
-.gt-rev .sweep-fill { stroke-width: 12px; }
-.gt-rev .shift-sweep.hatched path { stroke-dasharray: 2 2.4; }
-.gt-rev .shift-sweep.hatched .sweep-edge { stroke-dasharray: none; }
+/* Upright ticks: grey unlit, white lit, red past the redline. */
+.gt-rev .sweep-band-track { fill: rgba(150, 152, 156, 0.7); }
 /* Room above the band for the redline arrow. */
 .gt-revlights { justify-content: center; align-items: center; padding-top: 10px; }
 /* The band keeps the cluster's proportions, centred: stretched to a long
-   thin window, the arch would flatten into a straight line. */
+   thin window, the curve would flatten into a straight line. */
 .gt-revlights .shift-sweep { height: 100%; width: auto; max-width: 100%; aspect-ratio: 14 / 1; }
 
 /* -- Tyres ----------------------------------------------------------------- */

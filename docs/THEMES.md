@@ -133,7 +133,7 @@ with the template and `theme.css`. Their attributes are their options.
 |---|---|
 | `<x-icon name="…">` | a line icon: `gearbox`, `wheel`, `pump`, `thermometer`, `droplet`, `lanes`, `disc`, or `sky` with `of="{{ skies }}"`. `size` for wheel, pump and disc |
 | `<x-shift-lights>` | sixteen rev lights from both ends inwards, blinking at the shift point. Hidden when `shift-style` is `sweep` |
-| `<x-sweep hatch shape="swoop" redline="0.82">` | Gran Turismo's rev band, white with the revs and flashing red to shift. `hatch` draws fine ticks; `shape` is `swoop`, `arc` or `line`; past `redline` (0–1) the lit part is red. Shown only when `shift-style` is `sweep`. Colours: `--sweep-lit`, `--sweep-red` in theme.css |
+| `<x-sweep shape="band" redline="0.82" mark>` | Gran Turismo's rev band, white with the revs and flashing red to shift. `shape` is `band` (a strip of upright ticks on an even curve, cut straight at the ends), `swoop`, `arch`, `arc` or `line`; `hatch` ticks the line shapes; past `redline` (0–1) the lit part is red; `mark` puts a small red arrow at the redline. Under the band, `.sweep-body` can be filled to make it the top edge of a body. Shown only when `shift-style` is `sweep`. Colours: `--sweep-lit`, `--sweep-red` in theme.css |
 | `<x-timeline seconds="5">` | throttle and brake against time |
 | `<x-wheel-dial>` | a ring showing how far the wheel is turned |
 | `<x-trace>` | throttle and brake by lap position against the reference lap |

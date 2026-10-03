@@ -675,6 +675,8 @@ body[data-style="stack"] .wx-wind b { font-size: 22px; }
 .shift-sweep { display: none; width: 100%; height: 26px; flex: none; margin-bottom: 8px; overflow: visible; }
 .shift-sweep path { fill: none; stroke-linecap: round; }
 .shift-sweep .sweep-body { stroke: none; fill: none; }
+.shift-sweep .sweep-band-track { fill: rgba(255, 255, 255, 0.28); }
+.shift-sweep .sweep-band-fill.shift-now { fill: var(--danger); }
 .shift-sweep .sweep-mark { stroke: none; fill: var(--sweep-red, var(--danger)); stroke-dasharray: none !important; }
 .shift-sweep .sweep-edge { stroke: rgba(0, 0, 0, 0.45); stroke-width: 9px; }
 .shift-sweep .sweep-track { stroke: rgba(255, 255, 255, 0.28); stroke-width: 5px; }

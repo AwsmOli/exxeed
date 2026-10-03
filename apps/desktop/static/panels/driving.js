@@ -214,6 +214,31 @@ function markAt(path, x, half) {
   return `M ${pt(tip)} L ${pt([back[0] + side[0], back[1] + side[1]])} L ${pt([back[0] - side[0], back[1] - side[1]])} Z`;
 }
 
+/**
+ * shape="band": Gran Turismo's rev band. A strip about half the block's
+ * height, its top an even curve — highest in the middle, dropping towards
+ * the ends — cut straight down at both ends, with the body under it.
+ */
+function bandGeometry(w, h) {
+  const thick = Math.max(4, Math.round(h * 0.5));
+  const drop = Math.max(0, h - thick - 1);
+  const topAt = (x) => 1 + drop * ((x - w / 2) / (w / 2)) ** 2;
+  const steps = 48;
+  const xs = Array.from({ length: steps + 1 }, (_, i) => (i / steps) * w);
+  const top = xs.map((x) => `${x.toFixed(1)} ${topAt(x).toFixed(1)}`);
+  const under = [...xs].reverse().map((x) => `${x.toFixed(1)} ${(topAt(x) + thick).toFixed(1)}`);
+  return {
+    band: `M ${top.join(" L ")} L ${under.join(" L ")} Z`,
+    body: `M ${top.join(" L ")} L ${w} ${h} L 0 ${h} Z`,
+    /** A small arrowhead just above the band at x, pointing down at it. */
+    markAt(x) {
+      const y = topAt(x) - 1.5;
+      const size = Math.max(4, thick * 0.42);
+      return `M ${x.toFixed(1)} ${y.toFixed(1)} L ${(x - size * 0.8).toFixed(1)} ${(y - size * 1.2).toFixed(1)} L ${(x + size * 0.8).toFixed(1)} ${(y - size * 1.2).toFixed(1)} Z`;
+    },
+  };
+}
+
 function sweepBlock(el) {
   const id = ++sweepIds;
   el.innerHTML = `
@@ -224,9 +249,17 @@ function sweepBlock(el) {
           <stop class="sweep-stop-lit" offset="0" /><stop class="sweep-stop-lit" offset="1" />
           <stop class="sweep-stop-red" offset="1" /><stop class="sweep-stop-red" offset="1" />
         </linearGradient>
+        <pattern id="sweep-ticks-${id}" patternUnits="userSpaceOnUse" x="0" y="0" width="4" height="10">
+          <rect class="sweep-tick" x="0" y="0" width="2" height="10" fill="#ffffff" />
+        </pattern>
+        <mask id="sweep-mask-${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="0" height="0">
+          <path class="sweep-band-shape" style="fill:url(#sweep-ticks-${id});stroke:none" />
+        </mask>
       </defs>
       <path class="sweep-body" /><path class="sweep-edge" /><path class="sweep-track" />
       <path class="sweep-fill" clip-path="url(#sweep-reveal-${id})" stroke="url(#sweep-lit-${id})" />
+      <rect class="sweep-band-track" mask="url(#sweep-mask-${id})" />
+      <rect class="sweep-band-fill" mask="url(#sweep-mask-${id})" clip-path="url(#sweep-reveal-${id})" fill="url(#sweep-lit-${id})" />
       <path class="sweep-mark" />
     </svg>`;
   const svg = el.firstElementChild;
@@ -237,8 +270,16 @@ function sweepBlock(el) {
   const body = svg.querySelector(".sweep-body");
   /** The small arrow at the redline (attribute mark). */
   const mark = svg.querySelector(".sweep-mark");
-  const paths = [...svg.querySelectorAll("path:not(.sweep-body):not(.sweep-mark)")];
+  const paths = [...svg.querySelectorAll("path.sweep-edge, path.sweep-track, path.sweep-fill")];
   const fill = svg.querySelector(".sweep-fill");
+  // shape="band": a thick strip of upright ticks instead of a line (Gran Turismo's).
+  const pattern = svg.querySelector("pattern");
+  const tick = svg.querySelector(".sweep-tick");
+  const maskEl = svg.querySelector("mask");
+  const bandShape = svg.querySelector(".sweep-band-shape");
+  const bandTrack = svg.querySelector(".sweep-band-track");
+  const bandFill = svg.querySelector(".sweep-band-fill");
+  let lit = fill;
   let built = "";
   let from = 0;
   let to = 0;
@@ -259,11 +300,36 @@ function sweepBlock(el) {
         built = key;
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
         svg.classList.toggle("hatched", hatch);
-        half = Math.max(...paths.map((p) => parseFloat(getComputedStyle(p).strokeWidth) || 0)) / 2 + 1;
-        const d = sweepPath(shape, w, h, half);
-        for (const p of paths) p.setAttribute("d", d);
-        body.setAttribute("d", `${d} L ${w} ${h} L 0 ${h} Z`);
-        mark.setAttribute("d", el.hasAttribute("mark") && redline < 1 ? markAt(paths[0], half + redline * (w - 2 * half), half) : "");
+        const band = shape === "band";
+        svg.classList.toggle("banded", band);
+        lit = band ? bandFill : fill;
+        if (band) {
+          for (const p of paths) p.setAttribute("d", "");
+          const geo = bandGeometry(w, h);
+          bandShape.setAttribute("d", geo.band);
+          body.setAttribute("d", geo.body);
+          mark.setAttribute("d", el.hasAttribute("mark") && redline < 1 ? geo.markAt(redline * w) : "");
+          for (const r of [bandTrack, bandFill, maskEl]) {
+            r.setAttribute("x", "0");
+            r.setAttribute("y", "0");
+            r.setAttribute("width", String(w));
+            r.setAttribute("height", String(h));
+          }
+          // Upright ticks, about as dense as GT's for the width.
+          const period = Math.max(3.5, w / 115);
+          pattern.setAttribute("width", period.toFixed(2));
+          pattern.setAttribute("height", String(h));
+          tick.setAttribute("width", (period * 0.5).toFixed(2));
+          tick.setAttribute("height", String(h));
+          half = 0;
+        } else {
+          bandShape.setAttribute("d", "");
+          half = Math.max(...paths.map((p) => parseFloat(getComputedStyle(p).strokeWidth) || 0)) / 2 + 1;
+          const d = sweepPath(shape, w, h, half);
+          for (const p of paths) p.setAttribute("d", d);
+          body.setAttribute("d", `${d} L ${w} ${h} L 0 ${h} Z`);
+          mark.setAttribute("d", el.hasAttribute("mark") && redline < 1 ? markAt(paths[0], half + redline * (w - 2 * half), half) : "");
+        }
         from = half;
         to = w - half;
         reveal.setAttribute("y", "-1000");
@@ -282,8 +348,8 @@ function sweepBlock(el) {
       // At the shift point the whole line takes over: full, red, and blinking
       // hard enough to catch in the corner of an eye.
       const flash = shifting && Math.floor(performance.now() / 55) % 2 === 0;
-      fill.classList.toggle("shift-now", shifting);
-      fill.style.visibility = shifting && !flash ? "hidden" : "";
+      lit.classList.toggle("shift-now", shifting);
+      lit.style.visibility = shifting && !flash ? "hidden" : "";
     },
   };
 }
@@ -334,7 +400,7 @@ registerBlock(
     summary:
       "Gran Turismo's rev line: a curve that fills white with the revs and flashes red from the shift point. Shown only when the theme's shift-style is sweep.",
     attributes: {
-      shape: "swoop (default, rising to the right) | arch (flat, the ends bending down — Gran Turismo's) | arc | line",
+      shape: "swoop (default, rising to the right) | band (Gran Turismo's: a thick strip of upright ticks on an even curve) | arch | arc | line",
       hatch: "fine ticks instead of a solid line, as Gran Turismo's rev band",
       redline: "0–1: how far along the lit part turns red; 1 (default) for never",
       mark: "a small arrow at the redline, pointing at the band, as Gran Turismo's",
