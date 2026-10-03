@@ -172,6 +172,22 @@ async function addMedia(deps: PublishDeps, sender: WebContents, kind: "icon" | "
     throw new Error(`a page has at most ${MAX_SCREENSHOTS} screenshots`);
   }
 
+  const picked = await pickImage(sender, kind);
+  if (picked === null) return state(deps);
+  await uploadMedia(client, link.itemId, kind, picked.bytes, picked.type);
+  checkUpdatesNow();
+  return state(deps);
+}
+
+/**
+ * Ask for an image file and re-encode it for a content page: shrunk to the
+ * page's size and stripped of whatever metadata it carried. Null when the
+ * dialog was cancelled. Shared by callout packs and themes.
+ */
+export async function pickImage(
+  sender: WebContents,
+  kind: "icon" | "screenshot",
+): Promise<{ bytes: Uint8Array; type: "image/png" | "image/jpeg" } | null> {
   const window = BrowserWindow.fromWebContents(sender);
   const options = {
     title: kind === "icon" ? "Choose an icon" : "Choose a screenshot",
@@ -180,7 +196,7 @@ async function addMedia(deps: PublishDeps, sender: WebContents, kind: "icon" | "
   };
   const picked = window === null ? await dialog.showOpenDialog(options) : await dialog.showOpenDialog(window, options);
   const path = picked.filePaths[0];
-  if (picked.canceled || path === undefined) return state(deps);
+  if (picked.canceled || path === undefined) return null;
 
   let image = nativeImage.createFromPath(path);
   if (image.isEmpty()) throw new Error("that file is not an image this app can read");
@@ -195,10 +211,7 @@ async function addMedia(deps: PublishDeps, sender: WebContents, kind: "icon" | "
     type = "image/jpeg";
   }
   if (bytes.byteLength > MAX_BYTES) throw new Error("that image is too large even after shrinking it");
-
-  await uploadMedia(client, link.itemId, kind, bytes, type);
-  checkUpdatesNow();
-  return state(deps);
+  return { bytes, type };
 }
 
 async function deleteMedia(deps: PublishDeps, mediaId: string): Promise<PublishState> {

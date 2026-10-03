@@ -18,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 
 import { classOf, deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
 import {
@@ -27,6 +27,15 @@ import {
   ENGINE_EVENT_CHANNEL,
   MAP_CHANNEL,
   OVERLAY_PROFILE_COMMAND_CHANNEL,
+  BUILTIN_THEMES,
+  PANEL_PARTS,
+  PANEL_SETTINGS_CHANNEL,
+  PANEL_SETTINGS_GET_CHANNEL,
+  PANEL_STYLES,
+  type PanelSettingsMessage,
+  THEME_CHANNEL,
+  THEME_GET_CHANNEL,
+  themeView,
   OVERLAY_PROFILES_CHANGED_CHANNEL,
   RACE_CHANNEL,
   REFERENCE_CHANNEL,
@@ -52,6 +61,7 @@ import {
   isIRacingSupported,
   NdjsonRecorder,
   ReplayAdapter,
+  slug,
   toTickInput,
   type DashState,
   type SessionIdentity,
@@ -64,7 +74,12 @@ import { audioKey, countForCombo, LocalContentIndex, localRepositories, type Tra
 import { buildApplicationMenu } from "./menu.js";
 import { FULLSCREEN_WARNING, isOverlayWindow, OverlayLayout, sendTo } from "./overlay.js";
 import { OverlayProfileStore } from "./overlay-profiles.js";
-import { startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
+import { sampleDash, sampleRaceSnapshot, startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
+import { ReferenceLapSource, type TestLap } from "./test-lap.js";
+import { installThemeContentIpc } from "./theme-content.js";
+import { ThemeStore } from "./theme-store.js";
+import { dataPath, REPO_ROOT, RESOURCES_ROOT } from "./paths.js";
+import { rememberWindow, windowBounds } from "./window-state.js";
 import { createManualNoteSet, installEditorIpc, openEditor, requestRender } from "./editor.js";
 import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
 import { cloudClient, installAccount, onAccountChange } from "./account.js";
@@ -97,18 +112,29 @@ const RACE_INTERVAL_MS = 200;
 // the package name, which is where the overlay's remembered position lives.
 app.setName("Exxeed");
 
-// fileURLToPath leaves a trailing separator on a directory URL, which every use
-// below then doubles up on ("...\exxeed\/data"). Harmless to fs, but these paths
-// get printed.
-const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url)).replace(/[\\/]+$/, "");
-const FIXTURE = `${REPO_ROOT}/packages/telemetry/test/fixtures/synthetic-3laps.ndjson`;
+// Windows groups windows, pins and notifications by this id; without it an
+// installed app shows as "Electron" and its pinned shortcut opens a second icon.
+if (process.platform === "win32") app.setAppUserModelId("com.blkpixel.exxeed");
+
+// One copy at a time. A second launch — the Start-menu shortcut clicked while
+// the app is already in the tray — would otherwise open a second set of
+// overlays fighting the first over the sim. It hands over to the first copy,
+// which shows its window, and quits.
+const firstInstance = app.requestSingleInstanceLock();
+if (!firstInstance) app.quit();
+
+// The built-in test lap: the repo's fixture from source, a copy in the app's
+// resources when installed (electron-builder.mjs puts it there).
+const FIXTURE = app.isPackaged
+  ? join(RESOURCES_ROOT, "fixtures", "synthetic-3laps.ndjson")
+  : `${REPO_ROOT}/packages/telemetry/test/fixtures/synthetic-3laps.ndjson`;
 
 /**
  * The one recordings folder. Deliberately not under the chosen data folder:
  * a recording is what this machine drove, not part of a note set's data, and
  * pointing the data folder at data/demo must not hide the laps.
  */
-const RECORDINGS_DIR = `${REPO_ROOT}/data/recordings`;
+const RECORDINGS_DIR = dataPath("recordings");
 
 /**
  * A replay setting names a file inside the recordings folder. An absolute path
@@ -187,12 +213,55 @@ function createSource(): TelemetrySource {
 
   if (testMode) {
     const chosen = debugEnabled() ? debug.replayPath : null;
-    return chosen !== null
-      ? new ReplayAdapter(resolveReplayPath(chosen), { speed: debug.replaySpeed, loop: debug.loopReplay })
-      : new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: true });
+    if (chosen !== null) {
+      return new ReplayAdapter(resolveReplayPath(chosen), { speed: debug.replaySpeed, loop: debug.loopReplay });
+    }
+    // A pack's own reference lap round its own track, so the callouts, the map
+    // and the delta all agree (test-lap.ts). The built-in lap only when there
+    // is no pack with a reference lap to drive.
+    return new ReferenceLapSource(
+      loadTestLap,
+      () => new ReplayAdapter(FIXTURE, { speed: debug.replaySpeed, loop: true }),
+    );
   }
   if (isIRacingSupported()) return new IRacingAdapter({ hz: 60 });
   throw new Error("iRacing runs on Windows only — use Test mode to replay a lap here");
+}
+
+/**
+ * What test mode drives: the pinned pack's reference lap, or failing that the
+ * first pack that has a map and a reference lap. Null when no pack has both.
+ */
+async function loadTestLap(): Promise<TestLap | null> {
+  const current = settings().get();
+  const repos = localRepositories(resolveDataDir(current));
+  const ids = current.noteSetId !== null ? [current.noteSetId] : [];
+  for (const summary of await repos.noteSets.listAll()) if (!ids.includes(summary.id)) ids.push(summary.id);
+
+  for (const id of ids) {
+    const noteSet = await repos.noteSets.get(id);
+    if (noteSet === null) continue;
+    const version = await repos.trackMaps.latestVersion(noteSet.trackKey);
+    if (version === null) continue;
+    const map = await repos.trackMaps.get({ ...noteSet.trackKey, mapVersion: version });
+    const carId = current.carId ?? (await repos.referenceLaps.listCars(noteSet.trackKey))[0];
+    if (map === null || carId === undefined) continue;
+    const reference = await repos.referenceLaps.get(noteSet.trackKey, carId);
+    if (reference === null) continue;
+    return {
+      reference,
+      lengthM: noteSet.lengthM,
+      identity: {
+        trackKey: noteSet.trackKey,
+        trackId: slug(map.trackName),
+        trackName: map.trackName,
+        trackConfig: map.configName ?? "",
+        carId,
+        carName: carId,
+      },
+    };
+  }
+  return null;
 }
 
 /** `sim:trackId:configId` — the key `noteSetByTrack` remembers a choice under. */
@@ -444,6 +513,7 @@ let sessionStatus: SessionStatus = {
   libraryBusy: null,
   contentHint: null,
   testMode: false,
+  showWelcome: false,
 };
 
 /** A long library operation in progress (library.ts), shown in Track Coach. */
@@ -550,6 +620,7 @@ function broadcastStatus(patch: Partial<SessionStatus>): void {
     remoteMine: remoteMinePacks(),
     libraryBusy,
     testMode,
+    showWelcome: !current.welcomed,
   };
   currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
   controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
@@ -617,7 +688,10 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   // Before anything reads the track from disk: fetch its map if someone has
   // already shared one, so this session has a map from the first lap and the
   // auto-mapper does not cut a competing one.
-  await syncBeforeSession(resolveDataDir(settings().get()), identity, (line) => process.stdout.write(line));
+  // Not in test mode: nothing was driven, so there is nothing to report or fetch for.
+  if (!testMode) {
+    await syncBeforeSession(resolveDataDir(settings().get()), identity, (line) => process.stdout.write(line));
+  }
   if (token !== loopToken) {
     await source.close();
     return;
@@ -676,7 +750,8 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   // a driver should never have to know to switch it on before the lap that
   // mattered.
   const mapped = await haveTrackData(identity, resolveDataDir(settings().get()));
-  const recorder = mapped
+  // Test mode replays a lap rather than driving one: nothing new to keep.
+  const recorder = mapped || testMode
     ? null
     : new NdjsonRecorder(recordingPath(identity), {
         startedAt: new Date().toISOString(),
@@ -686,7 +761,9 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
 
   process.stdout.write(
     recorder === null
-      ? `not recording — ${describeIdentity(identity)} is already mapped\n`
+      ? testMode
+        ? "not recording — test mode replays a lap\n"
+        : `not recording — ${describeIdentity(identity)} is already mapped\n`
       : `recording ${describeIdentity(identity)} -> ${recorder.path}\n`,
   );
 
@@ -804,14 +881,34 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
       if (!surfaces.alive()) break;
       surfaces.broadcast(
         STATE_FRAME_CHANNEL,
-        toStateFrame(frame, source.name, session, suppressedBy, lapElapsedS, source.dash?.() ?? null),
+        toStateFrame(
+          frame,
+          source.name,
+          session,
+          suppressedBy,
+          lapElapsedS,
+          // A recording has no revs or force feedback; test mode makes them up
+          // so the shift lights and FFB bar are not dead.
+          source.dash?.() ?? (testMode ? sampleDash(frame.speedMps, frame.brake) : null),
+        ),
       );
 
-      // The race around the car, on its own slower clock. Only a source that
-      // has it sends it — a replay has none, and the race panels say so.
+      // The race around the car, on its own slower clock.
       if (frame.tMs - raceSentAt >= RACE_INTERVAL_MS || frame.tMs < raceSentAt) {
         raceSentAt = frame.tMs;
-        const snapshot = source.race?.() ?? null;
+        // A recording holds one car. In test mode a made-up field is put
+        // around it, so Standings, Relatives, Radar, Fuel, Tyres and Weather
+        // have something to show — the point of test mode is seeing everything.
+        const snapshot =
+          source.race?.() ??
+          (testMode
+            ? sampleRaceSnapshot({
+                elapsedS: frame.tMs / 1000,
+                lapS: session?.reference?.lapTimeS ?? 100,
+                trackLengthM: session?.noteSet.lengthM ?? session?.mapView?.lengthM ?? 4000,
+                playerDistance: frame.lap + frame.lapDistPct,
+              })
+            : null);
         if (snapshot !== null) {
           surfaces.broadcast(RACE_CHANNEL, raceView.build(snapshot));
           raceShown = true;
@@ -954,6 +1051,27 @@ function syncOverlayPreview(): void {
   }
 }
 
+let themeStore: ThemeStore | null = null;
+/**
+ * The custom themes, read on first use and watched from then on: a save from
+ * any editor restyles the open overlays and refreshes the picker.
+ */
+function themes(): ThemeStore {
+  themeStore ??= new ThemeStore(() => {
+    overlayLayout?.broadcast(THEME_CHANNEL, themeView(themes().find(settings().get().overlayTheme)));
+    broadcastProfiles();
+  });
+  return themeStore;
+}
+
+/** Wear a theme: remembered, sent to the open overlays (never a restart), shown in the picker. */
+function applyTheme(id: string): void {
+  const theme = themes().find(id);
+  settings().updateQuietly({ overlayTheme: theme.id });
+  overlayLayout?.broadcast(THEME_CHANNEL, themeView(theme));
+  broadcastProfiles();
+}
+
 /** What the Overlays section of the control window shows. */
 function overlayProfilesView(): OverlayProfilesView {
   return {
@@ -962,6 +1080,19 @@ function overlayProfilesView(): OverlayProfilesView {
     editing: overlayEditingActive,
     debugEnabled: debugEnabled(),
     hideWhenSimUnfocused: settings().get().hideOverlaysWhenSimUnfocused,
+    themes: [
+      ...BUILTIN_THEMES.map(({ id, name, description }) => ({ id, name, description, custom: false, problems: [] })),
+      ...themes().list().map(({ theme, problems }) => ({
+        id: theme.id,
+        name: theme.name,
+        description: theme.description,
+        custom: true,
+        problems,
+      })),
+    ],
+    themeId: themes().find(settings().get().overlayTheme).id,
+    panelParts: PANEL_PARTS,
+    panelStyles: PANEL_STYLES,
   };
 }
 
@@ -1201,11 +1332,11 @@ function openControlWindow(): void {
   }
 
   const window = new BrowserWindow({
-    width: 620,
-    height: 580,
+    ...windowBounds("control", { width: 620, height: 580 }),
     title: "Exxeed",
     webPreferences: { preload: PRELOAD, contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
+  rememberWindow("control", window);
 
   controlWindow = window;
 
@@ -1462,7 +1593,12 @@ app.on("browser-window-created", (_event, window) => {
   later();
 });
 
+app.on("second-instance", () => {
+  if (app.isReady()) showControlWindow();
+});
+
 void app.whenReady().then(() => {
+  if (!firstInstance) return;
   store = new SettingsStore();
   // Seeds the Default profile the first time this installs, or when migrating
   // from a version that had no profiles yet (§ `overlay-profiles.ts`).
@@ -1488,6 +1624,7 @@ void app.whenReady().then(() => {
   installAccount();
   installEditorIpc(() => settings().get(), resolveDataDir);
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
+  installThemeContentIpc({ themes, getSettings: () => settings().get(), apply: applyTheme });
   installContentIpc({ getSettings: () => settings().get(), resolveDataDir });
   installLapImport({
     getSettings: () => settings().get(),
@@ -1561,6 +1698,9 @@ void app.whenReady().then(() => {
     else if (command.kind === "autoStart") {
       settings().updateQuietly({ autoStart: command.value });
       broadcastStatus({});
+    } else if (command.kind === "welcomed") {
+      settings().updateQuietly({ welcomed: true });
+      broadcastStatus({});
     } else if (command.kind === "startMinimized") {
       settings().updateQuietly({ startMinimized: command.value });
       broadcastStatus({});
@@ -1609,6 +1749,14 @@ void app.whenReady().then(() => {
     }
   });
 
+  // An overlay window asks what its panel shows as it loads; changes arrive on PANEL_SETTINGS_CHANNEL.
+  ipcMain.handle(PANEL_SETTINGS_GET_CHANNEL, (_event, panel: unknown) =>
+    typeof panel === "string" && isPanelId(panel) ? profileStore().settingsOf(profileStore().activeId, panel) : null,
+  );
+
+  // An overlay window asks what to wear as it loads; changes arrive on THEME_CHANNEL.
+  ipcMain.handle(THEME_GET_CHANNEL, () => themeView(themes().find(settings().get().overlayTheme)));
+
   // Renderer → main: the Overlays section of the control window.
   ipcMain.on(OVERLAY_PROFILE_COMMAND_CHANNEL, (_event, raw: unknown) => {
     const command = raw as OverlayProfileCommand;
@@ -1649,6 +1797,43 @@ void app.whenReady().then(() => {
       settings().updateQuietly({ hideOverlaysWhenSimUnfocused: command.value });
       syncOverlayVisibility();
       broadcastProfiles();
+    } else if (command.kind === "setPanelPart" || command.kind === "setPanelStyle") {
+      // Live, like a theme: the open overlay shows or hides the part itself.
+      const next = profileStore().setSettings(command.id, command.panel, (current) =>
+        command.kind === "setPanelStyle"
+          ? { ...current, style: command.style }
+          : {
+              ...current,
+              hidden: command.shown
+                ? current.hidden.filter((h) => h !== command.part)
+                : [...current.hidden, command.part],
+            },
+      );
+      if (command.id === profileStore().activeId) {
+        const message: PanelSettingsMessage = { panel: command.panel, settings: next };
+        overlayLayout?.broadcast(PANEL_SETTINGS_CHANNEL, message);
+      }
+      broadcastProfiles();
+    } else if (command.kind === "setTheme") {
+      // Live: the open overlays restyle themselves. Never a restart — they
+      // hold decoded audio and the reference arrays.
+      applyTheme(command.id);
+    } else if (command.kind === "newTheme") {
+      // A copy of what is on screen now, selected and opened: the quickest way
+      // to a theme is changing one that already works.
+      const id = themes().create(themes().find(settings().get().overlayTheme), command.name.trim() || "My theme");
+      applyTheme(id);
+    } else if (command.kind === "editTheme") {
+      // Shown in its folder, not opened: handing a .json to whatever app the
+      // system picks is how an editor ended up crashing. The app's own editor
+      // (the Edit button) is the way to change it.
+      if (themes().isCustom(command.id)) shell.showItemInFolder(themes().pathOf(command.id));
+    } else if (command.kind === "deleteTheme") {
+      themes().remove(command.id);
+      // Falls back to the default if the deleted one was in use.
+      applyTheme(settings().get().overlayTheme);
+    } else if (command.kind === "openThemesFolder") {
+      void shell.openPath(themes().dir);
     }
   });
 

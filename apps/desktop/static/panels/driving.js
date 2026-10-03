@@ -9,7 +9,7 @@ import { $, alpha, areaLine, COLORS, deltaClass, fit, html, kph, pctDelta, sampl
 
 const gearText = (g) => (g === -1 ? "R" : g === 0 ? "N" : typeof g === "number" ? String(g) : "–");
 const pctText = (v) => String(Math.round((v ?? 0) * 100)).padStart(2, "0");
-const font = () => getComputedStyle(document.body).fontFamily;
+const font = () => COLORS.font;
 
 // ---------------------------------------------------------------------------
 // Shared pieces.
@@ -41,8 +41,8 @@ function drawTimeline(canvas, timeline) {
   const pts = timeline.filter((p) => now - p.t <= TIMELINE_S * 1000);
   const x = (t) => w - ((now - t) / (TIMELINE_S * 1000)) * w;
   const y = (v) => bottom - v * (bottom - top);
-  areaLine(ctx, pts.map((p) => [x(p.t), y(p.throttle)]), top, bottom, COLORS.mint, 0.3, 2.2 * r);
-  areaLine(ctx, pts.map((p) => [x(p.t), y(p.brake)]), top, bottom, COLORS.red, 0.3, 2.2 * r);
+  areaLine(ctx, pts.map((p) => [x(p.t), y(p.throttle)]), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
+  areaLine(ctx, pts.map((p) => [x(p.t), y(p.brake)]), top, bottom, COLORS.brake, 0.3, 2.2 * r);
 }
 
 function pedal(label, colour, knob) {
@@ -73,18 +73,18 @@ export function inputs() {
     <div class="panel">
       <div class="card grow">
         <div class="inputs-body">
-          <div class="graph"><canvas class="fill"></canvas></div>
-          <div class="pedals">
+          <div class="graph" data-part="graph"><canvas class="fill"></canvas></div>
+          <div class="pedals" data-part="pedals">
             ${pedal("clutch", COLORS.blue, false)}
-            ${pedal("brake", COLORS.red, false)}
-            ${pedal("throttle", COLORS.mint, false)}
+            ${pedal("brake", "var(--brake)", false)}
+            ${pedal("throttle", "var(--throttle)", false)}
           </div>
-          <div class="sep"></div>
-          <div class="speedo" style="align-items:center">
+          <div class="sep" data-part="speed"></div>
+          <div class="speedo" style="align-items:center" data-part="speed">
             <div class="line"><span class="lg n" data-k="speed">0</span><span class="u">KM/H</span></div>
             <div class="line good"><span class="xl n" data-k="gear" style="font-weight:600">N</span>${gearbox()}</div>
           </div>
-          <div class="wheel" data-k="wheel">${wheel(44)}</div>
+          <div class="wheel" data-k="wheel" data-part="wheel">${wheel(44)}</div>
         </div>
       </div>
     </div>`);
@@ -116,8 +116,8 @@ export function inputs() {
 // reference's, force feedback, and the wheel in a dial.
 // ---------------------------------------------------------------------------
 
-/** Outer to inner: the colour a shift light takes as the revs climb. */
-const SHIFT_COLOURS = ["#2ee88f", "#5de85a", "#9fe24a", "#d9e33a", "#f2d23a", "#ffae2e", "#ff7a26", "#ff4a22"];
+// The shift lights' colours, outer to inner, are COLORS.shift (util.js): the
+// theme's own ramp, and its glow.
 
 function drawDial(canvas, f) {
   const c = fit(canvas);
@@ -156,26 +156,75 @@ function drawDial(canvas, f) {
   ctx.restore();
 }
 
+/**
+ * The shift lights, from both ends inwards: how many are lit from the revs
+ * against the car's shift points, and all of them blinking past the blink point.
+ * Shared by Input Telemetry's row and the Rev Lights overlay.
+ */
+function drawShiftLights(lights, s) {
+  const sl = s.race?.shiftLights ?? null;
+  const rpm = s.frame?.rpm ?? null;
+  let lit = 0;
+  let blink = false;
+  if (sl !== null && rpm !== null && sl.shiftRpm > sl.firstRpm) {
+    lit = Math.max(0, Math.min(8, Math.ceil(((rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm)) * 8)));
+    blink = rpm >= sl.blinkRpm && Math.floor(performance.now() / 90) % 2 === 0;
+  }
+  lights.forEach((light, i) => {
+    const j = i < 8 ? i : 15 - i;
+    const on = blink || j < lit;
+    const colour = blink ? COLORS.shiftBlink : COLORS.shift[j];
+    light.style.background = on ? colour : "";
+    light.style.boxShadow = on && COLORS.glow > 0 ? `0 0 ${COLORS.glow}px ${alpha(colour, 0.6)}` : "";
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Rev lights on their own, to put wherever the eye already is — above the
+// mirror, beside the dash — rather than wherever Input Telemetry sits.
+// ---------------------------------------------------------------------------
+
+export function revlights() {
+  const el = html(`
+    <div class="panel">
+      <div class="card grow revlights-card">
+        <div class="shift">${"<i></i>".repeat(16)}</div>
+      </div>
+      <div class="empty">waiting for the sim</div>
+    </div>`);
+  const lights = [...el.querySelectorAll(".shift i")];
+
+  return {
+    el,
+    draw(s) {
+      // The shift points come with the race data: without them there is
+      // nothing to light the row against.
+      el.classList.toggle("is-empty", s.race?.shiftLights == null);
+      drawShiftLights(lights, s);
+    },
+  };
+}
+
 export function pedals() {
   const el = html(`
     <div class="panel tab-wrap">
-      <div class="tab n" data-k="delta">—</div>
+      <div class="tab n" data-k="delta" data-part="delta">—</div>
       <div class="card grow">
-        <div class="shift">${"<i></i>".repeat(16)}</div>
+        <div class="shift" data-part="revlights">${"<i></i>".repeat(16)}</div>
         <div class="inputs-body">
-          <div class="graph"><canvas class="fill" data-k="graph"></canvas></div>
-          <div class="pedals">
-            ${pedal("brake", "linear-gradient(0deg,#ff3c22,#ff6a4a)", true)}
-            ${pedal("throttle", "linear-gradient(0deg,#2ee88f,#6af0ae)", true)}
+          <div class="graph" data-part="graph"><canvas class="fill" data-k="graph"></canvas></div>
+          <div class="pedals" data-part="pedals">
+            ${pedal("brake", "linear-gradient(0deg,var(--brake),color-mix(in srgb,var(--brake) 78%,white))", true)}
+            ${pedal("throttle", "linear-gradient(0deg,var(--throttle),color-mix(in srgb,var(--throttle) 70%,white))", true)}
           </div>
           <div class="speedo">
             <div class="line good"><span class="xl n" data-k="speed">0</span><span class="u">km/h</span>
               <span class="gear good">${gearbox()}<span class="xl n" data-k="gear">N</span></span></div>
-            <div class="line ref"><span class="xl n" data-k="rspeed">—</span><span class="u">km/h</span>
+            <div class="line ref" data-part="reference"><span class="xl n" data-k="rspeed">—</span><span class="u">km/h</span>
               <span class="gear">${gearbox()}<span class="xl n" data-k="rgear">–</span></span></div>
-            <div class="ffb">FF<div class="pill-h"><i data-k="ffb" style="background:rgba(255,255,255,0.75)"></i></div></div>
+            <div class="ffb" data-part="ffb">FF<div class="pill-h"><i data-k="ffb" style="background:rgba(255,255,255,0.75)"></i></div></div>
           </div>
-          <div class="wheel" style="position:relative;width:64px;height:64px">
+          <div class="wheel" style="position:relative;width:64px;height:64px" data-part="wheel">
             <canvas class="fill" data-k="dial"></canvas>
             <div data-k="wheel" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">${wheel(30)}</div>
           </div>
@@ -210,21 +259,7 @@ export function pedals() {
       k("ffb").style.width = `${Math.round(Math.max(0, Math.min(1, f?.ffb ?? 0)) * 100)}%`;
       k("wheel").style.transform = `rotate(${wheelDeg(f)}deg)`;
 
-      // Shift lights, from both ends inwards.
-      const sl = s.race?.shiftLights ?? null;
-      const rpm = f?.rpm ?? null;
-      let lit = 0;
-      let blink = false;
-      if (sl !== null && rpm !== null && sl.shiftRpm > sl.firstRpm) {
-        lit = Math.max(0, Math.min(8, Math.ceil(((rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm)) * 8)));
-        blink = rpm >= sl.blinkRpm && Math.floor(performance.now() / 90) % 2 === 0;
-      }
-      lights.forEach((light, i) => {
-        const j = i < 8 ? i : 15 - i;
-        const on = blink || j < lit;
-        light.style.background = on ? (blink ? "#ff3c22" : SHIFT_COLOURS[j]) : "";
-        light.style.boxShadow = on ? `0 0 6px ${alpha(blink ? "#ff3c22" : SHIFT_COLOURS[j], 0.6)}` : "";
-      });
+      drawShiftLights(lights, s);
 
       drawTimeline(k("graph"), s.timeline);
       drawDial(k("dial"), f);
@@ -360,7 +395,7 @@ export function trace() {
       const y = (v) => bottom - v * (bottom - top);
       chrome(ctx, w, h, r, "THROTTLE/BRAKE · %", [["100", y(1)], ["50", y(0.5)], ["0", y(0)]], s.map?.lengthM ?? s.race?.trackLengthM ?? null, here);
 
-      ctx.strokeStyle = "rgba(255,159,28,0.8)";
+      ctx.strokeStyle = alpha(COLORS.orange, 0.8);
       ctx.lineWidth = 1.2 * r;
       ctx.setLineDash([3 * r, 3 * r]);
       for (const p of ref.brakeOnsetPcts) {
@@ -376,12 +411,12 @@ export function trace() {
       const brk = referenceSplit(ref.brake, ref.gridSize, here, x, y);
       // Ahead: the reference is all there is, drawn as a dim version of the
       // live colours. Behind: a thin ghost under your own trace.
-      areaLine(ctx, thr.ahead, top, bottom, alpha(COLORS.mint, 0.45), 0.14, 1.4 * r);
-      areaLine(ctx, brk.ahead, top, bottom, alpha(COLORS.red, 0.5), 0.16, 1.4 * r);
+      areaLine(ctx, thr.ahead, top, bottom, alpha(COLORS.throttle, 0.45), 0.14, 1.4 * r);
+      areaLine(ctx, brk.ahead, top, bottom, alpha(COLORS.brake, 0.5), 0.16, 1.4 * r);
       areaLine(ctx, thr.behind, top, bottom, "rgba(255,255,255,0.28)", 0, 1 * r);
       areaLine(ctx, brk.behind, top, bottom, "rgba(255,255,255,0.28)", 0, 1 * r);
-      areaLine(ctx, livePoints(s.history, here, x, (p) => p.throttle, y), top, bottom, COLORS.mint, 0.3, 2.2 * r);
-      areaLine(ctx, livePoints(s.history, here, x, (p) => p.brake, y), top, bottom, COLORS.red, 0.32, 2.2 * r);
+      areaLine(ctx, livePoints(s.history, here, x, (p) => p.throttle, y), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
+      areaLine(ctx, livePoints(s.history, here, x, (p) => p.brake, y), top, bottom, COLORS.brake, 0.32, 2.2 * r);
 
       cursor(ctx, x(here), top - 4 * r, bottom, r);
     },

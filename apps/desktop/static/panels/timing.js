@@ -5,7 +5,7 @@
 // and subtracted, which is exact on the pct grid (§4.3) and needs no timing of
 // its own.
 
-import { $, COLORS, deltaClass, fit, html, kph, lapTime, pctDelta, sample, setText, signed } from "./util.js";
+import { $, COLORS, deltaClass, deltaTrend, fit, html, kph, lapTime, pctDelta, sample, setText, signed } from "./util.js";
 
 /** Did the car cross `boundary` between `from` and `to`? Forwards only. */
 const crossed = (from, to, boundary) =>
@@ -29,11 +29,18 @@ export function delta() {
   const el = html(`
     <div class="panel is-empty" style="justify-content:flex-start">
       <div class="delta-track"><i data-k="fill"></i></div>
-      <div class="delta-readout n" data-k="v">0.00</div>
+      <div class="delta-readout n" data-k="v" data-part="number">0.00</div>
+      <div class="delta-dial">
+        <canvas class="fill" data-k="dial"></canvas>
+        <div class="delta-dial-mid" data-part="number"><span class="cap">Delta</span><b class="n" data-k="dv">0.00</b></div>
+      </div>
       <div class="empty">no delta yet — waiting for a timed lap against a reference</div>
     </div>`);
   const value = $(el, '[data-k="v"]');
   const fill = $(el, '[data-k="fill"]');
+  const dial = $(el, '[data-k="dial"]');
+  const dialValue = $(el, '[data-k="dv"]');
+  const trend = deltaTrend();
 
   return {
     el,
@@ -43,14 +50,47 @@ export function delta() {
       if (typeof d !== "number") return;
 
       const k = Math.min(1, Math.abs(d) / DELTA_FULL_S) * 50;
-      const colour = d < 0 ? COLORS.green : COLORS.red;
-      fill.style.left = d < 0 ? `${50 - k}%` : "50%";
+      // Which side and how far say where you are; the colour says which way
+      // it is going (util.js deltaTrend).
+      const colour = trend(d);
+      // Ahead of the reference fills to the right, behind to the left, as the
+      // sim's own bar does.
+      const ahead = d < 0;
+      fill.style.left = ahead ? "50%" : `${50 - k}%`;
       fill.style.width = `${k}%`;
       // Rounded on the outer end only, so the bar reads as growing out of the line.
-      fill.style.borderRadius = d < 0 ? "99px 0 0 99px" : "0 99px 99px 0";
+      fill.style.borderRadius = ahead ? "0 99px 99px 0" : "99px 0 0 99px";
       fill.style.background = colour;
+      // The number says where you are: green ahead, red behind. Only the bar
+      // carries the trend.
       setText(value, signed(d));
       value.className = `delta-readout n ${deltaClass(d)}`;
+
+      // The dial style: a ring that fills clockwise when ahead and
+      // anticlockwise when behind, with the number in the middle.
+      if (s.options.style !== "dial") return;
+      setText(dialValue, signed(d, 3));
+      dialValue.className = `n ${deltaClass(d)}`;
+      const c = fit(dial);
+      if (c === null) return;
+      const { ctx, w, h, r } = c;
+      ctx.clearRect(0, 0, w, h);
+      const R = Math.min(w, h) / 2 - 7 * r;
+      const top = -Math.PI / 2;
+      ctx.lineCap = "round";
+      ctx.lineWidth = 5 * r;
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, R, 0, Math.PI * 2);
+      ctx.stroke();
+      const sweep = Math.min(1, Math.abs(d) / DELTA_FULL_S) * Math.PI * 1.9;
+      ctx.strokeStyle = colour;
+      ctx.shadowColor = colour;
+      ctx.shadowBlur = COLORS.glow * 1.5 * r;
+      ctx.beginPath();
+      ctx.arc(w / 2, h / 2, R, top, ahead ? top + sweep : top - sweep, !ahead);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
     },
   };
 }
@@ -69,7 +109,7 @@ export function sectors() {
         <div class="spread" style="padding:7px 12px"><span class="md">Delta</span><span class="muted">vs Ref</span></div>
         <div data-k="sectors"></div>
       </div>
-      <div class="card">
+      <div class="card" data-part="laps">
         <div class="laps3">
           <span class="cap">Best</span><span class="cap">Last</span><span class="cap">Ref</span>
           <span class="t n" data-k="best">—</span><span class="t n" data-k="last">—</span><span class="t n" data-k="ref">—</span>

@@ -343,6 +343,26 @@ Read §12 (Pitfalls) before writing any code.
 
 [TODO.md](TODO.md) tracks the milestones.
 
+## Building the Windows installer
+
+```sh
+pnpm --filter @exxeed/desktop package        # Windows installer, x64
+pnpm --filter @exxeed/desktop package mac    # an unpacked macOS app, to try the packaged build
+```
+
+The installer lands in `apps/desktop/release/win/Exxeed-Setup-<version>.exe`. It
+builds on a Mac or on Windows: `apps/desktop/scripts/package.mjs` bundles the
+main process with esbuild, stages a plain app with only the two native modules
+(koffi and irsdk-node, installed for Windows whatever machine builds it), and
+hands that to electron-builder for an NSIS installer. Stamping the exe's icon
+uses Wine on a Mac; set `EXXEED_NO_WINE=1` to skip that where Wine is missing.
+Set `EXXEED_VERSION` to version the build. The installer is not code-signed yet,
+so Windows SmartScreen warns on first run ("More info" → "Run anyway").
+
+Installed, the app keeps everything it writes under `%APPDATA%\Exxeed`:
+settings, packs, maps, voices, Piper, recordings and themes. Uninstalling leaves
+that folder, so reinstalling picks up where you were.
+
 ## Development
 
 Requires Node 20+ and pnpm.

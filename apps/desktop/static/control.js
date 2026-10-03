@@ -575,7 +575,7 @@ window.exxeed?.onSessionStatus(render);
 // "Race" and "Car" need the live sim: a replay has no other cars, fuel or
 // tyres to show.
 const PANEL_GROUPS = [
-  ["Driving", ["inputs", "pedals", "trace", "speed", "brake"]],
+  ["Driving", ["inputs", "pedals", "trace", "speed", "brake", "revlights"]],
   ["Timing", ["delta", "sectors", "corners", "reference"]],
   ["Race", ["standings", "relative", "radar"]],
   ["Track", ["map", "minimap"]],
@@ -589,6 +589,7 @@ const PANEL_LABELS = {
   trace: "Input Comparison",
   speed: "Speed Comparison",
   brake: "Brake Indicator",
+  revlights: "Rev Lights",
   delta: "Delta Bar",
   sectors: "Delta Sectors",
   corners: "Corner Analysis",
@@ -647,11 +648,61 @@ function makeNameEditable(span, profile) {
   });
 }
 
+/** Which overlay's options are open, if any: `{ profileId, panel }`. Survives re-renders. */
+let openPanelOptions = null;
+
 function renderOverlayProfiles(view) {
   const list = el("ov-profiles");
   if (!list) return;
 
   el("ov-hide-unfocused").checked = view.hideWhenSimUnfocused;
+
+  // The theme every overlay wears. Rebuilt only when the list changes, so an
+  // open dropdown is not replaced under the pointer.
+  const themes = view.themes ?? [];
+  const select = el("ov-theme");
+  const signature = themes.map((t) => `${t.id}:${t.name}`).join("|");
+  if (select.dataset.signature !== signature) {
+    select.dataset.signature = signature;
+    const option = (t) => {
+      const o = document.createElement("option");
+      o.value = t.id;
+      o.textContent = t.name;
+      return o;
+    };
+    const mine = themes.filter((t) => t.custom);
+    const builtIn = themes.filter((t) => !t.custom).map(option);
+    if (mine.length === 0) {
+      select.replaceChildren(...builtIn);
+    } else {
+      const group = (label, options) => {
+        const g = document.createElement("optgroup");
+        g.label = label;
+        g.append(...options);
+        return g;
+      };
+      select.replaceChildren(group("Built in", builtIn), group("Yours", mine.map(option)));
+    }
+  }
+  select.value = view.themeId;
+  const current = themes.find((t) => t.id === view.themeId);
+  el("ov-theme-desc").textContent = current?.custom
+    ? `${current.description} Edit opens its file; saving it restyles the overlays straight away.`.trim()
+    : (current?.description ?? "");
+  el("ov-theme-edit").hidden = current?.custom !== true;
+  el("ov-theme-delete").hidden = current?.custom !== true;
+  el("ov-theme-publish").hidden = current?.custom !== true;
+  // What is wrong with the file, while it is being edited. The overlays keep
+  // the last version that worked.
+  const problems = current?.problems ?? [];
+  el("ov-theme-problems").hidden = problems.length === 0;
+  el("ov-theme-problems").replaceChildren(
+    ...problems.slice(0, 6).map((p) => {
+      const li = document.createElement("li");
+      li.textContent = p;
+      return li;
+    }),
+  );
 
   const panelIds = view.debugEnabled ? PANEL_ORDER : PANEL_ORDER.filter((p) => p !== "telemetry");
 
@@ -746,10 +797,81 @@ function renderOverlayProfiles(view) {
           sendOverlayCommand({ kind: "setPanels", id: profile.id, panels: chosen });
         });
         label.append(box, document.createTextNode(PANEL_LABELS[id] ?? id));
-        (groups.get(id) ?? panels).append(label);
+
+        // What this overlay shows and how it is built: a gear beside its
+        // checkbox, when it has anything to choose.
+        const parts = view.panelParts?.[id] ?? [];
+        const styles = view.panelStyles?.[id] ?? [];
+        const item = document.createElement("span");
+        item.className = "ov-panel";
+        item.append(label);
+        if (parts.length > 0 || styles.length > 0) {
+          const settings = profile.settings?.[id] ?? { hidden: [], style: null };
+          const changed = settings.hidden.length > 0 || settings.style !== null;
+          const isOpen = openPanelOptions?.profileId === profile.id && openPanelOptions.panel === id;
+          const gear = document.createElement("button");
+          gear.type = "button";
+          gear.className = `ov-gear${isOpen ? " open" : ""}${changed ? " changed" : ""}`;
+          gear.textContent = "⚙";
+          gear.title = `What ${PANEL_LABELS[id] ?? id} shows`;
+          gear.addEventListener("click", () => {
+            openPanelOptions = isOpen ? null : { profileId: profile.id, panel: id };
+            renderOverlayProfiles(view);
+          });
+          item.append(gear);
+        }
+        (groups.get(id) ?? panels).append(item);
       }
 
       li.append(row, panels);
+
+      // The open overlay's options, under the list.
+      if (openPanelOptions?.profileId === profile.id) {
+        const id = openPanelOptions.panel;
+        const parts = view.panelParts?.[id] ?? [];
+        const styles = view.panelStyles?.[id] ?? [];
+        const settings = profile.settings?.[id] ?? { hidden: [], style: null };
+        const box = document.createElement("div");
+        box.className = "ov-options";
+        const title = document.createElement("div");
+        title.className = "ov-options-title";
+        title.textContent = `${PANEL_LABELS[id] ?? id} shows`;
+        box.append(title);
+
+        if (styles.length > 0) {
+          const line = document.createElement("label");
+          line.className = "ov-options-style";
+          const select = document.createElement("select");
+          for (const style of styles) {
+            const o = document.createElement("option");
+            o.value = style.id;
+            o.textContent = style.label;
+            select.append(o);
+          }
+          select.value = settings.style ?? styles[0].id;
+          select.addEventListener("change", () => {
+            sendOverlayCommand({ kind: "setPanelStyle", id: profile.id, panel: id, style: select.value });
+          });
+          line.append(document.createTextNode("Layout"), select);
+          box.append(line);
+        }
+
+        const list = document.createElement("div");
+        list.className = "ov-options-parts";
+        for (const part of parts) {
+          const label = document.createElement("label");
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.checked = !settings.hidden.includes(part.id);
+          check.addEventListener("change", () => {
+            sendOverlayCommand({ kind: "setPanelPart", id: profile.id, panel: id, part: part.id, shown: check.checked });
+          });
+          label.append(check, document.createTextNode(part.label));
+          list.append(label);
+        }
+        box.append(list);
+        li.append(box);
+      }
       return li;
     }),
   );
@@ -759,8 +881,280 @@ el("ov-hide-unfocused").addEventListener("change", (e) => {
   sendOverlayCommand({ kind: "hideWhenSimUnfocused", value: e.target.checked });
 });
 
+el("ov-theme").addEventListener("change", (e) => {
+  sendOverlayCommand({ kind: "setTheme", id: e.target.value });
+});
+el("ov-theme-new").addEventListener("click", () => {
+  const from = el("ov-theme").selectedOptions[0]?.textContent ?? "theme";
+  // Selected once it exists; Edit then opens it.
+  sendOverlayCommand({ kind: "newTheme", name: `My ${from}` });
+});
+
+// -- Editing a theme of your own, in the app ---------------------------------------
+// A plain text box over the theme's JSON file. Every pause in typing saves it,
+// and main applies it, so the overlays are the preview. A file that does not
+// parse keeps the last good version on screen and lists what is wrong.
+
+let editingTheme = null;
+let editSaveTimer = null;
+/** VS Code's editor, once it has loaded (theme-editor.js). Until then, and if it cannot, the text box. */
+let themeEditor = null;
+let themeEditorFailed = false;
+
+const themeText = () => (themeEditor !== null ? themeEditor.getValue() : el("te-text").value);
+const setThemeText = (text) => {
+  el("te-text").value = text;
+  themeEditor?.setValue(text);
+};
+
+function themeTextChanged() {
+  clearTimeout(editSaveTimer);
+  el("te-status").textContent = "…";
+  el("te-status").className = "form-status";
+  editSaveTimer = setTimeout(() => void saveThemeText(), 350);
+}
+
+/** Swap the text box for the real editor, the first time it is wanted. */
+async function ensureThemeEditor() {
+  if (themeEditor !== null || themeEditorFailed) return;
+  try {
+    const [{ createThemeEditor }, schema] = await Promise.all([
+      import("./theme-editor.js"),
+      themeContent({ op: "schema" }),
+    ]);
+    el("te-editor").hidden = false;
+    themeEditor = await createThemeEditor(el("te-editor"), schema, themeTextChanged);
+    themeEditor.setValue(el("te-text").value);
+    el("te-text").hidden = true;
+    themeEditor.focus();
+  } catch (err) {
+    // The text box still works; say why the editor is plain.
+    themeEditorFailed = true;
+    el("te-editor").hidden = true;
+    el("te-text").hidden = false;
+    console.error("theme editor:", err);
+  }
+}
+
+function showThemeProblems(problems) {
+  el("te-problems").hidden = problems.length === 0;
+  el("te-problems").replaceChildren(
+    ...problems.slice(0, 8).map((p) => {
+      const li = document.createElement("li");
+      li.textContent = p;
+      return li;
+    }),
+  );
+  el("te-status").textContent = problems.length === 0 ? "Saved — the overlays are showing it." : "Saved, with problems. A setting with a problem is ignored; a file that is not valid JSON leaves the overlays as they were.";
+  el("te-status").className = `form-status${problems.length === 0 ? "" : " bad"}`;
+}
+
+async function saveThemeText() {
+  if (editingTheme === null) return;
+  try {
+    showThemeProblems(await themeContent({ op: "writeFile", themeId: editingTheme, text: themeText() }));
+  } catch (err) {
+    el("te-status").textContent = err.message;
+    el("te-status").className = "form-status bad";
+  }
+}
+
+el("ov-theme-edit").addEventListener("click", async () => {
+  editingTheme = el("ov-theme").value;
+  el("te-heading").textContent = `Edit ${el("ov-theme").selectedOptions[0]?.textContent ?? "theme"}`;
+  el("te-status").textContent = "";
+  el("te-problems").hidden = true;
+  try {
+    setThemeText(await themeContent({ op: "readFile", themeId: editingTheme }));
+    el("te-text").disabled = false;
+  } catch (err) {
+    setThemeText("");
+    el("te-text").disabled = true;
+    el("te-status").textContent = err.message;
+    el("te-status").className = "form-status bad";
+  }
+  el("theme-edit").showModal();
+  // After the dialog is showing: the editor measures the box it is put in.
+  void ensureThemeEditor();
+});
+el("te-text").addEventListener("input", themeTextChanged);
+// Tab indents, as in an editor, rather than leaving the box.
+el("te-text").addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  e.preventDefault();
+  const box = el("te-text");
+  const at = box.selectionStart;
+  box.setRangeText("  ", at, box.selectionEnd, "end");
+  box.dispatchEvent(new Event("input"));
+});
+el("te-reveal").addEventListener("click", () => {
+  if (editingTheme !== null) sendOverlayCommand({ kind: "editTheme", id: editingTheme });
+});
+el("te-close").addEventListener("click", async () => {
+  clearTimeout(editSaveTimer);
+  await saveThemeText();
+  el("theme-edit").close();
+});
+el("ov-theme-folder").addEventListener("click", () => sendOverlayCommand({ kind: "openThemesFolder" }));
+el("ov-theme-more").addEventListener("click", () => document.dispatchEvent(new CustomEvent("open-themes")));
+
+// -- Publishing a theme of your own (theme-content.ts) ---------------------------
+
+const themeContent = async (request) => {
+  const response = await window.exxeed.themeContent(request);
+  if (!response.ok) throw new Error(response.error);
+  return response.value;
+};
+let publishingTheme = null;
+let themePublishNeedsSignIn = false;
+
+// Signing in while the dialog is closed: the next open reads the new state.
+// Signing in with it open (from another window) refreshes it in place.
+window.exxeed?.onAccountChanged?.(async () => {
+  if (!el("theme-publish").open || publishingTheme === null) return;
+  try {
+    fillThemePublish(await themeContent({ op: "publishState", themeId: publishingTheme }), true);
+  } catch {
+    // Left as it was; the next click says what is wrong.
+  }
+});
+
+const tpStatus = (text, bad = false) => {
+  el("tp-status").textContent = text;
+  el("tp-status").className = `form-status${bad ? " bad" : ""}`;
+};
+
+/** Fill the dialog from what main knows: the item if it was published before, or the theme's own name. */
+function fillThemePublish(state, keepFields = false) {
+  const item = state.item;
+  el("tp-heading").textContent = item?.version ? `Publish v${item.version + 1}` : "Publish theme";
+  el("tp-lead").textContent = !state.signedIn
+    ? "Sign in (top right) to publish."
+    : state.installed
+      ? "This theme is someone else's. Make your own copy with New… to publish it."
+      : state.problems.length > 0
+        ? `Fix the theme file first: ${state.problems[0]}`
+        : item?.version
+          ? "Publishes the theme as it is now as a new version. People who installed it can update."
+          : "Others can find it under Content → Themes, and install it with one click.";
+  if (!keepFields) {
+    el("tp-title").value = item?.title ?? state.themeName;
+    el("tp-summary").value = item?.summary ?? "";
+    el("tp-readme").value = item?.readme ?? "";
+    el("tp-visibility").value = item?.visibility ?? "public";
+    el("tp-changelog").value = "";
+  }
+  // Signed out, the button says so and takes you to sign-in, rather than
+  // sitting there disabled with the reason in small print above.
+  themePublishNeedsSignIn = !state.signedIn;
+  el("tp-publish").textContent = state.signedIn ? "Publish" : "Sign in to publish";
+  el("tp-publish").disabled = state.signedIn && (state.installed || state.problems.length > 0);
+  // Why it cannot be published, where the eye is: beside the button.
+  if (state.signedIn && (state.installed || state.problems.length > 0)) {
+    tpStatus(state.installed ? "This theme is someone else's: use New… to make your own copy." : `Fix the theme file first: ${state.problems[0]}`, true);
+  }
+  el("tp-shots-section").hidden = item === null;
+  el("tp-shots").replaceChildren(
+    ...(item?.screenshots ?? []).map((shot) => {
+      const figure = document.createElement("figure");
+      const img = document.createElement("img");
+      img.src = shot.url;
+      img.alt = "";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "ghost";
+      remove.textContent = "✕";
+      remove.title = "Remove this screenshot";
+      remove.addEventListener("click", async () => {
+        try {
+          fillThemePublish(await themeContent({ op: "removeScreenshot", themeId: publishingTheme, mediaId: shot.id }), true);
+        } catch (err) {
+          tpStatus(err.message, true);
+        }
+      });
+      figure.append(img, remove);
+      return figure;
+    }),
+  );
+}
+
+el("ov-theme-publish").addEventListener("click", async () => {
+  publishingTheme = el("ov-theme").value;
+  tpStatus("");
+  try {
+    fillThemePublish(await themeContent({ op: "publishState", themeId: publishingTheme }));
+    el("theme-publish").showModal();
+  } catch (err) {
+    el("tp-publish").disabled = true;
+    el("theme-publish").showModal();
+    tpStatus(err.message, true);
+  }
+});
+el("tp-close").addEventListener("click", () => el("theme-publish").close());
+el("tp-add-shot").addEventListener("click", async () => {
+  try {
+    fillThemePublish(await themeContent({ op: "addScreenshot", themeId: publishingTheme }), true);
+  } catch (err) {
+    tpStatus(err.message, true);
+  }
+});
+el("tp-publish").addEventListener("click", async () => {
+  if (themePublishNeedsSignIn) {
+    el("theme-publish").close();
+    el("account-btn").click();
+    return;
+  }
+  el("tp-publish").disabled = true;
+  tpStatus("Publishing…");
+  try {
+    const message = await themeContent({
+      op: "publish",
+      themeId: publishingTheme,
+      title: el("tp-title").value,
+      summary: el("tp-summary").value,
+      readme: el("tp-readme").value,
+      visibility: el("tp-visibility").value,
+      changelog: el("tp-changelog").value,
+    });
+    fillThemePublish(await themeContent({ op: "publishState", themeId: publishingTheme }));
+    tpStatus(`${message}. You can add screenshots now.`);
+  } catch (err) {
+    tpStatus(err.message, true);
+    el("tp-publish").disabled = false;
+  }
+});
+el("ov-theme-delete").addEventListener("click", () => {
+  const name = el("ov-theme").selectedOptions[0]?.textContent ?? "this theme";
+  if (window.confirm(`Delete the theme "${name}"? Its file is removed.`)) {
+    sendOverlayCommand({ kind: "deleteTheme", id: el("ov-theme").value });
+  }
+});
+
 el("ov-new").addEventListener("click", () => {
   sendOverlayCommand({ kind: "create", name: "New profile" });
 });
 
 window.exxeed?.onOverlayProfiles(renderOverlayProfiles);
+
+// -- First run ------------------------------------------------------------------
+// The welcome shows once per install, the first time the window has a status
+// to read, and is gone for good once dismissed (Settings.welcomed).
+
+let welcomeShown = false;
+function maybeWelcome(status) {
+  if (welcomeShown || status?.showWelcome !== true) return;
+  welcomeShown = true;
+  el("welcome").showModal();
+}
+const dismissWelcome = () => {
+  el("welcome").close();
+  window.exxeed?.sendSessionCommand({ kind: "welcomed" });
+};
+el("welcome-ok").addEventListener("click", dismissWelcome);
+el("welcome-test").addEventListener("click", () => {
+  dismissWelcome();
+  window.exxeed?.sendSessionCommand({ kind: "testMode", value: true });
+});
+// Escape closes a dialog without its buttons: that counts as read too.
+el("welcome").addEventListener("cancel", () => window.exxeed?.sendSessionCommand({ kind: "welcomed" }));
+window.exxeed?.onSessionStatus(maybeWelcome);

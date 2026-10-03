@@ -170,8 +170,10 @@ const FIELD = [
 ];
 
 const CLASSES = {
-  1: { name: "GT3", color: "#4de95f", estLapS: LAP_DURATION_S },
-  2: { name: "GTP", color: "#00ffdc", estLapS: LAP_DURATION_S / 1.09 },
+  // The colours iRacing gives the first two classes of a multiclass session
+  // (CarClassColor in the SDK): yellow, then blue. Pink, purple and green follow.
+  1: { name: "GT3", color: "#ffda59", estLapS: LAP_DURATION_S },
+  2: { name: "GTP", color: "#33ceff", estLapS: LAP_DURATION_S / 1.09 },
 } as const;
 
 const tyreCorner = (base: number, wear: number): TyreCorner => ({
@@ -180,15 +182,42 @@ const tyreCorner = (base: number, wear: number): TyreCorner => ({
   coldPressureKpa: 172,
 });
 
-function previewSnapshot(elapsedS: number): RaceSnapshot {
-  // Car #12 swings from a few lengths ahead to a few behind and back, so it
-  // spends part of every cycle alongside.
+/** Where the sample field is, and on what track. */
+export interface SampleRaceOptions {
+  /** Seconds the sample has been running, which moves the field. */
+  readonly elapsedS: number;
+  /** A lap of this track, for lap times and gaps. */
+  readonly lapS: number;
+  readonly trackLengthM: number;
+  /**
+   * The player's laps completed plus lap position, when there is a real car to
+   * build the field around (test mode). Omitted, the player laps at `lapS`.
+   */
+  readonly playerDistance?: number;
+}
+
+/**
+ * A made-up race around the player: ten cars in two classes, with fuel, tyres
+ * and weather. For the overlays while arranging them, and for test mode, where
+ * the replayed recording holds one car and nothing else — so Standings,
+ * Relatives, Radar and the car panels would otherwise sit empty.
+ */
+export function sampleRaceSnapshot(options: SampleRaceOptions): RaceSnapshot {
+  const { elapsedS, lapS, trackLengthM } = options;
+  const player = options.playerDistance ?? elapsedS / lapS + 3;
+  // Everyone is placed relative to the player and drifts by their pace. Car
+  // #12 swings from a few lengths ahead to a few behind and back, so it spends
+  // part of every cycle alongside.
   const distance = FIELD.map(
     (f, i) =>
-      (elapsedS / LAP_DURATION_S) * f.pace + f.offset + 3 + (i === 1 ? 0.004 * Math.sin(elapsedS / 5) : 0),
+      player + f.offset + (f.pace - 1) * (elapsedS / lapS) + (i === 1 ? 0.004 * Math.sin(elapsedS / 5) : 0),
   );
   const leader = Math.max(...distance);
   const playerLaps = distance[0]!;
+  const classes = {
+    1: { ...CLASSES[1], estLapS: lapS },
+    2: { ...CLASSES[2], estLapS: lapS / 1.09 },
+  };
 
   return {
     sessionType: "Race",
@@ -199,7 +228,7 @@ function previewSnapshot(elapsedS: number): RaceSnapshot {
     sessionLapsTotal: null,
     playerCarIdx: 0,
     drivers: FIELD.map((f, i) => {
-      const cls = CLASSES[f.classId as 1 | 2];
+      const cls = classes[f.classId as 1 | 2];
       return {
         carIdx: i,
         name: f.name,
@@ -217,7 +246,7 @@ function previewSnapshot(elapsedS: number): RaceSnapshot {
     }),
     cars: FIELD.map((f, i) => {
       const d = distance[i]!;
-      const cls = CLASSES[f.classId as 1 | 2];
+      const cls = classes[f.classId as 1 | 2];
       const inClass = FIELD.map((g, j) => ({ g, d: distance[j]! })).filter((x) => x.g.classId === f.classId);
       const classPos = inClass.filter((x) => x.d > d).length + 1;
       return {
@@ -234,12 +263,12 @@ function previewSnapshot(elapsedS: number): RaceSnapshot {
         inWorld: true,
       };
     }),
-    trackLengthM: LAP_LENGTH_M,
+    trackLengthM,
     sectorStartPcts: [0, 0.34, 0.67],
     fuel: {
-      levelL: Math.max(4, 62 - playerLaps * 2.4),
-      levelPct: Math.max(4, 62 - playerLaps * 2.4) / 100,
-      useLph: 2.4 * (3600 / LAP_DURATION_S),
+      levelL: Math.max(4, 62 - (playerLaps % 20) * 2.4),
+      levelPct: Math.max(4, 62 - (playerLaps % 20) * 2.4) / 100,
+      useLph: 2.4 * (3600 / lapS),
       tankL: 100,
     },
     tyres: {
@@ -262,17 +291,25 @@ function previewSnapshot(elapsedS: number): RaceSnapshot {
     // Car #12 runs alongside for part of every lap, so the radar has
     // something to light up.
     spotter:
-      Math.abs(((distance[1]! - distance[0]!) % 1) * LAP_LENGTH_M) < 5
+      Math.abs(((distance[1]! - distance[0]!) % 1) * trackLengthM) < 5
         ? SPOTTER.left
         : SPOTTER.clear,
     brakeBiasPct: 54.5,
     incidents: 2,
     repairS: 0,
     optionalRepairS: 0,
-    playerLastLapS: LAP_DURATION_S * 1.003,
-    playerBestLapS: LAP_DURATION_S * 0.997,
+    playerLastLapS: lapS * 1.003,
+    playerBestLapS: lapS * 0.997,
   };
 }
+
+/** RPM, clutch and force feedback a recording does not hold, made up from the car's speed and brake. */
+export const sampleDash = (speedMps: number, brake: number): { rpm: number; clutch: number; ffb: number } => ({
+  // Revs climbing through each gear, so the shift lights run.
+  rpm: 4800 + (((speedMps * 3.6) % 45) / 45) * 3000,
+  clutch: 0,
+  ffb: 0.35 + brake * 0.4,
+});
 
 export interface OverlayPreview {
   stop(): void;
@@ -318,10 +355,7 @@ export function startOverlayPreview(send: (channel: string, payload: unknown) =>
       steerRad: radians(-Math.min(1, brake * 1.4) * 0.9 * Math.sign(Math.sin(lapPct * 40) || 1)),
       lat: 0,
       lon: 0,
-      // Revs climbing through each gear, so the shift lights run.
-      rpm: 4800 + ((speed * 3.6) % 45) / 45 * 3000,
-      clutch: 0,
-      ffb: 0.35 + brake * 0.4,
+      ...sampleDash(speed, brake),
       lapElapsedS: seconds(lapS),
       // A gentle side-to-side wander — enough to show the bar move both ways
       // without ever reading as a real, consistent pace difference.
@@ -338,7 +372,18 @@ export function startOverlayPreview(send: (channel: string, payload: unknown) =>
     // would — and so the builder gets exercised on every arrange.
     if (elapsedMs - raceSentAt >= 200) {
       raceSentAt = elapsedMs;
-      send(RACE_CHANNEL, race.build(previewSnapshot(elapsedMs / 1000)));
+      send(
+        RACE_CHANNEL,
+        race.build(
+          sampleRaceSnapshot({
+            elapsedS: elapsedMs / 1000,
+            lapS: LAP_DURATION_S,
+            trackLengthM: LAP_LENGTH_M,
+            // Where the sample car really is, so the field's "You" and the car on the map agree.
+            playerDistance: lap + 3 + lapPct,
+          }),
+        ),
+      );
     }
 
     for (let i = 0; i < CORNERS.length; i++) {

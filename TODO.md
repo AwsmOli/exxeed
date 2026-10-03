@@ -622,14 +622,23 @@ learning state to persist.
 
 ## M6 — Packaging
 
-- [ ] Windows installer
-  Note that `app.isPackaged` is what decides whether debug is on, so packaging is
-  also the first time the off-by-default path gets exercised for real.
-- [ ] First-run flow including the borderless-windowed warning
-  Put it in first-run, not the FAQ. It is the number one support question for every overlay app in existence.
-  Half-done: preferences opens by itself when no note set is chosen, and the
-  warning prints at launch. Neither is a first-run *flow*, and the warning is on
-  stdout where no packaged user will ever see it.
+- [x] Windows installer
+  `pnpm --filter @exxeed/desktop package` → `apps/desktop/release/win/Exxeed-Setup-<version>.exe`
+  (NSIS, x64, per-user, choice of folder, desktop and Start-menu shortcuts).
+  `scripts/package.mjs` bundles the main process with esbuild and installs only
+  the native modules (koffi, irsdk-node) for Windows, so it builds on a Mac.
+  Installed, everything written goes under `%APPDATA%\Exxeed` (`paths.ts`);
+  one copy at a time (a second launch shows the first); Windows app id set.
+  Debug is off when packaged, checked on a packaged macOS build.
+  - [ ] **Try it on the rig**: install, connect to the sim, callouts, overlays,
+    sign-in loopback, Piper install into %APPDATA%. Not yet run on Windows — Electron
+    does not start under Wine, so the Mac build is the only packaged run so far.
+  - [ ] Code signing, so SmartScreen stops warning (needs a certificate)
+  - [ ] Auto-update (electron-updater with a release feed)
+- [x] First-run flow including the borderless-windowed warning
+  A welcome dialog on first launch: borderless windowed (with where to set
+  it), where callouts come from, arranging overlays, and a Try test mode button.
+  Shown once per install (`Settings.welcomed`).
 - [x] Note-set picker UI
   The preferences window (`Cmd/Ctrl+,`), with note set, voice, lead adjust,
   reference car and which overlays to show. Replaced twelve environment variables,

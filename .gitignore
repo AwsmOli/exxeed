@@ -75,3 +75,6 @@ data/profile/*
 
 # Browser libraries copied from node_modules at build time (scripts/vendor.mjs).
 apps/desktop/static/vendor/
+
+# Packaged builds (apps/desktop/scripts/package.mjs)
+apps/desktop/release/

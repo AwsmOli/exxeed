@@ -36,6 +36,8 @@ export interface BrowseQuery {
   readonly sort: BrowseSort;
   readonly limit: number;
   readonly offset: number;
+  /** Callout packs unless said otherwise; `theme` lists overlay themes (M9). */
+  readonly kind?: "callouts" | "theme";
 }
 
 export interface BrowseRow {
@@ -121,7 +123,7 @@ export async function browse(client: CloudClient, query: BrowseQuery): Promise<B
   let request = client
     .from("content_items")
     .select(COLUMNS)
-    .eq("kind", "callouts")
+    .eq("kind", query.kind ?? "callouts")
     .eq("removed", false)
     .not("latest_version", "is", null);
   // The owner id is a uuid from the session, never typed text, so it is safe

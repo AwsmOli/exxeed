@@ -63,7 +63,8 @@ import type { SessionIdentity } from "@exxeed/telemetry";
 import { renderImported } from "./auto-render.js";
 import { readSecrets, writeSecrets, type ImporterSecrets } from "./importer-secrets.js";
 import { describeCorners, readTurnNumbers, writeTurnNumbers } from "./track-knowledge.js";
-import { REPO_ROOT } from "./voices.js";
+import { dataPath } from "./paths.js";
+import { rememberWindow, windowBounds } from "./window-state.js";
 
 const PAGE = fileURLToPath(new URL("../static/importer.html", import.meta.url));
 
@@ -73,7 +74,7 @@ export const IMPORTER_PROGRESS_CHANNEL = "exxeed:importer-progress";
 export const IMPORTER_PRESET_CHANNEL = "exxeed:importer-preset";
 
 /** Beside data/piper, for the same reason: fetched, not authored, and ignored by git. */
-const TOOLS_DIR = `${REPO_ROOT}/data/tools`;
+const TOOLS_DIR = dataPath("tools");
 
 /** A separate session, so the header rewrite below touches nothing else in the app. */
 const PARTITION = "persist:importer";
@@ -650,8 +651,7 @@ export function openImporter(preload: string, preset?: ImporterPreset): BrowserW
   pendingPreset = preset ?? null;
 
   importer = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    ...windowBounds("importer", { width: 1440, height: 900 }),
     title: "Exxeed — Import From YouTube",
     backgroundColor: "#101215",
     webPreferences: {
@@ -662,6 +662,7 @@ export function openImporter(preload: string, preset?: ImporterPreset): BrowserW
       sandbox: false,
     },
   });
+  rememberWindow("importer", importer);
 
   // Links out of the embedded player (the YouTube logo, "watch on YouTube")
   // belong in the browser, not in a new app window.

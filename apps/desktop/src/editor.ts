@@ -56,6 +56,7 @@ import { localRepositories } from "@exxeed/repo";
 import { slug } from "@exxeed/telemetry";
 
 import { toMapView } from "./map-view.js";
+import { rememberWindow, windowBounds } from "./window-state.js";
 
 const PAGE = fileURLToPath(new URL("../static/editor.html", import.meta.url));
 
@@ -550,13 +551,13 @@ export function openEditor(preload: string, options: { readonly reload?: boolean
   }
 
   editor = new BrowserWindow({
-    width: 1360,
-    height: 880,
+    ...windowBounds("editor", { width: 1360, height: 880 }),
     title: "Exxeed — Notes",
     backgroundColor: "#101215",
     webPreferences: { preload, contextIsolation: true, nodeIntegration: false, sandbox: false },
   });
 
+  rememberWindow("editor", editor);
   void editor.loadFile(PAGE);
   editor.once("closed", () => {
     editor = null;

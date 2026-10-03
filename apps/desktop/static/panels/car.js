@@ -24,7 +24,7 @@ function emptyState(el, s) {
 export function fuel() {
   const el = html(`
     <div class="panel is-empty">
-      <div class="titlebar split">
+      <div class="titlebar split" data-part="header">
         <span class="lg"><span data-k="lap">—</span><span class="faint" data-k="of"></span></span>
         <span class="lg n" data-k="clock"></span>
       </div>
@@ -34,8 +34,8 @@ export function fuel() {
           <span class="muted">${pump(18)}</span>
           <span class="md n"><span data-k="left">—</span> laps</span>
         </div>
-        <div class="fuel-bar"><i data-k="bar"></i></div>
-        <div class="predict">
+        <div class="fuel-bar" data-part="bar"><i data-k="bar"></i></div>
+        <div class="predict" data-part="predicted">
           <span class="good">${pump(26)}</span>
           <div style="flex:1">
             <div class="muted" style="font-size:13px">Predicted Fuel / Lap</div>
@@ -43,13 +43,13 @@ export function fuel() {
           </div>
           <div class="r faint" style="font-size:11px">vs max<br><span class="md muted n" data-k="max">—</span></div>
         </div>
-        <div class="usage">
+        <div class="usage" data-part="usage">
           <span class="h">USAGE</span><span class="h c">/LAP</span><span class="h r">ENDS</span>
           <span class="muted">LAST</span><span class="c muted n" data-k="lastL">—</span><span class="r n" data-k="lastE">—</span>
           <span class="muted">AVG</span><span class="c muted n" data-k="avgL">—</span><span class="r n" data-k="avgE">—</span>
           <span class="muted">MAX</span><span class="c muted n" data-k="maxL">—</span><span class="r n" data-k="maxE">—</span>
         </div>
-        <div class="finish">
+        <div class="finish" data-part="finish">
           <div><div class="cap">To finish</div><span class="lg n" data-k="finish">—</span><span class="u">L</span></div>
           <div><span class="lg n" data-k="margin">—</span><span class="u" data-k="marginU"></span></div>
         </div>
@@ -191,7 +191,7 @@ export function weather() {
   const el = html(`
     <div class="panel is-empty">
       <div class="card grow">
-        <div class="spread">
+        <div class="spread" data-part="sky">
           <span class="row-flex md"><span data-k="icon"></span><span data-k="sky">—</span></span>
           <span class="muted" style="font-size:11.5px" data-k="wet"></span>
         </div>
@@ -199,10 +199,10 @@ export function weather() {
           <div class="grid">
             <span class="wx-stat"><span class="muted">${thermometer()}</span><b class="n" data-k="air">—</b><span class="cap">°C air</span></span>
             <span class="wx-stat"><span class="muted">${lanes()}</span><b class="n" data-k="track">—</b><span class="cap">°C track</span></span>
-            <span class="wx-stat"><span class="muted">${droplet()}</span><b class="n" data-k="hum">—</b><span class="cap">% hum</span></span>
-            <span class="wx-stat" data-k="rainRow"><span class="muted">${droplet()}</span><b class="n" data-k="rain">—</b><span class="cap">% rain</span></span>
+            <span class="wx-stat" data-part="humidity"><span class="muted">${droplet()}</span><b class="n" data-k="hum">—</b><span class="cap">% hum</span></span>
+            <span class="wx-stat" data-k="rainRow" data-part="humidity"><span class="muted">${droplet()}</span><b class="n" data-k="rain">—</b><span class="cap">% rain</span></span>
           </div>
-          <div class="wx-wind">
+          <div class="wx-wind" data-part="wind">
             <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
               <circle cx="22" cy="22" r="19" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>
               <path d="M22 1.5l3 4h-6z" fill="#fff"/>

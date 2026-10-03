@@ -40,6 +40,7 @@ import { mkdir } from "node:fs/promises";
 
 import { debugEnabled, type SettingsStore } from "./settings.js";
 import { PIPER_DIR, REPO_ROOT, VOICES_DIR } from "./voices.js";
+import { rememberWindow, windowBounds } from "./window-state.js";
 
 export const PREFERENCES_SHORTCUT = "CommandOrControl+Shift+P";
 
@@ -262,8 +263,7 @@ export function openPreferences(preload: string): BrowserWindow {
   }
 
   preferences = new BrowserWindow({
-    width: 660,
-    height: 780,
+    ...windowBounds("preferences", { width: 660, height: 780 }),
     title: "Exxeed — Preferences",
     backgroundColor: "#101215",
     webPreferences: {
@@ -273,6 +273,7 @@ export function openPreferences(preload: string): BrowserWindow {
       sandbox: false,
     },
   });
+  rememberWindow("preferences", preferences);
 
   void preferences.loadFile(PAGE);
   preferences.once("closed", () => {

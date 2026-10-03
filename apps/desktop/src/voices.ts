@@ -7,15 +7,19 @@
  * and a picker, the same shape as recordings.
  */
 
-import { fileURLToPath } from "node:url";
-
 import type { Settings } from "@exxeed/overlays";
 import { listInstalledVoices, resolvePiper, PIPER_MANUAL_HINT } from "@exxeed/tts";
 
-export const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url)).replace(/[\\/]+$/, "");
+import { dataPath, WRITABLE_ROOT } from "./paths.js";
 
-export const VOICES_DIR = `${REPO_ROOT}/data/voices`;
-export const PIPER_DIR = `${REPO_ROOT}/data/piper`;
+/**
+ * Where Piper looks for a venv and the like: the repo from source, the user's
+ * app data when installed (see paths.ts). Kept under this name for its callers.
+ */
+export const REPO_ROOT = WRITABLE_ROOT;
+
+export const VOICES_DIR = dataPath("voices");
+export const PIPER_DIR = dataPath("piper");
 
 export interface RenderSetup {
   readonly binary: string;

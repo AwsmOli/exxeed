@@ -79,16 +79,162 @@ export function fit(canvas) {
 const css = getComputedStyle(document.documentElement);
 export const token = (name) => css.getPropertyValue(name).trim();
 
-export const COLORS = {
-  green: token("--green") || "#4de95f",
-  mint: token("--mint") || "#2ee88f",
-  red: token("--red") || "#ff3c22",
-  cyan: token("--cyan") || "#00ffdc",
-  purple: token("--purple") || "#e285ff",
-  yellow: token("--yellow") || "#ffd23f",
-  orange: token("--orange") || "#ff7919",
-  blue: token("--blue") || "#58a6ff",
-};
+/**
+ * The palette the canvases draw from. One object, filled from the stylesheet
+ * and refilled when the theme changes — never read per frame (§7.0: nothing on
+ * the 60 Hz path queries the DOM). Panels read `COLORS.x` at draw time, so a
+ * refill reaches them without anything being rebuilt.
+ */
+export const COLORS = {};
+
+export function refreshColors() {
+  // A token that is itself a var() (the role colours) resolves through here.
+  const resolve = (name, fallback) => {
+    let v = token(name);
+    for (let depth = 0; depth < 3 && v.startsWith("var("); depth++) v = token(v.slice(4, -1).split(",")[0].trim());
+    return v || fallback;
+  };
+  Object.assign(COLORS, {
+    green: resolve("--green", "#4de95f"),
+    mint: resolve("--mint", "#2ee88f"),
+    red: resolve("--red", "#ff3c22"),
+    cyan: resolve("--cyan", "#00ffdc"),
+    purple: resolve("--purple", "#e285ff"),
+    yellow: resolve("--yellow", "#ffd23f"),
+    orange: resolve("--orange", "#ff7919"),
+    blue: resolve("--blue", "#58a6ff"),
+    throttle: resolve("--throttle", "#2ee88f"),
+    brake: resolve("--brake", "#ff3c22"),
+    danger: resolve("--danger", "#ff3c22"),
+    me: resolve("--me", "#4de95f"),
+    text: resolve("--text", "#ffffff"),
+    road: resolve("--road", "rgba(200,202,206,0.95)"),
+    roadEdge: resolve("--road-edge", "rgba(40,42,46,0.9)"),
+    font: resolve("--font", "system-ui, sans-serif"),
+    glow: parseFloat(resolve("--glow", "6px")) || 0,
+    lapAhead: resolve("--lap-ahead", "#ff8a7a"),
+    lapBehind: resolve("--lap-behind", "#7ab8ff"),
+    // Licence colours by letter, where the theme sets them; the sim's otherwise.
+    licences: Object.fromEntries(
+      ["r", "d", "c", "b", "a", "p"]
+        .map((k) => [k.toUpperCase(), resolve(`--lic-${k}`, "")])
+        .filter(([, c]) => /^#[0-9a-f]{6}$/i.test(c)),
+    ),
+    // The theme's class colours, fastest class first; empty means the sim's own.
+    classes: [1, 2, 3, 4, 5].map((i) => resolve(`--class-${i}`, "")).filter((c) => /^#[0-9a-f]{6}$/i.test(c)),
+  });
+
+  // The shift lights: green through yellow and orange to red, in the theme's
+  // own palette, pulled towards the card colour by `--shift-strength` so a
+  // quiet theme gets quiet lights. The default theme keeps its hand-picked ramp.
+  const strength = Math.max(0, Math.min(1, parseFloat(resolve("--shift-strength", "1"))));
+  const themed = document.documentElement.dataset.theme;
+  // A theme may give the rev lights their own sweep, as four colours from
+  // the first light to the last; the eight lights are spread along it.
+  const sweep = ["low", "mid", "high", "max"].map((k) => resolve(`--shift-${k}`, ""));
+  const own = sweep.every((c) => /^#[0-9a-f]{6}$/i.test(c));
+  const along = (j) => {
+    const x = (j / 7) * 3;
+    const i = Math.min(2, Math.floor(x));
+    return mix(sweep[i], sweep[i + 1], x - i);
+  };
+  const ramp = own
+    ? [0, 1, 2, 3, 4, 5, 6, 7].map(along)
+    : themed === undefined || themed === "exxeed"
+      ? ["#2ee88f", "#5de85a", "#9fe24a", "#d9e33a", "#f2d23a", "#ffae2e", "#ff7a26", "#ff4a22"]
+      : [
+          COLORS.green,
+          COLORS.green,
+          mix(COLORS.green, COLORS.yellow, 0.5),
+          COLORS.yellow,
+          COLORS.yellow,
+          COLORS.orange,
+          mix(COLORS.orange, COLORS.red, 0.5),
+          COLORS.red,
+        ];
+  COLORS.shift = ramp.map((c) => mix("#20222b", c, strength));
+  COLORS.shiftBlink = mix("#20222b", COLORS.danger, strength);
+
+  // Tyre temperatures: cold to hot through the theme's own colours.
+  COLORS.temps = [COLORS.blue, COLORS.cyan, COLORS.green, resolve("--warm", COLORS.yellow), COLORS.red].map(rgbOf);
+}
+
+/**
+ * Gaining or losing this many seconds per second of driving is full colour.
+ * Deliberately a lot: a tenth found over a whole corner is about 0.03 s/s and
+ * should read as a tint, while out-braking the reference by two tenths in a
+ * second is the full colour. At 0.05 everything ordinary was already
+ * saturated, so the bar only ever showed white, full green or full red.
+ */
+const TREND_FULL = 0.12;
+/** Below this the gap is holding: white. Small, so the bar is rarely white. */
+const TREND_DEAD = 0.001;
+/** How quickly the trend follows the delta, so it does not flicker. */
+const TREND_SMOOTH_S = 1.2;
+
+/**
+ * The colour of a delta by where it is GOING, as the sim's own bar does it:
+ * green while you are gaining on the reference, red while you are losing, and
+ * white when the gap is holding — however large the gap itself is. Four
+ * seconds down but catching up reads green. The shade says how fast.
+ *
+ * Returns a function to call each paint with the current delta; it keeps the
+ * little history it needs.
+ */
+export function deltaTrend() {
+  let last = null;
+  let at = 0;
+  let rate = 0;
+  return (d) => {
+    const now = performance.now();
+    if (last !== null) {
+      const dt = (now - at) / 1000;
+      const step = d - last;
+      // A jump is a new lap or a reset, not driving: start again from here.
+      if (dt > 1 || Math.abs(step) > 0.5) rate = 0;
+      else if (dt > 0) {
+        const k = Math.min(1, dt / TREND_SMOOTH_S);
+        rate += (step / dt - rate) * k;
+      }
+    }
+    last = d;
+    at = now;
+    const speed = Math.max(0, Math.abs(rate) - TREND_DEAD);
+    // Eased, so a slow gain is already a visible tint and the colour keeps
+    // deepening all the way up to a fast one, rather than snapping to full.
+    // A steep start: even a slow gain is clearly tinted.
+    const t = Math.min(1, speed / TREND_FULL) ** 0.45;
+    // Negative rate: the delta is falling, which is time gained.
+    return mix(COLORS.text, rate < 0 ? COLORS.green : COLORS.red, t);
+  };
+}
+
+/**
+ * The colour to draw a class in: the theme's, if it sets class colours,
+ * otherwise the one the sim gave it. Classes are numbered in standings order,
+ * fastest first, so "class 1" is the same class on every panel.
+ */
+export function classColour(race, simColour) {
+  if (COLORS.classes.length === 0) return simColour;
+  const index = (race?.classes ?? []).findIndex((c) => c.classColor === simColour);
+  return index < 0 ? simColour : COLORS.classes[index % COLORS.classes.length];
+}
+
+/** A licence's colour: the theme's for that letter ("A 3.12" → A), otherwise the sim's. */
+export const licenceColour = (licence, simColour) =>
+  COLORS.licences[String(licence ?? "").trim().charAt(0).toUpperCase()] ?? simColour;
+
+/** Blend two #rrggbb colours: 0 is all `a`, 1 is all `b`. Anything else passes `b` through. */
+export function mix(a, b, t) {
+  const pa = /^#?([0-9a-f]{6})$/i.exec(a ?? "");
+  const pb = /^#?([0-9a-f]{6})$/i.exec(b ?? "");
+  if (pa === null || pb === null) return b;
+  const na = parseInt(pa[1], 16);
+  const nb = parseInt(pb[1], 16);
+  const ch = (shift) => Math.round(((na >> shift) & 255) + (((nb >> shift) & 255) - ((na >> shift) & 255)) * t);
+  return `#${((1 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).slice(1)}`;
+}
+refreshColors();
 
 /** #rrggbb + alpha → rgba(). */
 export function alpha(hex, a) {
@@ -122,6 +268,15 @@ export function areaLine(ctx, points, top, bottom, colour, fillAlpha, width) {
   ctx.strokeStyle = colour;
   ctx.lineWidth = width;
   ctx.lineJoin = "round";
+  // A theme that glows more than the default (Synthwave) gets a neon line.
+  // The default's 6px is for small lit things, not every trace.
+  if (COLORS.glow > 6) {
+    ctx.save();
+    ctx.shadowColor = colour;
+    ctx.shadowBlur = width * 3.5;
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.stroke();
 
   if (fillAlpha <= 0) return;
@@ -135,16 +290,23 @@ export function areaLine(ctx, points, top, bottom, colour, fillAlpha, width) {
   ctx.fill();
 }
 
-/** Tyre carcass temperature → colour: blue cold, green in the window, red hot. */
+/** #rrggbb → [r, g, b]; mid grey for anything else. */
+function rgbOf(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? "");
+  if (m === null) return [128, 128, 128];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/**
+ * Tyre carcass temperature → colour: cold, cool, in the window, warm, hot —
+ * in the theme's blue, cyan, green, yellow and red, so a theme that moves
+ * "good" and "bad" moves the tyres with them.
+ */
 export function tempColour(c) {
   if (!(c > 0)) return "rgba(255,255,255,0.08)";
-  const stops = [
-    [40, [88, 166, 255]],
-    [70, [0, 255, 220]],
-    [85, [77, 233, 95]],
-    [100, [255, 210, 63]],
-    [115, [255, 60, 34]],
-  ];
+  const at = [40, 70, 85, 100, 115];
+  const stops = at.map((t, i) => [t, COLORS.temps[i]]);
   if (c <= stops[0][0]) return `rgb(${stops[0][1].join(",")})`;
   for (let i = 1; i < stops.length; i++) {
     const [t1, c1] = stops[i];

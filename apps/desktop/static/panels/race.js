@@ -2,7 +2,7 @@
 // channel, which only the live sim fills: a replay is the driver's own car and
 // nothing else, so these say so rather than sit blank.
 
-import { $, alpha, clock, fit, html, irating, lapTime, roundRect, setText } from "./util.js";
+import { $, alpha, classColour, clock, COLORS, licenceColour, fit, html, irating, lapTime, roundRect, setText } from "./util.js";
 
 const NO_RACE = (s) =>
   s.status?.phase === "running" ? "live sim only — this source has no other cars" : "waiting for the sim";
@@ -15,8 +15,16 @@ const gap = (v) => (v === null || v === undefined ? "" : `+${Math.max(0, v).toFi
 const posCell = (pos, colour) =>
   `<span class="pos" style="background:linear-gradient(90deg, ${alpha(colour, 0.7)}, ${alpha(colour, 0)})">${pos || ""}</span>`;
 
-const irChip = (lic, colour, ir) =>
-  `<span class="irk"><i style="background:${colour}"></i>${esc(lic.split(" ")[0] ?? "")} ${irating(ir)}</span>`;
+/** Licence and iRating in one chip; either half can be switched off (panel-options.ts). */
+const irChip = (lic, simColour, ir, hidden) => {
+  const colour = licenceColour(lic, simColour);
+  const licence = hidden.has("license") ? "" : `<i style="background:${colour}"></i>${esc(lic.split(" ")[0] ?? "")}`;
+  const rating = hidden.has("irating") ? "" : irating(ir);
+  return `<span class="irk" style="--lic:${colour}">${[licence, rating].filter(Boolean).join(" ")}</span>`;
+};
+
+/** A grid's column widths, leaving out the ones switched off. */
+const columns = (...cols) => cols.filter(Boolean).join(" ");
 
 /** Rebuild at human speed, and only when something arrived. */
 function throttled(ms, fn) {
@@ -56,12 +64,11 @@ function condense(rows) {
   return rows.filter((_, i) => keep.has(i));
 }
 
-const STANDINGS_COLS = "30px 36px minmax(70px,1fr) 64px 46px 40px 60px 60px";
 
 export function standings() {
   const el = html(`
     <div class="panel is-empty">
-      <div class="titlebar split keep" style="justify-content:flex-start">
+      <div class="titlebar split keep" style="justify-content:flex-start" data-part="header">
         <span class="md" data-k="kind">R</span>
         <span data-k="laps"></span>
         <span class="muted n" style="margin-left:auto" data-k="time"></span>
@@ -77,27 +84,44 @@ export function standings() {
     setText(k("laps"), lapsLine(race));
     setText(k("time"), race.timeRemainS !== null ? clock(race.timeRemainS) : "");
 
+    // Columns the driver switched off are left out of the grid, not just blanked.
+    const off = s.options.hidden;
+    const chip = !off.has("license") || !off.has("irating");
+    // Lap-time columns wide enough for "1:57.870" in a monospace face too.
+    const cols = columns(
+      "30px",
+      !off.has("number") && "36px",
+      "minmax(70px,1fr)",
+      chip && "64px",
+      !off.has("gap") && "46px",
+      !off.has("interval") && "40px",
+      !off.has("last") && "72px",
+      !off.has("best") && "72px",
+    );
+
     k("classes").innerHTML = race.classes
-      .map((cls) => {
-        const head = `<div class="titlebar" style="justify-content:flex-start;height:26px">
+      .map((sim) => {
+        const cls = { ...sim, classColor: classColour(race, sim.classColor) };
+        const head = `<div class="titlebar class-head" style="justify-content:flex-start;height:26px;--cls:${cls.classColor}">
             <span class="tag outline" style="color:${cls.classColor}">${esc(cls.className || "CLASS")}</span>
             <span class="muted">SoF ${cls.sof ?? "—"}</span>
-            <span class="cap" style="margin-left:auto;width:46px;text-align:right">Gap</span>
-            <span class="cap" style="width:40px;text-align:right">Int</span>
-            <span class="cap" style="width:60px;text-align:right">Last</span>
-            <span class="cap" style="width:60px;text-align:right;margin-right:-4px">Best</span>
+            <span style="margin-left:auto"></span>
+            ${off.has("gap") ? "" : '<span class="cap" style="width:46px;text-align:right">Gap</span>'}
+            ${off.has("interval") ? "" : '<span class="cap" style="width:40px;text-align:right">Int</span>'}
+            ${off.has("last") ? "" : '<span class="cap" style="width:72px;text-align:right">Last</span>'}
+            ${off.has("best") ? "" : '<span class="cap" style="width:72px;text-align:right;margin-right:-4px">Best</span>'}
           </div>`;
         const rows = condense(cls.rows)
           .map(
-            (r) => `<div class="row${r.isPlayer ? " me" : ""}${r.onPitRoad ? " pit" : ""}" style="grid-template-columns:${STANDINGS_COLS}">
+            (r) => `<div class="row${r.isPlayer ? " me" : ""}${r.onPitRoad ? " pit" : ""}" style="grid-template-columns:${cols};--cls:${cls.classColor}">
               ${posCell(r.classPosition, cls.classColor)}
-              <span class="num">#${esc(r.carNumber)}</span>
-              <span>${esc(r.name)}${r.onPitRoad ? ' <span class="tag">PIT</span>' : ""}</span>
-              ${irChip(r.license, r.licenseColor, r.iRating)}
-              <span class="r n">${r.gapS === null ? "" : gap(r.gapS)}</span>
-              <span class="r n muted">${r.intervalS === null ? "" : gap(r.intervalS)}</span>
-              <span class="r n">${lapTime(r.lastLapS)}</span>
-              <span class="r n ${r.fastest ? "fast" : "muted"}">${lapTime(r.bestLapS)}</span>
+              ${off.has("number") ? "" : `<span class="num">#${esc(r.carNumber)}</span>`}
+              <span class="who">${esc(r.name)}${r.onPitRoad ? ' <span class="tag">PIT</span>' : ""}</span>
+              ${chip ? irChip(r.license, r.licenseColor, r.iRating, off) : ""}
+              ${off.has("gap") ? "" : `<span class="r n">${r.gapS === null ? "" : gap(r.gapS)}</span>`}
+              ${off.has("interval") ? "" : `<span class="r n muted">${r.intervalS === null ? "" : gap(r.intervalS)}</span>`}
+              ${off.has("last") ? "" : `<span class="r n">${lapTime(r.lastLapS)}</span>`}
+              ${off.has("best") ? "" : `<span class="r n ${r.fastest ? "fast" : "muted"}">${lapTime(r.bestLapS)}</span>`}
             </div>`,
           )
           .join("");
@@ -124,18 +148,17 @@ export function standings() {
 // session's conditions and a footer of where the race is.
 // ---------------------------------------------------------------------------
 
-const RELATIVE_COLS = "34px 40px minmax(70px,1fr) 38px 56px 42px";
 
 export function relative() {
   const el = html(`
     <div class="panel is-empty">
-      <div class="titlebar keep" style="justify-content:space-around">
+      <div class="titlebar keep" style="justify-content:space-around" data-part="header">
         <span class="n" data-k="air"></span><span class="n" data-k="track"></span>
         <span data-k="sof"></span><span data-k="bb"></span>
         <span data-k="inc"></span><span class="n" data-k="clock"></span>
       </div>
       <div class="card rows grow" style="padding:0" data-k="rows"></div>
-      <div class="titlebar split">
+      <div class="titlebar split" data-part="footer">
         <span style="font-weight:700" data-k="laps"></span><span class="n" data-k="remain"></span>
       </div>
       <div class="empty" data-k="why"></div>
@@ -155,17 +178,29 @@ export function relative() {
     setText(k("laps"), lapsLine(race));
     setText(k("remain"), race.timeRemainS !== null ? clock(race.timeRemainS) : "");
 
+    const off = s.options.hidden;
+    const chip = !off.has("license") || !off.has("irating");
+    const cols = columns(
+      "34px",
+      !off.has("number") && "40px",
+      "minmax(70px,1fr)",
+      !off.has("lap") && "38px",
+      chip && "56px",
+      "42px",
+    );
+
     k("rows").innerHTML = race.relatives
       .map((r) => {
         // Lapping you reads red, being lapped reads blue — the convention on
         // every relative, because it says who you should not be fighting.
-        const tone = r.lapState > 0 ? "color:#ff8a7a" : r.lapState < 0 ? "color:#7ab8ff" : "";
-        return `<div class="row${r.isPlayer ? " me" : ""}${r.onPitRoad ? " pit" : ""}" style="grid-template-columns:${RELATIVE_COLS};height:30px;font-size:14px;${tone}">
-          ${posCell(r.position, r.classColor)}
-          <span class="num">#${esc(r.carNumber)}</span>
-          <span>${esc(r.name)}</span>
-          <span class="tag">L${r.lap}</span>
-          ${irChip(r.license, r.licenseColor, r.iRating)}
+        const tone = r.lapState > 0 ? `color:${COLORS.lapAhead}` : r.lapState < 0 ? `color:${COLORS.lapBehind}` : "";
+        const colour = classColour(race, r.classColor);
+        return `<div class="row${r.isPlayer ? " me" : ""}${r.onPitRoad ? " pit" : ""}" style="grid-template-columns:${cols};height:30px;font-size:14px;--cls:${colour};${tone}">
+          ${posCell(r.position, colour)}
+          ${off.has("number") ? "" : `<span class="num">#${esc(r.carNumber)}</span>`}
+          <span class="who">${esc(r.name)}</span>
+          ${off.has("lap") ? "" : `<span class="tag lap">L${r.lap}</span>`}
+          ${chip ? irChip(r.license, r.licenseColor, r.iRating, off) : ""}
           <span class="r n" style="font-weight:600">${r.isPlayer ? "0.0" : Math.abs(r.gapS).toFixed(1)}</span>
         </div>`;
       })
@@ -247,14 +282,22 @@ export function radar() {
       ctx.fillStyle = disc;
       ctx.fillRect(0, 0, w, h);
 
-      // A wedge per car, amber, red when it is alongside.
+      // A wedge per car, fading outwards through the theme's warning colours:
+      // orange into red for a car nearby, the strongest warning into red and
+      // orange when it is alongside.
       for (const car of cars) {
         const a = Math.atan2(car.y - cy, car.x - cx);
         const spread = car.alongside ? 0.55 : 0.38;
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-        const hue = car.alongside ? "255,70,40" : "255,200,60";
-        g.addColorStop(0, `rgba(${hue},0.45)`);
-        g.addColorStop(1, `rgba(${hue},0.05)`);
+        if (car.alongside) {
+          g.addColorStop(0, alpha(COLORS.danger, 0.62));
+          g.addColorStop(0.45, alpha(COLORS.red, 0.4));
+          g.addColorStop(1, alpha(COLORS.orange, 0.06));
+        } else {
+          g.addColorStop(0, alpha(COLORS.orange, 0.45));
+          g.addColorStop(0.55, alpha(COLORS.red, 0.2));
+          g.addColorStop(1, alpha(COLORS.red, 0.03));
+        }
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
@@ -263,19 +306,36 @@ export function radar() {
         ctx.fill();
       }
 
-      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      // The range rings. In a theme that glows they take its colours.
+      const neon = COLORS.glow > 6;
+      ctx.strokeStyle = neon ? alpha(COLORS.red, 0.75) : "rgba(255,255,255,0.55)";
       ctx.lineWidth = 1 * r;
+      if (neon) {
+        ctx.shadowColor = COLORS.red;
+        ctx.shadowBlur = 8 * r;
+      }
       ctx.beginPath();
       ctx.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = neon ? alpha(COLORS.orange, 0.5) : "rgba(255,255,255,0.12)";
       ctx.beginPath();
       ctx.arc(cx, cy, R * 0.25, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
-      ctx.lineWidth = 1 * r;
+      if (neon) {
+        // The rim as a sweep from one warning colour to the next.
+        const rim = ctx.createLinearGradient(cx - R, cy - R, cx + R, cy + R);
+        rim.addColorStop(0, COLORS.red);
+        rim.addColorStop(0.5, COLORS.orange);
+        rim.addColorStop(1, COLORS.danger);
+        ctx.strokeStyle = rim;
+        ctx.lineWidth = 1.6 * r;
+      } else {
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth = 1 * r;
+      }
       ctx.beginPath();
       ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.stroke();

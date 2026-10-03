@@ -28,6 +28,11 @@ const EDIT_MODE_CHANNEL = "exxeed:edit-mode";
 const MOVE_WINDOW_CHANNEL = "exxeed:move-window";
 const OVERLAY_PROFILES_CHANGED_CHANNEL = "exxeed:overlay-profiles-changed";
 const OVERLAY_PROFILE_COMMAND_CHANNEL = "exxeed:overlay-profile-command";
+const THEME_CHANNEL = "exxeed:theme";
+const THEME_GET_CHANNEL = "exxeed:theme-get";
+const THEME_CONTENT_CHANNEL = "exxeed:theme-content";
+const PANEL_SETTINGS_CHANNEL = "exxeed:panel-settings";
+const PANEL_SETTINGS_GET_CHANNEL = "exxeed:panel-settings-get";
 const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
 const SETTINGS_SET_CHANNEL = "exxeed:settings-set";
 const SETTINGS_CHANGED_CHANNEL = "exxeed:settings-changed";
@@ -68,6 +73,17 @@ contextBridge.exposeInMainWorld("exxeed", {
   sendOverlayProfileCommand: (command: unknown): void => {
     ipcRenderer.send(OVERLAY_PROFILE_COMMAND_CHANNEL, command);
   },
+
+  /** Themes in Content: browse, install, publish. One channel with an `op`, like `content`. */
+  themeContent: (request: unknown): Promise<unknown> => ipcRenderer.invoke(THEME_CONTENT_CHANNEL, request),
+
+  /** What an overlay shows and how it is built: `{ hidden, style }` for a panel, and each change after. */
+  getPanelSettings: (panel: string): Promise<unknown> => ipcRenderer.invoke(PANEL_SETTINGS_GET_CHANNEL, panel),
+  onPanelSettings: (cb: (message: unknown) => void) => subscribe(PANEL_SETTINGS_CHANNEL, cb),
+
+  /** The overlay theme: `{ id, variables }` to start with, and each change after. */
+  getTheme: (): Promise<unknown> => ipcRenderer.invoke(THEME_GET_CHANNEL),
+  onTheme: (cb: (theme: unknown) => void) => subscribe(THEME_CHANNEL, cb),
 
   /** Preferences. The only request/response pair — everything else is one-way. */
   getSettings: (): Promise<unknown> => ipcRenderer.invoke(SETTINGS_GET_CHANNEL),

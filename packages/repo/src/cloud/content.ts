@@ -273,3 +273,63 @@ export async function saveDraft(client: CloudClient, itemId: string, noteSet: No
     .abortSignal(timeout());
   if (error !== null) fail("save draft", error.message);
 }
+
+// ---------------------------------------------------------------------------
+// Themes (M9): the same items, versions, stars and downloads, with a theme
+// file as the payload instead of a note set. The server stores the payload as
+// it is given; the app validates it when it installs one (themes.ts in
+// @exxeed/overlays), which is the only place a theme can do anything.
+// ---------------------------------------------------------------------------
+
+/** A new overlay theme, owned by the signed-in driver. Private until published. */
+export async function createThemeItem(client: CloudClient, fields: ItemFields): Promise<ItemView> {
+  const { data, error } = await client
+    .from("content_items")
+    .insert({
+      kind: "theme",
+      title: fields.title,
+      summary: fields.summary,
+      readme: fields.readme,
+      visibility: fields.visibility,
+    })
+    .select(ITEM_COLUMNS)
+    .abortSignal(timeout())
+    .single();
+  if (error !== null) fail("create theme", error.message);
+  return toItem(data as unknown as ItemRow);
+}
+
+/** Publish the next version of a theme. The server numbers it. */
+export async function publishThemeVersion(
+  client: CloudClient,
+  itemId: string,
+  payload: unknown,
+  changelog: string,
+): Promise<{ id: string; version: number }> {
+  const { data, error } = await client
+    .rpc("publish_version", {
+      p_item_id: itemId,
+      p_payload: payload as Json,
+      p_changelog: changelog,
+      p_diff: null as unknown as Json,
+      p_map_version: null as unknown as number,
+      p_voice_id: null as unknown as string,
+      p_files: [] as unknown as Json,
+    })
+    .abortSignal(timeout());
+  if (error !== null) fail("publish theme", error.message);
+  const row = data as unknown as { id: string; version: number };
+  return { id: row.id, version: row.version };
+}
+
+/** A published theme version's payload, exactly as stored — not yet trusted. */
+export async function getThemePayload(client: CloudClient, versionId: string): Promise<unknown> {
+  const { data, error } = await client
+    .from("content_versions")
+    .select("payload")
+    .eq("id", versionId)
+    .abortSignal(timeout())
+    .maybeSingle();
+  if (error !== null) fail("get theme", error.message);
+  return data === null ? null : data.payload;
+}

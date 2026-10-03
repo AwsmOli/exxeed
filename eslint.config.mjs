@@ -43,6 +43,8 @@ export default tseslint.config(
       "data/**",
       // Third-party browser libraries copied at build time (apps/desktop/scripts/vendor.mjs).
       "apps/desktop/static/vendor/**",
+      // Packaged builds (apps/desktop/scripts/package.mjs): bundles, not source.
+      "apps/desktop/release/**",
     ],
   },
   js.configs.recommended,
@@ -86,10 +88,17 @@ export default tseslint.config(
         confirm: "readonly",
         navigator: "readonly",
         CustomEvent: "readonly",
+        Event: "readonly",
+        URL: "readonly",
         localStorage: "readonly",
         devicePixelRatio: "readonly",
       },
     },
+  },
+  {
+    // Build scripts run under Node.
+    files: ["apps/desktop/scripts/**/*.mjs"],
+    languageOptions: { globals: { process: "readonly", console: "readonly" } },
   },
   {
     // src/ only, not test/. The rule exists so core's *shipped* code stays pure —

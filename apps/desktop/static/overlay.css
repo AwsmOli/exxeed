@@ -19,6 +19,35 @@
   Our own rules written to that look; nothing here is copied from theirs.
 */
 
+/* Montserrat, bundled (fonts/Montserrat-OFL.txt), for themes that name the
+   "geometric" font. A variable font: one file covers every weight. */
+@font-face {
+  font-family: "Montserrat";
+  src: url("./fonts/Montserrat.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+/* Three 80s faces for themes that name them (their -OFL.txt files are beside
+   them): Orbitron for digits, Audiowide for titles, Exo 2 for text. */
+@font-face {
+  font-family: "Orbitron";
+  src: url("./fonts/Orbitron.ttf") format("truetype");
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Exo 2";
+  src: url("./fonts/Exo2.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Audiowide";
+  src: url("./fonts/Audiowide.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 
@@ -45,6 +74,46 @@
 
   --font: "Satoshi", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", SFMono-Regular, Menlo, monospace;
+
+  /*
+    Theme tokens (TODO M9, @exxeed/overlays themes.ts). Everything above is one
+    too; these are the ones that exist because a theme needed them. The values
+    here ARE the default theme — a theme only sets what it changes, and
+    renderer.js writes its tokens over these on :root.
+  */
+  /* What the colours are FOR, so a theme can move a role without lying about a hue. */
+  --throttle: var(--mint);
+  --brake: var(--red);
+  --danger: var(--red);        /* the strongest warning */
+  --warm: var(--yellow);       /* between good and bad: a warm tyre */
+  --lap-ahead: #ff8a7a;        /* Relatives: a car a lap ahead of you */
+  --lap-behind: #7ab8ff;       /* …and one a lap behind */
+  --fuel-empty: #2b1411;       /* the used part of the fuel bar */
+  --me: var(--green);          /* your own row */
+  --me-text: var(--text);
+  --me-bg: transparent;        /* a solid band behind your own row */
+  --chip-bg: var(--well);      /* the small chips in a row */
+  --chip-text: var(--text-2);
+  --label: var(--text-2);      /* small captions beside a value */
+  --num-font: inherit;         /* the face numbers are set in */
+  --title-font: inherit;       /* the face panel titles are set in */
+  --road: rgba(200, 202, 206, 0.95);
+  --road-edge: rgba(40, 42, 46, 0.9);
+  /* Shape and type. */
+  --pill-radius: 99px;
+  --glow: 6px;                 /* how far lit things glow; 0px for none */
+  --shift-strength: 1;         /* shift-light colour strength, 0..1 */
+  --card-border: 0px solid transparent;
+  --num-weight: 400;
+  --body-weight: 500;
+  /* The short title card above a panel's content. */
+  --title-bg: var(--card);
+  --title-text: var(--text);
+  --title-size: 13px;
+  --title-weight: 500;
+  --title-spacing: 0em;
+  --title-case: none;
+  --title-justify: center;
 }
 
 * { box-sizing: border-box; }
@@ -53,7 +122,7 @@ html, body { margin: 0; height: 100%; }
 body {
   background: #50575f;
   color: var(--text);
-  font: 500 13px/1.25 var(--font);
+  font: var(--body-weight) 13px/1.25 var(--font);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
@@ -83,6 +152,7 @@ body.overlay .panel { width: 100%; height: 100%; }
 
 .card {
   background: var(--card);
+  border: var(--card-border);
   border-radius: var(--radius);
   padding: 10px 12px;
   min-width: 0;
@@ -94,16 +164,22 @@ body.overlay .panel { width: 100%; height: 100%; }
 
 /* The short title card that sits on top of a content card. */
 .titlebar {
-  background: var(--card);
+  background: var(--title-bg);
+  color: var(--title-text);
+  border: var(--card-border);
   border-radius: var(--radius);
   height: 28px;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: var(--title-justify);
   gap: 10px;
   padding: 0 12px;
-  font-size: 13px;
+  font-family: var(--title-font);
+  font-size: var(--title-size);
+  font-weight: var(--title-weight);
+  letter-spacing: var(--title-spacing);
+  text-transform: var(--title-case);
   white-space: nowrap;
 }
 .titlebar.split { justify-content: space-between; }
@@ -119,17 +195,17 @@ body.overlay.dragging .panel { outline: 1px dashed var(--blue); outline-offset: 
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-2);
+  color: var(--label);
 }
 .muted { color: var(--text-2); }
 .faint { color: var(--text-3); }
 .good { color: var(--green); }
 .bad { color: var(--red); }
 .fast { color: var(--purple); }
-.light { font-weight: 400; }
-.n { font-variant-numeric: tabular-nums; }
-.xl { font-size: 26px; font-weight: 400; line-height: 1; letter-spacing: -0.01em; }
-.lg { font-size: 20px; font-weight: 400; line-height: 1; }
+.light { font-weight: var(--num-weight); }
+.n { font-variant-numeric: tabular-nums; font-family: var(--num-font); }
+.xl { font-size: 26px; font-weight: var(--num-weight); line-height: 1; letter-spacing: -0.01em; }
+.lg { font-size: 20px; font-weight: var(--num-weight); line-height: 1; }
 .md { font-size: 15px; font-weight: 500; }
 .u { font-size: 11px; color: var(--text-2); margin-left: 2px; font-weight: 500; }
 .r { text-align: right; }
@@ -143,7 +219,7 @@ body.overlay.dragging .panel { outline: 1px dashed var(--blue); outline-offset: 
   display: inline-flex; align-items: center; justify-content: center;
   height: 18px; padding: 0 6px; border-radius: 4px;
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em;
-  background: var(--well); color: var(--text-2);
+  background: var(--chip-bg); color: var(--chip-text);
   white-space: nowrap;
 }
 .tag.outline { background: transparent; border: 1.5px solid currentColor; }
@@ -161,6 +237,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
   font-size: 11px;
   padding: 8px;
   background: var(--card);
+  border: var(--card-border);
   border-radius: var(--radius);
 }
 .panel.is-empty > .empty { display: flex; }
@@ -168,21 +245,21 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 
 /* -- Pills ---------------------------------------------------------------- */
 
-.pill-h { position: relative; height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; }
-.pill-h > i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 99px; }
+.pill-h { position: relative; height: 8px; border-radius: var(--pill-radius); background: var(--track); overflow: hidden; }
+.pill-h > i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: var(--pill-radius); }
 
 /* Vertical pedal pills with a value above. */
 .pedal { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .pedal .v { font-size: 10.5px; font-weight: 600; }
 .pedal .pill-v {
   position: relative; width: 14px; flex: 1; min-height: 30px;
-  border-radius: 99px; background: var(--track); overflow: hidden;
+  border-radius: var(--pill-radius); background: var(--track); overflow: hidden;
 }
-.pedal .pill-v > i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 99px; }
+.pedal .pill-v > i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: var(--pill-radius); }
 /* The knob: a short white cap riding the top of the fill. */
 .pedal.knob .pill-v > b {
-  position: absolute; left: 2px; right: 2px; height: 5px; border-radius: 99px;
-  background: #fff; box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+  position: absolute; left: 2px; right: 2px; height: 5px; border-radius: var(--pill-radius);
+  background: #fff; box-shadow: 0 0 var(--glow) rgba(255, 255, 255, 0.6);
 }
 
 /* -- Rows ----------------------------------------------------------------- */
@@ -205,16 +282,21 @@ canvas.fill { display: block; width: 100%; height: 100%; }
   display: flex; align-items: center; justify-content: center;
   font-weight: 600;
 }
-/* The player: a green wash from the left, and a green position. */
-.row.me { background: linear-gradient(90deg, rgba(77, 233, 95, 0.28), rgba(77, 233, 95, 0.05) 70%); }
-.row.me .pos { color: var(--green); }
+/* The player: a wash of their colour from the left, and their position in it. */
+.row.me {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--me) 28%, transparent), color-mix(in srgb, var(--me) 5%, transparent) 70%),
+    var(--me-bg);
+  color: var(--me-text);
+}
+.row.me .pos { color: var(--me); }
 .row.pit { opacity: 0.5; }
 .row .num { color: var(--text-3); }
 .irk {
   display: inline-flex; align-items: center; justify-content: center; gap: 3px;
   height: 18px; padding: 0 6px; border-radius: 4px;
-  background: var(--well); border: 1px solid var(--line);
-  font-size: 10px; font-weight: 700; color: var(--text-2);
+  background: var(--chip-bg); border: 1px solid var(--line);
+  font-size: 10px; font-weight: 700; color: var(--chip-text);
 }
 .irk i { width: 6px; height: 6px; border-radius: 50%; }
 
@@ -233,43 +315,68 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .speedo .ffb { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--text-3); font-weight: 700; }
 .speedo .ffb .pill-h { width: 100px; height: 4px; }
 .wheel { flex: none; align-self: center; }
+/* Room for three digits whatever the speed is, right-aligned, so a number
+   going from 99 to 100 (or to 9) does not resize the chart beside it and make
+   the whole panel twitch. The gear gets one digit's room for the same reason.
+   In em, not ch: a ch is the width of "0", and faces whose digits are not all
+   one width (Orbitron's 1 is narrow, its 8 wide) still shifted by a few pixels. */
+.speedo [data-k="speed"], .speedo [data-k="rspeed"] { display: inline-block; width: 2.9em; text-align: right; }
+.speedo [data-k="gear"], .speedo [data-k="rgear"] { display: inline-block; width: 1.15em; text-align: center; }
+.inputs-body .speedo { flex: none; }
+/* In a tall window the pedal bars stop growing and sit centred: a metre-high
+   bar reads no better than a palm-high one. */
+.inputs-body .pedals { align-self: center; height: 100%; max-height: 240px; }
+/* The same for the pedal percentages above the bars: "0" and "100" take the same room. */
+.pedal .v { min-width: 3.2em; text-align: center; white-space: nowrap; }
 
 /* The shift lights: sixteen short pills, lighting from both ends inward. */
 .shift { display: grid; grid-template-columns: repeat(16, 1fr); gap: 6px; margin-bottom: 10px; flex: none; }
-.shift i { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); }
+.shift i { height: 6px; border-radius: var(--pill-radius); background: rgba(255, 255, 255, 0.08); }
+
+/* The Rev Lights overlay: just the row, filling its window, lights as tall as it allows. */
+/* Thin padding, so a short window is still mostly lights. */
+.revlights-card { justify-content: center; padding: 3px 8px; }
+/* The row is a size container so the lights can be sized from it: as tall as
+   the window allows, but never taller than about a third of their own width
+   (16 lights → width/16 each), centred, so a tall window gives a row of
+   lights with space round it rather than lights stretched into bars. */
+.revlights-card .shift { margin: 0; flex: 1 1 auto; align-items: center; container-type: size; }
+.revlights-card .shift i { height: min(100cqh, 2.4cqw); min-height: 4px; }
 
 /* A tab riding on top of a card's right edge — the live delta on Input Telemetry. */
 .tab-wrap { gap: 0; }
 .tab-wrap .tab {
   align-self: flex-end;
   background: var(--card);
+  border: var(--card-border);
+  border-bottom: 0;
   border-radius: var(--radius) var(--radius) 0 0;
   padding: 5px 16px 3px;
-  font-size: 18px; font-weight: 400;
+  font-size: 18px; font-weight: var(--num-weight);
   flex: none;
 }
 .tab-wrap .card { border-top-right-radius: 0; }
 
 /* Brake indicator. */
-.brake-bar { position: relative; height: 14px; border-radius: 99px; background: rgba(255, 60, 34, 0.14); overflow: hidden; }
+.brake-bar { position: relative; height: 14px; border-radius: var(--pill-radius); background: color-mix(in srgb, var(--brake) 14%, transparent); overflow: hidden; }
 .brake-bar > i {
-  position: absolute; top: 0; bottom: 0; left: 0; border-radius: 99px;
-  background: linear-gradient(90deg, #9d1c0b, #ff3c22);
+  position: absolute; top: 0; bottom: 0; left: 0; border-radius: var(--pill-radius);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--brake) 60%, black), var(--brake));
 }
 .brake-bar > s { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.35); }
-.brake-bar.now > i { background: #ff3c22; box-shadow: 0 0 12px #ff3c22; }
+.brake-bar.now > i { background: var(--brake); box-shadow: 0 0 calc(var(--glow) * 2) var(--brake); }
 .brake-marks { position: relative; height: 16px; margin-top: 6px; font-size: 12px; color: var(--text-2); }
 .brake-marks span { position: absolute; transform: translateX(-50%); }
 
 /* Delta bar: a long pill, and the number in its own small card below. */
-.delta-track { position: relative; height: 12px; border-radius: 99px; background: var(--card); overflow: hidden; flex: none; }
+.delta-track { position: relative; height: 12px; border-radius: var(--pill-radius); background: var(--card); overflow: hidden; flex: none; }
 .delta-track > i { position: absolute; top: 0; bottom: 0; }
 .delta-track::after {
   content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px;
   background: rgba(255, 255, 255, 0.35);
 }
 .delta-readout {
-  align-self: center; background: var(--card); border-radius: var(--radius);
+  align-self: center; background: var(--card); border: var(--card-border); border-radius: var(--radius);
   padding: 4px 14px; font-size: 16px; font-weight: 500;
 }
 
@@ -277,12 +384,12 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .sector { display: grid; grid-template-columns: 44px 1fr 1fr; align-items: center; height: 30px; font-size: 14px; }
 .sector + .sector { border-top: 1px solid var(--line); }
 .sector .name { align-self: stretch; display: flex; align-items: center; padding-left: 12px; font-weight: 600; }
-.sector .name.good { background: linear-gradient(90deg, rgba(77, 233, 95, 0.4), transparent); }
-.sector .name.bad { background: linear-gradient(90deg, rgba(255, 60, 34, 0.45), transparent); }
+.sector .name.good { background: linear-gradient(90deg, color-mix(in srgb, var(--green) 40%, transparent), transparent); }
+.sector .name.bad { background: linear-gradient(90deg, color-mix(in srgb, var(--red) 45%, transparent), transparent); }
 .sector.live { background: var(--card-hi); }
 .sector.live .t { border-right: 1px solid rgba(255, 255, 255, 0.2); }
-.sector .t { text-align: center; font-weight: 400; color: var(--text-2); }
-.sector .d { text-align: right; padding-right: 12px; font-weight: 400; }
+.sector .t { text-align: center; font-weight: var(--num-weight); color: var(--text-2); }
+.sector .d { text-align: right; padding-right: 12px; font-weight: var(--num-weight); }
 .laps3 { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; row-gap: 2px; }
 .laps3 .t { font-size: 14px; }
 .laps3 .d { font-size: 13px; }
@@ -292,13 +399,13 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 /* The gradient spans the whole track and the empty part covers it, so the
    colour at the fuel line says how full the tank is. */
 .fuel-bar {
-  position: relative; height: 10px; border-radius: 99px; overflow: hidden; margin: 10px 0 12px;
-  background: linear-gradient(90deg, #ff3c22, #ff9f1c 45%, #d9e33a 75%, #4de95f);
+  position: relative; height: 10px; border-radius: var(--pill-radius); overflow: hidden; margin: 10px 0 12px;
+  background: linear-gradient(90deg, var(--red), var(--orange) 45%, var(--yellow) 75%, var(--green));
 }
-.fuel-bar > i { position: absolute; top: 0; bottom: 0; right: 0; background: #2b1411; }
+.fuel-bar > i { position: absolute; top: 0; bottom: 0; right: 0; background: var(--fuel-empty); }
 .predict {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius);
-  background: linear-gradient(90deg, rgba(46, 232, 143, 0.28), var(--well) 40%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mint) 28%, transparent), var(--well) 40%);
 }
 .predict svg { flex: none; }
 .usage { display: grid; grid-template-columns: 1fr 1fr 1fr; row-gap: 5px; margin: 12px 4px; font-size: 13px; }
@@ -317,7 +424,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(90deg, rgba(0,0,0,0.25), transparent 30%, transparent 70%, rgba(0,0,0,0.25));
 }
-.tyre .temp { font-size: 22px; font-weight: 400; position: relative; z-index: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.tyre .temp { font-size: 22px; font-weight: var(--num-weight); position: relative; z-index: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
 .tyre .ico { position: absolute; bottom: 6px; left: 0; right: 0; display: flex; justify-content: space-around; font-size: 9px; color: rgba(255, 255, 255, 0.7); z-index: 1; }
 .axle .mid { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-2); font-size: 11px; }
 
@@ -332,8 +439,8 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 /* Comparison target. */
 .target {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius);
-  border: 1.5px solid rgba(46, 232, 143, 0.7);
-  background: linear-gradient(90deg, rgba(46, 232, 143, 0.22), rgba(46, 232, 143, 0.06));
+  border: 1.5px solid color-mix(in srgb, var(--mint) 70%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mint) 22%, transparent), color-mix(in srgb, var(--mint) 6%, transparent));
   box-shadow: inset 4px 0 0 var(--mint);
 }
 .target .tag { background: var(--mint); color: #062012; }
@@ -349,3 +456,209 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .kvt { width: 100%; border-collapse: collapse; font: 12px/1.55 var(--mono); }
 .kvt td:first-child { color: var(--text-2); }
 .kvt td:last-child { text-align: right; }
+
+/* -- Row layouts ---------------------------------------------------------------
+   Tokens carry the colours (themes.ts). A layout carries what a colour
+   cannot: how a row of Standings or Relatives is built. A theme names one
+   (`layout`), or takes its base theme's; the default, `wash`, is the rules
+   above. renderer.js sets data-layout on :root.                              */
+
+/* chips — the iRacing theme's. Modelled on the results table and black boxes
+   of the sim's 2025 UI.                                                      */
+
+/* No class-colour wash behind the position: a plain number, as in the sim. */
+[data-layout="chips"] .row .pos { background: none !important; color: var(--text-2); font-family: var(--num-font); }
+[data-layout="chips"] .row.me .pos { color: var(--me); }
+/* The class colour sits on the car number instead, as a chip. */
+[data-layout="chips"] .row .num {
+  justify-self: start; min-width: 30px; text-align: center; padding: 1px 4px; border-radius: 3px;
+  background: var(--cls, var(--well)); color: #14151c; font-weight: 700; font-size: 0.86em;
+  font-family: var(--num-font);
+}
+/* Your row: gold text on a flat dark-gold band. */
+[data-layout="chips"] .row.me { background: color-mix(in srgb, var(--me) 13%, transparent); }
+/* The licence as a filled chip in its own colour, no dot. */
+[data-layout="chips"] .irk {
+  background: color-mix(in srgb, var(--lic, #555) 78%, #14151c); border: 0; color: #fff; border-radius: 3px;
+  font-family: var(--num-font);
+}
+[data-layout="chips"] .irk i { display: none; }
+/* Column headings are grey, not gold: gold is for a box's own labels. */
+[data-layout="chips"] .titlebar .cap { color: var(--text-2); text-transform: none; letter-spacing: 0; font-size: 11px; }
+[data-layout="chips"] .titlebar .muted { text-transform: none; font-weight: 500; }
+/* Captions in the boxes read like the sim's: gold, not small caps. */
+[data-layout="chips"] .card .cap { text-transform: none; letter-spacing: 0; font-size: 11.5px; white-space: nowrap; }
+/* Monospace digits run wider: keep the big numbers inside their boxes. */
+[data-layout="chips"] .xl { font-size: 22px; }
+[data-layout="chips"] .lg { font-size: 17px; }
+[data-layout="chips"] .row { font-size: 12.5px; }
+[data-layout="chips"] .tag.outline { border-width: 0; background: currentColor; }
+[data-layout="chips"] .tag.outline > * , [data-layout="chips"] .tag.outline { -webkit-text-fill-color: #14151c; }
+
+/* blocks — a white position chip, the car number in a class-coloured block
+   with a bright stripe down its left, striped rows with no lines between,
+   class headers as tabs, and your own row marked by its text. */
+[data-layout="blocks"] .rows .row + .row { border-top: 0; }
+[data-layout="blocks"] .rows .row:nth-child(even) { background: var(--card-hi); }
+[data-layout="blocks"] .row { column-gap: 6px; }
+[data-layout="blocks"] .row .pos {
+  background: var(--chip-bg) !important; color: var(--chip-text);
+  margin: 3px 0 3px 4px; border-radius: 4px; font-weight: 800; align-self: stretch;
+}
+[data-layout="blocks"] .row .num {
+  align-self: stretch; display: flex; align-items: center; justify-content: center;
+  margin: 3px 0; padding-left: 4px; color: #fff; font-weight: 700; font-size: 0.86em;
+  background: linear-gradient(90deg, var(--cls, #888) 0 4px, color-mix(in srgb, var(--cls, #888) 58%, #101418) 4px);
+}
+/* Your row: no band unless the theme sets one; the text carries it. */
+[data-layout="blocks"] .rows .row.me { background: var(--me-bg); color: var(--me-text); }
+[data-layout="blocks"] .rows .row.me:nth-child(even) { background: var(--me-bg), var(--card-hi); }
+[data-layout="blocks"] .row.me .pos { color: var(--chip-text); }
+[data-layout="blocks"] .row.me .num { color: #fff; }
+[data-layout="blocks"] .irk { border: 0; border-radius: 4px; font-size: 10.5px; }
+[data-layout="blocks"] .irk i { display: none; }
+/* A class header: its name on a tab in the class colour, the strength of
+   field on a darker shade of it, and a thin line in it across the panel. */
+[data-layout="blocks"] .class-head {
+  background: transparent; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--cls) 55%, transparent);
+  border-radius: 0; padding: 0 12px 0 0; gap: 0; height: 22px !important; margin-top: 6px;
+  text-transform: none; letter-spacing: 0;
+}
+[data-layout="blocks"] .class-head .tag.outline {
+  border: 0; border-radius: 0; height: 100%; padding: 0 8px; background: var(--cls);
+  -webkit-text-fill-color: #101418; font-style: italic; font-size: 11.5px;
+}
+[data-layout="blocks"] .class-head .tag.outline + .muted {
+  align-self: stretch; display: flex; align-items: center; padding: 0 8px; margin-right: 6px;
+  background: color-mix(in srgb, var(--cls) 45%, #101418); color: #fff; font-size: 11.5px; font-weight: 700;
+}
+[data-layout="blocks"] .class-head .cap { text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--text); }
+[data-layout="blocks"] .rows.card { border-radius: 0; }
+
+/* -- Structures (panel-options.ts): the same overlay, built differently --------
+   renderer.js sets data-style on <body> from the overlay's chosen style.     */
+
+/* Delta as a dial: a ring with the number in the middle. Off unless chosen. */
+.delta-dial { display: none; position: relative; flex: 1 1 auto; min-height: 0; background: var(--card); border: var(--card-border); border-radius: 50%; aspect-ratio: 1; align-self: center; max-height: 100%; }
+.delta-dial-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.delta-dial-mid b { font-size: 22px; font-weight: var(--num-weight); background: var(--well); border-radius: var(--radius); padding: 4px 10px; }
+body[data-style="dial"] .delta-dial { display: block; }
+body[data-style="dial"] .delta-track, body[data-style="dial"] .delta-readout { display: none; }
+body[data-style="dial"] .panel { justify-content: center !important; }
+
+/* Weather as a stack of cards, one reading each, for a tall narrow window. */
+body[data-style="stack"] .panel > .card.grow { background: transparent; border: 0; padding: 0; gap: var(--gap); }
+body[data-style="stack"] .panel > .card.grow > .spread,
+body[data-style="stack"] .wx-stat,
+body[data-style="stack"] .wx-wind {
+  background: var(--card); border: var(--card-border); border-radius: var(--radius); padding: 10px 14px;
+}
+body[data-style="stack"] .wx-stats { flex-direction: column; align-items: stretch; margin: 0; padding: 0; border: 0; gap: var(--gap); flex: 1 1 auto; }
+body[data-style="stack"] .wx-stats .grid { grid-template-columns: 1fr; gap: var(--gap); flex: none; }
+body[data-style="stack"] .wx-stat { align-items: center; gap: 10px; }
+body[data-style="stack"] .wx-stat b { font-size: 26px; font-weight: var(--num-weight); order: 2; }
+body[data-style="stack"] .wx-stat .cap { order: 3; }
+body[data-style="stack"] .wx-wind { border-left: var(--card-border); flex: 1 1 auto; justify-content: center; flex-direction: column; text-align: center; }
+body[data-style="stack"] .wx-wind svg { width: 84px; height: 84px; }
+body[data-style="stack"] .wx-wind b { font-size: 22px; }
+
+/* blocks: the lap chip in Relatives is gold, as a pit or lap marker reads there. */
+[data-layout="blocks"] .tag.lap { background: var(--orange); color: #14181c; border-radius: 3px; }
+
+/* -- Synthwave: what its tokens cannot say --------------------------------------
+   Light bleeding off the big numbers, titles and bars. The panels themselves
+   are plain dark, from the tokens. A custom theme based on Synthwave gets
+   these only while it is the built-in: they key on the theme, not the layout. */
+[data-theme="synthwave"] .titlebar { text-shadow: 0 0 8px rgba(255, 106, 213, 0.9); }
+[data-theme="synthwave"] .xl,
+[data-theme="synthwave"] .lg,
+[data-theme="synthwave"] .delta-readout,
+[data-theme="synthwave"] .tab-wrap .tab,
+[data-theme="synthwave"] .laps3 .t,
+[data-theme="synthwave"] .good,
+[data-theme="synthwave"] .bad { text-shadow: 0 0 10px currentColor; }
+[data-theme="synthwave"] .cap { text-shadow: 0 0 6px rgba(0, 240, 255, 0.7); }
+[data-theme="synthwave"] .pill-h > i,
+[data-theme="synthwave"] .pedal .pill-v > i,
+[data-theme="synthwave"] .delta-track > i { box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); filter: saturate(1.25); }
+
+/* Synthwave: your own row on a band that runs pink to cyan, lit from within. */
+[data-theme="synthwave"] .row.me {
+  background: linear-gradient(90deg, rgba(255, 43, 214, 0.55), rgba(164, 92, 255, 0.4) 50%, rgba(0, 240, 255, 0.4));
+  box-shadow: inset 0 0 12px rgba(255, 106, 213, 0.55);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
+}
+[data-theme="synthwave"] .row.me .pos { color: #ffffff; }
+/* Orbitron digits run wide: bring the big numbers down a size so they fit. */
+[data-theme="synthwave"] .xl { font-size: 21px; letter-spacing: 0; }
+[data-theme="synthwave"] .lg { font-size: 16.5px; }
+[data-theme="synthwave"] .row .n { font-size: 0.86em; }
+[data-theme="synthwave"] .titlebar .n, [data-theme="synthwave"] .titlebar .lg { font-family: var(--num-font); }
+
+/* Synthwave: the rev lights lean in towards the middle — \\\\ //// — taller and
+   closer together so the slant reads. The two halves light from the outside in. */
+[data-theme="synthwave"] .shift { gap: 4px; margin-bottom: 12px; padding: 0 4px; }
+[data-theme="synthwave"] .shift i { height: 11px; border-radius: 1px; transform: skewX(28deg); }
+[data-theme="synthwave"] .shift i:nth-child(n + 9) { transform: skewX(-28deg); }
+/* The same cut on the pedal bars' caps: no rounded knob. */
+[data-theme="synthwave"] .pedal.knob .pill-v > b { border-radius: 1px; left: 0; right: 0; height: 3px; }
+
+/* Synthwave: the two middle rev lights close up into one V, the point of the
+   sweep, instead of sitting apart like the rest. */
+/* The two middle lights always light together, so they are drawn as one
+   bigger light: the eighth stretches across both cells, slanting in at each
+   end like its neighbours, and the ninth steps aside. One shape, so
+   see-through unlit lights show no darker overlap where two would stack. */
+[data-theme="synthwave"] .shift i:nth-child(8) {
+  width: calc(200% + 4px);
+  transform: none;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 5.85px) 100%, 5.85px 100%);
+}
+[data-theme="synthwave"] .shift i:nth-child(9) { visibility: hidden; }
+
+/* Synthwave: bars with two opposite corners cut off on the diagonal — top
+   left and bottom right — instead of rounded or square ends. */
+[data-theme="synthwave"] .pill-h,
+[data-theme="synthwave"] .fuel-bar,
+[data-theme="synthwave"] .delta-track,
+[data-theme="synthwave"] .brake-bar {
+  border-radius: 0;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+[data-theme="synthwave"] .pedal .pill-v {
+  border-radius: 0;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+/* The fills inside follow the track's cut, so they need no shape of their own. */
+[data-theme="synthwave"] .pill-h > i,
+[data-theme="synthwave"] .pedal .pill-v > i,
+[data-theme="synthwave"] .brake-bar > i,
+[data-theme="synthwave"] .delta-track > i { border-radius: 0 !important; }
+
+/* Synthwave: the class colour as neon, not paint — a bright slanted stripe at
+   the row's edge, a faint tint of it behind the position, and the position
+   itself glowing in it. In place of the wash that faded across the row. */
+[data-theme="synthwave"] .row .pos {
+  background:
+    linear-gradient(108deg, var(--cls, #888) 0 5px, transparent 5px),
+    linear-gradient(90deg, color-mix(in srgb, var(--cls, #888) 26%, transparent), color-mix(in srgb, var(--cls, #888) 8%, transparent)) !important;
+  color: var(--cls, var(--text)); font-family: var(--num-font); font-weight: 800;
+  text-shadow: 0 0 9px var(--cls, transparent);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 100%, 0 100%);
+  padding: 0 6px 0 4px;
+}
+[data-theme="synthwave"] .row.me .pos { color: #ffffff; text-shadow: 0 0 9px #ffffff; }
+
+/* Synthwave: the used part of the fuel bar is plain dark, not red-brown. */
+[data-theme="synthwave"] { --fuel-empty: #17171b; }
+
+[data-theme="synthwave"] .revlights-card .shift { margin: 0; }
+[data-theme="synthwave"] .revlights-card .shift i { height: min(100cqh, 2.4cqw); }
+/* The joined middle light's slant follows the lights' own height, worked out
+   the same way (tan 28° of it), to match its neighbours at any size. */
+[data-theme="synthwave"] .revlights-card .shift i:nth-child(8) {
+  clip-path: polygon(0 0, 100% 0, calc(100% - min(53cqh, 1.27cqw)) 100%, min(53cqh, 1.27cqw) 100%);
+}
+
+/* Orbitron is wide: three lap times side by side need a size down to fit. */
+[data-theme="synthwave"] .laps3 .t { font-size: 12.5px; }

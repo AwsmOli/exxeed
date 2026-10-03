@@ -10,12 +10,13 @@
 // into `state`, and the rAF loop reads it. The car moves at the display's rate,
 // not the telemetry's, and no framework re-renders on a 60 Hz frame.
 
-import { inputs, pedals, trace, speed, brake } from "./panels/driving.js";
+import { inputs, pedals, trace, speed, brake, revlights } from "./panels/driving.js";
 import { delta, sectors, corners, reference } from "./panels/timing.js";
 import { standings, relative, radar } from "./panels/race.js";
 import { map, minimap } from "./panels/track.js";
 import { fuel, tyres, damage, weather } from "./panels/car.js";
 import { callouts, telemetry } from "./panels/exxeed.js";
+import { refreshColors } from "./panels/util.js";
 
 const PANELS = {
   inputs,
@@ -23,6 +24,7 @@ const PANELS = {
   trace,
   speed,
   brake,
+  revlights,
   delta,
   sectors,
   corners,
@@ -51,6 +53,7 @@ const SIZES = {
   trace: [640, 150],
   speed: [640, 140],
   brake: [300, 72],
+  revlights: [520, 44],
   delta: [340, 72],
   sectors: [280, 224],
   corners: [340, 220],
@@ -91,6 +94,8 @@ const state = {
   events: [],
   clips: 0,
   frames: 0,
+  /** What this window's overlay shows and how it is built (panel-options.ts). */
+  options: { hidden: new Set(), style: null },
   v: { map: 0, reference: 0, race: 0, events: 0 },
 };
 
@@ -120,6 +125,36 @@ const mounted = ids.map((id) => {
   root.append(panel.el);
   return panel;
 });
+
+// ---------------------------------------------------------------------------
+// Size: reflow above the panel's layout minimum, scale below it.
+//
+// A window made smaller than the panel can lay out in would otherwise squash
+// it — columns overlapping, numbers clipped. Instead the panel keeps laying
+// out at its minimum and the whole thing is scaled down to the window, so it
+// just gets smaller. Above the minimum it reflows, which is how a panel is
+// made wider or taller.
+// ---------------------------------------------------------------------------
+
+if (isOverlay) {
+  const minW = Number(params.get("minw")) || 0;
+  const minH = Number(params.get("minh")) || 0;
+  const fitToWindow = () => {
+    const inset = 8; // #root's inset on both sides (overlay.css --inset)
+    const w = Math.max(1, window.innerWidth - inset);
+    const h = Math.max(1, window.innerHeight - inset);
+    const scale = Math.min(1, minW > 0 ? w / minW : 1, minH > 0 ? h / minH : 1);
+    root.style.transformOrigin = "0 0";
+    root.style.transform = scale < 1 ? `scale(${scale})` : "";
+    root.style.right = "auto";
+    root.style.bottom = "auto";
+    root.style.width = `${w / scale}px`;
+    root.style.height = `${h / scale}px`;
+    document.body.style.setProperty("--fit-scale", String(scale));
+  };
+  fitToWindow();
+  window.addEventListener("resize", fitToWindow);
+}
 
 // ---------------------------------------------------------------------------
 // Dragging
@@ -246,6 +281,49 @@ window.exxeed?.onStateFrame((f) => {
   // paint — a boundary crossed between two paints would otherwise be missed.
   for (const panel of mounted) panel.frame?.(state);
 });
+
+// What this overlay shows: hidden parts and the chosen structure, per profile
+// (panel-options.ts). A hidden part is anything carrying its id in data-part;
+// panels that build rows from columns read `state.options` themselves.
+const partRules = document.createElement("style");
+document.head.append(partRules);
+function applyPanelSettings(settings) {
+  if (settings === null || typeof settings !== "object") return;
+  const hidden = Array.isArray(settings.hidden) ? settings.hidden.filter((h) => /^[a-z]+$/.test(h)) : [];
+  state.options = { hidden: new Set(hidden), style: typeof settings.style === "string" ? settings.style : null };
+  partRules.textContent = hidden.map((id) => `[data-part~="${id}"]{display:none!important}`).join("\n");
+  document.body.dataset.style = state.options.style ?? "";
+  // Rows are rebuilt from columns, so they need telling.
+  state.v.race++;
+}
+if (isOverlay && wanted !== null) {
+  window.exxeed?.getPanelSettings?.(wanted).then(applyPanelSettings);
+  window.exxeed?.onPanelSettings?.((message) => {
+    if (message?.panel === wanted) applyPanelSettings(message.settings);
+  });
+}
+
+// The theme: tokens written over the stylesheet's defaults, then the canvas
+// palette refilled from them. Live — nothing is rebuilt or restarted.
+let themed = [];
+function applyTheme(theme) {
+  if (theme === null || typeof theme !== "object") return;
+  const root = document.documentElement;
+  for (const name of themed) root.style.removeProperty(name);
+  themed = Object.keys(theme.variables ?? {});
+  for (const name of themed) root.style.setProperty(name, theme.variables[name]);
+  root.dataset.theme = theme.id;
+  // How rows are built (overlay.css [data-layout]): the theme's choice, or its base's.
+  root.dataset.layout = theme.layout ?? "wash";
+  refreshColors();
+  // Panels that draw their DOM from state redraw with the new colours. Not the
+  // map: its version also keys the heat map, which a theme should not wipe.
+  state.v.race++;
+  state.v.reference++;
+  state.v.events++;
+}
+window.exxeed?.getTheme?.().then(applyTheme);
+window.exxeed?.onTheme?.(applyTheme);
 
 window.exxeed?.onMap((view) => {
   state.map = view;

@@ -15,7 +15,14 @@ import { join } from "node:path";
 
 import { app } from "electron";
 
-import { PANELS, type OverlayProfile, type PanelId } from "@exxeed/overlays";
+import {
+  DEFAULT_PANEL_SETTINGS,
+  PANELS,
+  sanitizePanelSettings,
+  type OverlayProfile,
+  type PanelId,
+  type PanelSettings,
+} from "@exxeed/overlays";
 
 /**
  * The profile every install starts with, and the id the pre-profile single
@@ -60,6 +67,7 @@ function load(defaultPanels: readonly PanelId[]): ProfilesFile {
       panels: Array.isArray(p["panels"]) && p["panels"].every(isPanelId) && p["panels"].length > 0
         ? (p["panels"] as PanelId[])
         : defaultPanels,
+      settings: readSettings(p["settings"]),
     }));
 
   if (profiles.length === 0) return fallback;
@@ -70,6 +78,16 @@ function load(defaultPanels: readonly PanelId[]): ProfilesFile {
       : profiles[0]!.id;
 
   return { activeProfileId, profiles };
+}
+
+/** A profile's per-overlay settings from disk, with anything unknown dropped. */
+function readSettings(raw: unknown): Partial<Record<PanelId, PanelSettings>> {
+  const out: Partial<Record<PanelId, PanelSettings>> = {};
+  if (typeof raw !== "object" || raw === null) return out;
+  for (const [panel, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (isPanelId(panel)) out[panel] = sanitizePanelSettings(panel, value);
+  }
+  return out;
 }
 
 function save(file: ProfilesFile): void {
@@ -113,6 +131,7 @@ export class OverlayProfileStore {
       // A blank slate would open nothing, so start from what the active profile
       // already shows — the common case is "one more arrangement like this one".
       panels: [...this.active.panels],
+      settings: { ...this.active.settings },
     };
     this.#profiles = [...this.#profiles, record];
     this.#persist();
@@ -149,5 +168,20 @@ export class OverlayProfileStore {
     if (panels.length === 0) return;
     this.#profiles = this.#profiles.map((p) => (p.id === id ? { ...p, panels: [...panels] } : p));
     this.#persist();
+  }
+
+  /** One overlay's settings in a profile; the defaults when none were ever chosen. */
+  settingsOf(id: string, panel: PanelId): PanelSettings {
+    return this.#profiles.find((p) => p.id === id)?.settings?.[panel] ?? DEFAULT_PANEL_SETTINGS;
+  }
+
+  /** Change one overlay's settings in a profile. Returns what is now stored. */
+  setSettings(id: string, panel: PanelId, change: (current: PanelSettings) => PanelSettings): PanelSettings {
+    const next = sanitizePanelSettings(panel, change(this.settingsOf(id, panel)));
+    this.#profiles = this.#profiles.map((p) =>
+      p.id === id ? { ...p, settings: { ...p.settings, [panel]: next } } : p,
+    );
+    this.#persist();
+    return next;
   }
 }

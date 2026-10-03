@@ -5,6 +5,7 @@
 
 import { marked } from "./vendor/marked.esm.js";
 import DOMPurify from "./vendor/purify.es.mjs";
+import { createThemes } from "./content-themes.js";
 
 const el = (id) => document.getElementById(id);
 const SVG = "http://www.w3.org/2000/svg";
@@ -206,6 +207,8 @@ function renderResults() {
 
 let searchTimer = null;
 async function search(reset = true) {
+  // Themes are listed by their own module, in the same list and page.
+  if (kind === "theme") return themes.search(reset);
   if (reset) {
     state.offset = 0;
     state.rows = [];
@@ -614,6 +617,56 @@ document.addEventListener("open-content", async (e) => {
   el("c-class").value = carClass ?? "";
   document.querySelector('.section-btn[data-section="content"]')?.click();
   void search(true);
+});
+
+// -- Callout packs or themes --------------------------------------------------------
+
+/** Which kind of content the tab is showing. Themes hand over to content-themes.js. */
+let kind = "callouts";
+const themes = createThemes({
+  el,
+  make,
+  setStatus,
+  plural,
+  date,
+  markdown,
+  openLightbox,
+  star: (itemId, on) => content({ op: "star", itemId, on }),
+  signedIn: () => state.facets?.signedIn === true,
+});
+
+function setKind(next) {
+  if (kind === next) return;
+  kind = next;
+  for (const b of document.querySelectorAll("#c-kind button")) b.classList.toggle("on", b.dataset.kind === kind);
+  // Track and car class mean nothing for a theme.
+  el("c-track").hidden = kind === "theme";
+  el("c-class").hidden = kind === "theme";
+  el("c-search").placeholder = kind === "theme" ? "Search themes" : "Search packs";
+  state.selected = null;
+  themes.clear();
+  el("c-page").replaceChildren(
+    make("div", {
+      className: "c-empty",
+      textContent:
+        kind === "theme"
+          ? "Pick a theme on the left to see its colours and who made it."
+          : "Pick a pack on the left to see what it says, where, and who made it.",
+    }),
+  );
+  void search(true);
+}
+for (const b of document.querySelectorAll("#c-kind button")) b.addEventListener("click", () => setKind(b.dataset.kind));
+
+/** Open the Content tab on themes — from the Overlays tab's "Find more". */
+document.addEventListener("open-themes", async () => {
+  if (!loaded) {
+    loaded = true;
+    await loadFacets();
+  }
+  document.querySelector('.section-btn[data-section="content"]')?.click();
+  if (kind === "theme") void search(true);
+  else setKind("theme");
 });
 
 // -- Wiring -------------------------------------------------------------------------

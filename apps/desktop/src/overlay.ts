@@ -250,12 +250,11 @@ export class OverlayLayout {
       y: position.y,
       width,
       height,
-      // A panel shrunk to nothing is not a smaller panel, it is a lost one —
-      // and one stretched to nothing wide is a divide-by-zero waiting to
-      // happen in a canvas fit. Small enough to still be worth having,
-      // nowhere near small enough to vanish under the cursor.
-      minWidth: 120,
-      minHeight: 60,
+      // Below its layout minimum a panel scales down rather than squashing
+      // (renderer.js), so the window may go well under it — but not to
+      // nothing: a panel shrunk away is lost, not smaller.
+      minWidth: Math.max(48, Math.round(spec.minLayout[0] * 0.35)),
+      minHeight: Math.max(16, Math.round(spec.minLayout[1] * 0.35)),
       title: `Exxeed — ${spec.title}`,
       transparent: true,
       frame: false,
@@ -300,7 +299,9 @@ export class OverlayLayout {
     // click-through for driving, rather than grabbable for arranging.
     window.setIgnoreMouseEvents(this.#clickThrough, { forward: true });
 
-    void window.loadFile(page, { search: `overlay=1&panel=${panel}` });
+    void window.loadFile(page, {
+      search: `overlay=1&panel=${panel}&minw=${spec.minLayout[0]}&minh=${spec.minLayout[1]}`,
+    });
 
     window.on("close", () => markClosing(window));
     // Persisting on every "moved"/"resized" would write the settings file

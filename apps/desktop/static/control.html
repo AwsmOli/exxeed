@@ -24,7 +24,7 @@
          screenshots from our own storage (hosted, and the local dev stack).
          Named hosts, not "https:": a pack description is a stranger's text,
          and a remote image in it would be a tracking pixel. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: https://cdn.discordapp.com https://*.googleusercontent.com https://mxxexxhcftzjvaihhaph.supabase.co http://127.0.0.1:54321" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' data: https://cdn.discordapp.com https://*.googleusercontent.com https://mxxexxhcftzjvaihhaph.supabase.co http://127.0.0.1:54321" />
     <title>Exxeed</title>
     <style>
       :root { color-scheme: dark; }
@@ -218,6 +218,18 @@
         border: 1px solid #30363d; border-radius: 6px; padding: 6px 8px; font: 12px/1.2 inherit;
       }
       .c-filters { display: flex; flex-direction: column; gap: 6px; }
+      /* Callout packs or themes: one tab, two kinds of content. */
+      .c-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; flex: none; }
+      .c-kind button { border: 0; border-radius: 0; background: transparent; color: #8b949e; padding: 5px 8px; font-size: 12px; }
+      .c-kind button.on { background: #1f2937; color: #e6edf3; }
+      /* A theme's colours, as swatches. */
+      .c-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+      .c-swatch { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #c9d1d9; }
+      .c-swatch i {
+        width: 26px; height: 26px; border-radius: 6px; flex: none; border: 1px solid rgba(255,255,255,0.18);
+        /* A checker behind, so a see-through colour reads as see-through. */
+        background-color: #777;
+      }
       .c-row { display: flex; gap: 10px; align-items: center; font-size: 11.5px; color: #8b949e; flex-wrap: wrap; }
       .c-row label { display: flex; gap: 4px; align-items: center; white-space: nowrap; cursor: pointer; }
       /* Shrinks into what the checkboxes leave, and wraps below them when that is too little. */
@@ -297,6 +309,21 @@
       .lightbox img { max-width: 92vw; max-height: 86vh; border-radius: 6px; }
       .lightbox-hint { position: fixed; bottom: 14px; color: #8b949e; font-size: 11.5px; }
       .form-status.bad { color: #f85149; }
+      dialog#theme-publish { width: 480px; max-height: 88vh; overflow-y: auto; }
+      dialog#theme-edit { width: min(760px, 94vw); max-height: 94vh; }
+      dialog#welcome { width: min(560px, 92vw); }
+      .welcome-steps { margin: 0 0 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; color: #c9d1d9; line-height: 1.5; }
+      .welcome-steps b { color: #e6edf3; }
+      .te-editor { height: 58vh; min-height: 260px; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
+      .te-text { height: 52vh; min-height: 220px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; tab-size: 2; }
+      .modal-text {
+        width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical; background: #0d1117; color: #e6edf3;
+        border: 1px solid #30363d; border-radius: 6px; padding: 8px 10px; font: 12.5px/1.4 inherit;
+      }
+      .tp-shots { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+      .tp-shots figure { margin: 0; position: relative; }
+      .tp-shots img { width: 110px; height: 68px; object-fit: cover; border-radius: 5px; border: 1px solid #30363d; display: block; }
+      .tp-shots figure button { position: absolute; top: 2px; right: 2px; padding: 0 5px; font-size: 11px; line-height: 16px; }
 
       main { overflow-y: auto; padding: 12px 14px; min-height: 0; }
       .view { display: none; }
@@ -384,10 +411,36 @@
         color: #8b949e; font-size: 11.5px; cursor: pointer;
       }
       .ov-panels input { accent-color: #58a6ff; }
+      /* An overlay's checkbox and, beside it, the gear for what it shows. */
+      .ov-panel { display: inline-flex; align-items: center; gap: 2px; }
+      .ov-gear {
+        border: 0; background: transparent; color: #6e7681; padding: 0 3px; font-size: 12px; line-height: 1; cursor: pointer;
+      }
+      .ov-gear:hover, .ov-gear.open { color: #e6edf3; }
+      .ov-gear.changed { color: #58a6ff; }
+      .ov-options {
+        margin: 10px 0 2px 19px; padding: 10px 12px; border: 1px solid #30363d; border-radius: 8px; background: #0d1117;
+        font-size: 12px;
+      }
+      .ov-options-title { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+      .ov-options-style { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .ov-options-style select {
+        background: #161b22; color: #e6edf3; font: inherit; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 3px 8px;
+      }
+      .ov-options-parts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+      .ov-options-parts label { display: inline-flex; align-items: center; gap: 5px; }
+      .ov-options-parts input { accent-color: #58a6ff; }
 
       .ov-hint { color: #6e7681; font-size: 11.5px; margin-top: 2px; }
       .ov-option { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; }
       .ov-option input { accent-color: #58a6ff; }
+      .ov-theme { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; }
+      .ov-theme select {
+        background: #161b22; color: #e6edf3; font: inherit; border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 6px; padding: 4px 8px;
+      }
+      .ov-theme-desc { color: #6e7681; font-size: 11.5px; margin-top: 6px; }
+      .ov-theme-problems { margin: 6px 0 0; padding-left: 18px; color: #d29922; font-size: 11.5px; }
 
       footer {
         border-top: 1px solid #21262d;
@@ -463,6 +516,18 @@
             Double-click a name to rename it. Edit shows that profile's overlays so
             you can drag them into place; Save locks them back down.
           </div>
+          <div class="ov-theme">
+            <label for="ov-theme">Theme</label>
+            <select id="ov-theme"></select>
+            <button class="ghost" id="ov-theme-new" type="button" title="Copy the theme in use into a new file of your own and open it for editing">New…</button>
+            <button class="ghost" id="ov-theme-edit" type="button" title="Open this theme's file. Saving it restyles the overlays straight away." hidden>Edit</button>
+            <button class="ghost" id="ov-theme-delete" type="button" hidden>Delete</button>
+            <button class="ghost" id="ov-theme-publish" type="button" title="Share this theme in Content, for others to install" hidden>Publish…</button>
+            <button class="ghost" id="ov-theme-folder" type="button" title="Open the folder your theme files are in">Folder</button>
+            <button class="ghost" id="ov-theme-more" type="button" title="Themes other drivers have shared">Find more…</button>
+          </div>
+          <div class="ov-theme-desc" id="ov-theme-desc"></div>
+          <ul class="ov-theme-problems" id="ov-theme-problems" hidden></ul>
           <label class="ov-option">
             <input type="checkbox" id="ov-hide-unfocused" />
             Hide overlays and mute callouts when iRacing isn't the window in front
@@ -488,6 +553,10 @@
         <section class="view" id="view-content">
           <div class="c-wrap">
             <aside class="c-side">
+              <div class="c-kind" id="c-kind">
+                <button type="button" data-kind="callouts" class="on">Callout packs</button>
+                <button type="button" data-kind="theme">Themes</button>
+              </div>
               <input type="search" id="c-search" placeholder="Search packs" spellcheck="false" />
               <div class="c-filters">
                 <select id="c-track"><option value="">Any track</option></select>
@@ -577,6 +646,83 @@
 
       <div class="form-status" id="lap-source-status"></div>
       <div class="actions"><button class="ghost" id="lap-source-close" type="button">Close</button></div>
+    </dialog>
+
+    <dialog class="modal" id="welcome">
+      <h2>Welcome to Exxeed</h2>
+      <p class="lead">A track coach for iRacing: it talks you round a new circuit while you drive. Four things to know.</p>
+      <ol class="welcome-steps">
+        <li>
+          <b>Run iRacing in borderless windowed, not fullscreen.</b>
+          Overlays cannot draw over exclusive fullscreen. In iRacing: Options → Graphics → Display, and choose
+          borderless window. This is the setting most overlay problems come down to.
+        </li>
+        <li>
+          <b>Get callouts for your track.</b>
+          Install a pack another driver made in <b>Content</b>, or turn a YouTube track guide into callouts with
+          <b>Import from YouTube</b> in Track Coach. Callouts play in your headset when you drive that track.
+        </li>
+        <li>
+          <b>Arrange your overlays.</b>
+          In <b>Overlays</b>, tick the ones you want and press <b>Edit</b> to drag and size them over the sim. The gear
+          beside an overlay chooses what it shows. Overlays only show while iRacing is the window in front.
+        </li>
+        <li>
+          <b>Try it now.</b> <b>Test mode</b> drives a lap through the overlays and callouts without the sim.
+        </li>
+      </ol>
+      <div class="actions">
+        <button class="ghost" id="welcome-test" type="button">Try test mode</button>
+        <button class="solid" id="welcome-ok" type="button">Got it</button>
+      </div>
+    </dialog>
+
+    <dialog class="modal" id="theme-edit">
+      <h2 id="te-heading">Edit theme</h2>
+      <p class="lead">
+        Changes show on the open overlays as you type. Leave a setting out to keep the base theme's.
+        Turn on Test mode, or Edit on a profile, to have overlays to look at.
+      </p>
+      <!-- Monaco, the editor from VS Code, mounts here. The textarea is what is
+           used if it cannot load, and is hidden once it has. -->
+      <div id="te-editor" class="te-editor" hidden></div>
+      <textarea id="te-text" class="modal-text te-text" spellcheck="false" autocomplete="off"></textarea>
+      <ul class="ov-theme-problems" id="te-problems" hidden></ul>
+      <div class="form-status" id="te-status"></div>
+      <div class="actions">
+        <button class="ghost" id="te-reveal" type="button" title="Show the theme's file, to edit it in an editor of your own">Show file</button>
+        <span style="flex:1"></span>
+        <button class="solid" id="te-close" type="button">Done</button>
+      </div>
+    </dialog>
+
+    <dialog class="modal" id="theme-publish">
+      <h2 id="tp-heading">Publish theme</h2>
+      <p class="lead" id="tp-lead"></p>
+      <label class="field-label" for="tp-title">Title</label>
+      <input type="text" id="tp-title" maxlength="80" />
+      <label class="field-label" for="tp-summary">One-line summary</label>
+      <input type="text" id="tp-summary" maxlength="160" />
+      <label class="field-label" for="tp-readme">Description — Markdown. What it looks like, what it is for.</label>
+      <textarea id="tp-readme" class="modal-text"></textarea>
+      <label class="field-label" for="tp-visibility">Who can find it</label>
+      <select id="tp-visibility" class="modal-select">
+        <option value="public">Public — listed in Content</option>
+        <option value="unlisted">Unlisted — only people with the link</option>
+        <option value="private">Private — only you</option>
+      </select>
+      <label class="field-label" for="tp-changelog">What changed in this version</label>
+      <input type="text" id="tp-changelog" maxlength="200" placeholder="First version" />
+      <div id="tp-shots-section" hidden>
+        <label class="field-label">Screenshots — shown on the theme's page</label>
+        <div class="tp-shots" id="tp-shots"></div>
+        <button class="ghost" id="tp-add-shot" type="button">Add a screenshot…</button>
+      </div>
+      <div class="form-status" id="tp-status"></div>
+      <div class="actions">
+        <button class="ghost" id="tp-close" type="button">Close</button>
+        <button class="solid" id="tp-publish" type="button">Publish</button>
+      </div>
     </dialog>
 
     <dialog class="modal" id="lap-import">

@@ -11,6 +11,13 @@
 
 import type { Mps, NoteState, Pct, Radians, Seconds, SuppressionReason } from "@exxeed/core";
 
+import { DEFAULT_THEME_ID } from "./themes.js";
+
+import type { PanelChoice, PanelSettings } from "./panel-options.js";
+
+export * from "./themes.js";
+export * from "./panel-options.js";
+
 /**
  * The overlays, as separate windows.
  *
@@ -35,6 +42,7 @@ export const PANELS = [
   "trace",
   "speed",
   "brake",
+  "revlights",
   // Timing.
   "delta",
   "sectors",
@@ -85,29 +93,38 @@ export interface PanelSpec {
   /** Starting size. Position and size are both remembered once changed. */
   readonly width: number;
   readonly height: number;
+  /**
+   * The smallest size the panel's content lays out properly at. A window made
+   * smaller than this does not squash the panel: it lays out at this size and
+   * is scaled down to fit, so it gets smaller, not broken. Above it, the panel
+   * reflows to the window, which is how its proportions are changed.
+   */
+  readonly minLayout: readonly [width: number, height: number];
 }
 
 export const PANEL_SPECS: Readonly<Record<PanelId, PanelSpec>> = {
-  inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110 },
-  pedals: { id: "pedals", title: "Input Telemetry", width: 540, height: 170 },
-  trace: { id: "trace", title: "Input Comparison", width: 640, height: 150 },
-  speed: { id: "speed", title: "Speed Comparison", width: 640, height: 140 },
-  brake: { id: "brake", title: "Brake Indicator", width: 300, height: 72 },
-  delta: { id: "delta", title: "Delta Bar", width: 340, height: 72 },
-  sectors: { id: "sectors", title: "Delta Sectors", width: 280, height: 224 },
-  corners: { id: "corners", title: "Corner Analysis", width: 340, height: 220 },
-  reference: { id: "reference", title: "Comparison Target", width: 360, height: 190 },
-  standings: { id: "standings", title: "Standings", width: 640, height: 420 },
-  relative: { id: "relative", title: "Relatives", width: 440, height: 360 },
-  radar: { id: "radar", title: "Radar", width: 260, height: 260 },
-  map: { id: "map", title: "Track Map", width: 360, height: 360 },
-  minimap: { id: "minimap", title: "Mini Map", width: 230, height: 230 },
-  fuel: { id: "fuel", title: "Fuel Calculator", width: 260, height: 340 },
-  tyres: { id: "tyres", title: "Tyres", width: 250, height: 340 },
-  damage: { id: "damage", title: "Damage", width: 220, height: 100 },
-  weather: { id: "weather", title: "Weather Conditions", width: 400, height: 130 },
-  callouts: { id: "callouts", title: "Callouts", width: 320, height: 220 },
-  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 340 },
+  inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110, minLayout: [470, 95] },
+  pedals: { id: "pedals", title: "Input Telemetry", width: 540, height: 170, minLayout: [520, 150] },
+  trace: { id: "trace", title: "Input Comparison", width: 640, height: 150, minLayout: [300, 100] },
+  speed: { id: "speed", title: "Speed Comparison", width: 640, height: 140, minLayout: [300, 90] },
+  brake: { id: "brake", title: "Brake Indicator", width: 300, height: 72, minLayout: [200, 60] },
+  // A strip: it can be made as thin as a line of lights.
+  revlights: { id: "revlights", title: "Rev Lights", width: 520, height: 44, minLayout: [240, 18] },
+  delta: { id: "delta", title: "Delta Bar", width: 340, height: 72, minLayout: [200, 60] },
+  sectors: { id: "sectors", title: "Delta Sectors", width: 280, height: 224, minLayout: [290, 210] },
+  corners: { id: "corners", title: "Corner Analysis", width: 340, height: 220, minLayout: [260, 180] },
+  reference: { id: "reference", title: "Comparison Target", width: 360, height: 190, minLayout: [300, 175] },
+  standings: { id: "standings", title: "Standings", width: 640, height: 420, minLayout: [500, 350] },
+  relative: { id: "relative", title: "Relatives", width: 440, height: 360, minLayout: [400, 330] },
+  radar: { id: "radar", title: "Radar", width: 260, height: 260, minLayout: [120, 120] },
+  map: { id: "map", title: "Track Map", width: 360, height: 360, minLayout: [160, 160] },
+  minimap: { id: "minimap", title: "Mini Map", width: 230, height: 230, minLayout: [120, 120] },
+  fuel: { id: "fuel", title: "Fuel Calculator", width: 260, height: 340, minLayout: [240, 320] },
+  tyres: { id: "tyres", title: "Tyres", width: 250, height: 340, minLayout: [240, 385] },
+  damage: { id: "damage", title: "Damage", width: 220, height: 100, minLayout: [180, 80] },
+  weather: { id: "weather", title: "Weather Conditions", width: 400, height: 130, minLayout: [360, 120] },
+  callouts: { id: "callouts", title: "Callouts", width: 320, height: 220, minLayout: [220, 120] },
+  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 340, minLayout: [260, 320] },
 };
 
 /**
@@ -646,6 +663,8 @@ export interface SessionStatus {
   readonly contentHint: ContentHint | null;
   /** Replaying a lap by choice instead of connecting to the sim. */
   readonly testMode: boolean;
+  /** Show the first-run welcome: nobody has dismissed it on this install yet. */
+  readonly showWelcome: boolean;
   /**
    * The pack pinned by hand, or null to follow whatever track the sim loads.
    *
@@ -669,7 +688,9 @@ export type SessionCommand =
   /** With a track, the importer opens already pointed at it. */
   | { readonly kind: "openImporter"; readonly track?: { readonly trackId: number; readonly configId: string } }
   /** An empty hand-authored set for a mapped track, opened in the editor. */
-  | { readonly kind: "newNoteSet"; readonly trackId: number; readonly configId: string };
+  | { readonly kind: "newNoteSet"; readonly trackId: number; readonly configId: string }
+  /** The first-run welcome was read: do not show it again. */
+  | { readonly kind: "welcomed" };
 
 /**
  * Everything the app is configured by.
@@ -752,12 +773,16 @@ export interface Settings {
    * does nothing. Test mode is never affected.
    */
   readonly hideOverlaysWhenSimUnfocused: boolean;
+  /** Which theme the overlays wear: a `Theme.id` (themes.ts). */
+  readonly overlayTheme: string;
   /**
    * A random id for this copy of the app, made on first run. Counts a download
    * once per installation (M8), signed in or not. Not tied to a person and
    * never sent anywhere except with a download.
    */
   readonly installationId: string | null;
+  /** The first-run welcome has been dismissed on this install. */
+  readonly welcomed: boolean;
   readonly debug: DebugSettings;
 }
 
@@ -808,7 +833,9 @@ export const DEFAULT_SETTINGS: Settings = {
   runAtLogin: false,
   startMinimized: false,
   hideOverlaysWhenSimUnfocused: true,
+  overlayTheme: DEFAULT_THEME_ID,
   installationId: null,
+  welcomed: false,
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -862,10 +889,15 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
       typeof s.hideOverlaysWhenSimUnfocused === "boolean"
         ? s.hideOverlaysWhenSimUnfocused
         : DEFAULT_SETTINGS.hideOverlaysWhenSimUnfocused,
+    overlayTheme:
+      typeof s.overlayTheme === "string" && s.overlayTheme !== ""
+        ? s.overlayTheme
+        : DEFAULT_SETTINGS.overlayTheme,
     installationId:
       typeof s.installationId === "string" && s.installationId !== ""
         ? s.installationId
         : DEFAULT_SETTINGS.installationId,
+    welcomed: typeof s.welcomed === "boolean" ? s.welcomed : DEFAULT_SETTINGS.welcomed,
     noteSetByTrack:
       typeof s.noteSetByTrack === "object" && s.noteSetByTrack !== null
         ? Object.fromEntries(
@@ -929,7 +961,9 @@ export function withEnvOverrides(
     runAtLogin: settings.runAtLogin,
     startMinimized: settings.startMinimized,
     hideOverlaysWhenSimUnfocused: settings.hideOverlaysWhenSimUnfocused,
+    overlayTheme: settings.overlayTheme,
     installationId: settings.installationId,
+    welcomed: settings.welcomed,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
@@ -1233,6 +1267,8 @@ export interface OverlayProfile {
   readonly id: string;
   readonly name: string;
   readonly panels: readonly PanelId[];
+  /** What each overlay shows and how it is built (panel-options.ts). Absent means all defaults. */
+  readonly settings?: Readonly<Partial<Record<PanelId, PanelSettings>>>;
 }
 
 /** What the Overlays section of the control window draws. */
@@ -1246,6 +1282,20 @@ export interface OverlayProfilesView {
   readonly debugEnabled: boolean;
   /** Settings.hideOverlaysWhenSimUnfocused, for the checkbox under the list. */
   readonly hideWhenSimUnfocused: boolean;
+  /** The themes on offer, and the one the overlays are wearing. */
+  readonly themes: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly description: string;
+    /** A theme file of the user's own, which can be edited and deleted. */
+    readonly custom: boolean;
+    /** What is wrong with a custom theme's file, in words. Empty when it is fine. */
+    readonly problems: readonly string[];
+  }[];
+  readonly themeId: string;
+  /** The parts and structures each overlay offers, for the options beside its checkbox. */
+  readonly panelParts: Readonly<Partial<Record<PanelId, readonly PanelChoice[]>>>;
+  readonly panelStyles: Readonly<Partial<Record<PanelId, readonly PanelChoice[]>>>;
 }
 
 /**
@@ -1265,7 +1315,18 @@ export type OverlayProfileCommand =
   | { readonly kind: "setActive"; readonly id: string }
   | { readonly kind: "edit"; readonly id: string }
   | { readonly kind: "stopEditing" }
-  | { readonly kind: "hideWhenSimUnfocused"; readonly value: boolean };
+  | { readonly kind: "hideWhenSimUnfocused"; readonly value: boolean }
+  /** Show or hide one part of one overlay, in one profile. */
+  | { readonly kind: "setPanelPart"; readonly id: string; readonly panel: PanelId; readonly part: string; readonly shown: boolean }
+  /** Pick the structure of one overlay, in one profile. */
+  | { readonly kind: "setPanelStyle"; readonly id: string; readonly panel: PanelId; readonly style: string }
+  | { readonly kind: "setTheme"; readonly id: string }
+  /** A new custom theme, copied from the one in use, and opened for editing. */
+  | { readonly kind: "newTheme"; readonly name: string }
+  /** Open a custom theme's file in the system's editor for JSON. */
+  | { readonly kind: "editTheme"; readonly id: string }
+  | { readonly kind: "deleteTheme"; readonly id: string }
+  | { readonly kind: "openThemesFolder" };
 
 /** Main → control window: the profile list, active id, or editing state changed. */
 export const OVERLAY_PROFILES_CHANGED_CHANNEL = "exxeed:overlay-profiles-changed";
@@ -1434,3 +1495,93 @@ export interface EngineDebugState {
  *    optimisation target.
  */
 export const REACTIVITY_RULES = "SPEC.md §7.0" as const;
+
+// ---------------------------------------------------------------------------
+// Themes in Content (M9 step 3): publish a custom theme, browse and install
+// other people's. The same items, versions, stars and downloads as callout
+// packs, with a theme file as the payload.
+// ---------------------------------------------------------------------------
+
+/** Control window → main, invoke. Replies `{ ok, value } | { ok: false, error }`. */
+export const THEME_CONTENT_CHANNEL = "exxeed:theme-content";
+
+export interface ThemeContentRow {
+  readonly id: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly authorName: string;
+  readonly visibility: "private" | "unlisted" | "public";
+  readonly isOwner: boolean;
+  readonly stars: number;
+  readonly downloads: number;
+  readonly latestVersion: number | null;
+  readonly updatedAt: string;
+  readonly iconUrl: string | null;
+  readonly starred: boolean;
+  /** The theme file this item is on this machine, if it is. */
+  readonly local: { readonly themeId: string; readonly version: number; readonly origin: "mine" | "installed" } | null;
+  /** Whether the overlays are wearing it now. */
+  readonly inUse: boolean;
+}
+
+export interface ThemeContentPage extends ThemeContentRow {
+  readonly readme: string;
+  readonly screenshots: readonly string[];
+  readonly versions: readonly { readonly version: number; readonly changelog: string; readonly publishedAt: string }[];
+  /** The built-in it is based on, by name. */
+  readonly baseName: string;
+  /** Its colours, for a row of swatches: only tokens that are colours. */
+  readonly swatches: readonly { readonly name: string; readonly value: string }[];
+  /** How many tokens it sets in all. */
+  readonly tokenCount: number;
+}
+
+/** What the Publish dialog for a custom theme shows. */
+export interface ThemePublishState {
+  readonly signedIn: boolean;
+  readonly themeName: string;
+  /** What is wrong with the theme file. Publishing is refused while there is anything. */
+  readonly problems: readonly string[];
+  /** Whether this theme was installed from someone else, and so is not yours to publish. */
+  readonly installed: boolean;
+  readonly item: {
+    readonly id: string;
+    readonly title: string;
+    readonly summary: string;
+    readonly readme: string;
+    readonly visibility: "private" | "unlisted" | "public";
+    readonly version: number | null;
+    readonly screenshots: readonly { readonly id: string; readonly url: string }[];
+  } | null;
+}
+
+export type ThemeContentRequest =
+  | {
+      readonly op: "browse";
+      readonly text: string;
+      readonly sort: "stars" | "downloads" | "updated" | "new";
+      readonly starred: boolean;
+      readonly installed: boolean;
+      readonly offset: number;
+    }
+  | { readonly op: "page"; readonly itemId: string }
+  | { readonly op: "install"; readonly itemId: string }
+  | { readonly op: "uninstall"; readonly itemId: string }
+  | { readonly op: "publishState"; readonly themeId: string }
+  | {
+      readonly op: "publish";
+      readonly themeId: string;
+      readonly title: string;
+      readonly summary: string;
+      readonly readme: string;
+      readonly visibility: "private" | "unlisted" | "public";
+      readonly changelog: string;
+    }
+  /** The JSON Schema of a theme file, for the editor's autocomplete and checks. */
+  | { readonly op: "schema" }
+  /** A custom theme's file, as text, for the in-app editor. */
+  | { readonly op: "readFile"; readonly themeId: string }
+  /** Save the editor's text. Replies with what is wrong with it, if anything. */
+  | { readonly op: "writeFile"; readonly themeId: string; readonly text: string }
+  | { readonly op: "addScreenshot"; readonly themeId: string }
+  | { readonly op: "removeScreenshot"; readonly themeId: string; readonly mediaId: string };
