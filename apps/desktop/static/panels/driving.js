@@ -173,8 +173,8 @@ function sweepPath(shape, w, h, pad) {
   if (shape === "arch") {
     // Gran Turismo's: flat across the middle, the ends bending down at the sides.
     const span = right - left;
-    const bend = top + (bottom - top) * 0.3;
-    return `M ${left} ${bottom} C ${left + span * 0.03} ${bend}, ${left + span * 0.24} ${top}, ${w / 2} ${top} C ${right - span * 0.24} ${top}, ${right - span * 0.03} ${bend}, ${right} ${bottom}`;
+    const bend = top + (bottom - top) * 0.25;
+    return `M ${left} ${bottom} C ${left + span * 0.02} ${bend}, ${left + span * 0.14} ${top}, ${w / 2} ${top} C ${right - span * 0.14} ${top}, ${right - span * 0.02} ${bend}, ${right} ${bottom}`;
   }
   // The swoop: low and flat on the left, rising to the right.
   return `M ${x(6)} ${y(50)} C ${x(110)} ${y(50)}, ${x(210)} ${y(48)}, ${x(282)} ${y(36)} S ${x(372)} ${y(12)}, ${x(394)} ${y(6)}`;
