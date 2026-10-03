@@ -125,47 +125,63 @@
 
 /* -- The speed cluster (Input Telemetry, Essential Inputs) --------------------- */
 
+/* A dark body under the arch: clear above the band, near-black below it. */
 .gt-cluster { gap: 4px; }
 .gt-cl-top { display: flex; justify-content: flex-end; flex: none; }
 .gt-cl-box {
-  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px;
-  padding: 6px 22px 8px;
-  background: linear-gradient(180deg, rgba(8, 11, 15, 0.55), rgba(8, 11, 15, 0.8));
-  clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 100%, 0 100%);
+  flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px;
+  padding: 0 0 6px;
+  background: linear-gradient(180deg, rgba(14, 16, 19, 0) 0, rgba(14, 16, 19, 0.72) 26px, rgba(14, 16, 19, 0.86));
 }
-/* Tall enough for the swoop to read as one: it climbs most of this height. */
-.gt-rev .shift-sweep, .gt-cluster .shift-sweep { height: 46px; margin: 0 0 -4px; }
-.gt-cl-row { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; gap: 14px; }
-.gt-cl-graph { flex: 1 1 auto; align-self: stretch; min-width: 60px; background: rgba(0, 0, 0, 0.25); }
-.gt-cl-speed, .gt-cl-gear, .gt-cl-ref { display: flex; flex-direction: column; align-items: center; flex: none; line-height: 1; }
-.gt-speed { font-size: 44px; font-weight: 400; display: inline-block; width: 2.3em; text-align: center; }
-.gt-gear { font-size: 46px; font-weight: 500; display: inline-block; width: 0.9em; text-align: center; }
-.gt-cl-ref .gt-digits { font-size: 18px; color: rgba(255, 255, 255, 0.75); }
-.gt-cl-rule { width: 1px; align-self: stretch; margin: 6px 0; background: rgba(255, 255, 255, 0.5); flex: none; }
+.gt-cluster .shift-sweep { height: 30px; margin: 0; }
+/* Speed, hairline, gear in the middle; what GT does not have either side. */
+.gt-cl-row {
+  flex: 1 1 auto; min-height: 0; display: grid; align-items: center; column-gap: 16px; padding: 0 14px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+}
+.gt-cl-side { display: flex; align-items: center; gap: 12px; min-width: 0; align-self: stretch; }
+.gt-cl-side.left { justify-content: flex-start; }
+.gt-cl-side.right { justify-content: flex-end; }
+.gt-cl-graph { flex: 1 1 auto; align-self: stretch; margin: 6px 0; min-width: 40px; max-width: 200px; background: rgba(0, 0, 0, 0.25); }
+/* Thin, wide squared digits for the speed, km/h under its right end. */
+.gt-cl-speed { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+.gt-speed { font-size: 40px; font-weight: 200; letter-spacing: 0.1em; display: inline-block; width: 3.3ch; text-align: right; margin-right: -0.1em; }
+/* The gear: bigger and heavier, with GT's small AT spot at its foot. */
+.gt-cl-gear { display: flex; align-items: flex-end; gap: 8px; line-height: 1; }
+.gt-gear { font-size: 52px; font-weight: 500; display: inline-block; width: 0.75em; text-align: center; }
+.gt-at { padding-bottom: 4px; white-space: nowrap; }
+.gt-unit { font-family: var(--font); font-size: 11px; color: rgba(255, 255, 255, 0.7); }
+.gt-cl-rule { width: 1px; align-self: stretch; margin: 8px 0 4px; background: rgba(255, 255, 255, 0.55); }
+.gt-cl-ref { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.gt-cl-ref .gt-digits { font-size: 18px; font-weight: 300; color: rgba(255, 255, 255, 0.75); }
 /* GT's thin vertical bars, in brackets. */
 .gt-cl-pedals {
-  display: flex; gap: 6px; align-self: stretch; margin: 4px 0; padding: 0 6px; flex: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.7); border-right: 1px solid rgba(255, 255, 255, 0.7);
+  display: flex; gap: 5px; align-self: stretch; margin: 8px 0 4px; padding: 0 5px; flex: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.6); border-right: 1px solid rgba(255, 255, 255, 0.6);
 }
-.gt-pbar { position: relative; width: 6px; background: rgba(255, 255, 255, 0.16); }
+.gt-pbar { position: relative; width: 5px; background: rgba(255, 255, 255, 0.14); }
 .gt-pbar > i { position: absolute; left: 0; right: 0; bottom: 0; background: #ffffff; }
 .gt-pbar.brake > i { background: var(--brake); }
 .gt-pbar.clutch > i { background: var(--blue); }
-.gt-cl-wheel { flex: none; color: rgba(255, 255, 255, 0.9); }
-.gt-cl-ffb { display: flex; align-items: center; gap: 8px; flex: none; }
-.gt-line { position: relative; flex: 1; height: 2px; background: rgba(255, 255, 255, 0.2); }
+.gt-cl-wheel { flex: none; color: rgba(255, 255, 255, 0.85); }
+.gt-cl-ffb { display: flex; align-items: center; gap: 8px; flex: none; padding: 0 14px; }
+.gt-line { position: relative; flex: 1; height: 2px; background: rgba(255, 255, 255, 0.18); }
 .gt-line > i { position: absolute; left: 0; top: 0; bottom: 0; background: #ffffff; }
+/* Essential Inputs has no band: its body is dark all the way up. */
+.inputs.gt-cluster .gt-cl-box { background: linear-gradient(180deg, rgba(14, 16, 19, 0.6), rgba(14, 16, 19, 0.86)); padding-top: 4px; }
 
 /* -- The rev band ---------------------------------------------------------- */
 
-/* Fine ticks along a swoop: dim when unlit, white when lit, red past the redline. */
-.gt-rev .sweep-edge { stroke: rgba(0, 0, 0, 0.35); stroke-width: 11px; }
-.gt-rev .sweep-track { stroke: rgba(255, 255, 255, 0.2); stroke-width: 8px; }
-.gt-rev .sweep-fill { stroke-width: 8px; }
+/* Fine, dense ticks: dark grey unlit, white lit, red past the redline. */
+.gt-rev .sweep-edge { stroke: rgba(0, 0, 0, 0.3); stroke-width: 10px; }
+.gt-rev .sweep-track { stroke: rgba(120, 124, 130, 0.75); stroke-width: 7px; }
+.gt-rev .sweep-fill { stroke-width: 7px; }
+.gt-rev .shift-sweep.hatched path { stroke-dasharray: 1.6 1.9; }
+.gt-rev .shift-sweep.hatched .sweep-edge { stroke-dasharray: none; }
 .gt-revlights { justify-content: center; align-items: center; }
 /* The band keeps the cluster's proportions, centred: stretched to a long
-   thin window, the swoop would flatten into a straight line. */
-.gt-revlights .shift-sweep { height: 100%; width: auto; max-width: 100%; aspect-ratio: 9 / 1; }
+   thin window, the arch would flatten into a straight line. */
+.gt-revlights .shift-sweep { height: 100%; width: auto; max-width: 100%; aspect-ratio: 13 / 1; }
 
 /* -- Tyres ----------------------------------------------------------------- */
 

@@ -160,7 +160,7 @@ function drawDial(canvas, f) {
  */
 let sweepIds = 0;
 
-/** The line through a w × h box, inset by `pad`: GT's swoop, an arch, or straight. */
+/** The line through a w × h box, inset by `pad`: a swoop, an arc, GT's arch, or straight. */
 function sweepPath(shape, w, h, pad) {
   const left = pad;
   const right = w - pad;
@@ -170,6 +170,12 @@ function sweepPath(shape, w, h, pad) {
   const y = (v) => top + ((v - 6) / 44) * (bottom - top);
   if (shape === "line") return `M ${left} ${(top + bottom) / 2} L ${right} ${(top + bottom) / 2}`;
   if (shape === "arc") return `M ${left} ${bottom} Q ${w / 2} ${top - (bottom - top)} ${right} ${bottom}`;
+  if (shape === "arch") {
+    // Gran Turismo's: flat across the middle, the ends bending down at the sides.
+    const span = right - left;
+    const bend = top + (bottom - top) * 0.12;
+    return `M ${left} ${bottom} C ${left + span * 0.04} ${bend}, ${left + span * 0.16} ${top}, ${w / 2} ${top} C ${right - span * 0.16} ${top}, ${right - span * 0.04} ${bend}, ${right} ${bottom}`;
+  }
   // The swoop: low and flat on the left, rising to the right.
   return `M ${x(6)} ${y(50)} C ${x(110)} ${y(50)}, ${x(210)} ${y(48)}, ${x(282)} ${y(36)} S ${x(372)} ${y(12)}, ${x(394)} ${y(6)}`;
 }
@@ -287,7 +293,7 @@ registerBlock(
     summary:
       "Gran Turismo's rev line: a curve that fills white with the revs and flashes red from the shift point. Shown only when the theme's shift-style is sweep.",
     attributes: {
-      shape: "swoop (default, rising to the right) | arc | line",
+      shape: "swoop (default, rising to the right) | arch (flat, the ends bending down — Gran Turismo's) | arc | line",
       hatch: "fine ticks instead of a solid line, as Gran Turismo's rev band",
       redline: "0–1: how far along the lit part turns red; 1 (default) for never",
     },
