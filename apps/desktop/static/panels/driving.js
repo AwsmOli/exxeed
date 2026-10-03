@@ -649,15 +649,34 @@ function axis(w, r, here) {
 
 /** The reference over the window, split at the car: behind it and ahead of it. */
 function referenceSplit(channel, gridSize, here, x, yOf) {
+  // Every grid point of the reference inside the window, at its own lap
+  // position. Sampling at fixed offsets from the car instead made the points
+  // slide along the lap with it, so each frame picked slightly different
+  // samples and the line ahead wiggled; the grid's points stay put and the
+  // line only scrolls. The point at the car itself joins the two halves.
   const behind = [];
   const ahead = [];
-  for (let step = -60; step <= 60; step++) {
-    const p = wrap01(here + (step / 60) * WINDOW_PCT);
-    const v = sample(channel, gridSize, p);
+  const span = Math.ceil(WINDOW_PCT * gridSize) + 1;
+  const at = Math.floor(wrap01(here) * gridSize);
+  const valueAt = (i) => channel[((i % gridSize) + gridSize) % gridSize];
+  for (let i = at - span; i <= at + span; i++) {
+    const v = valueAt(i);
     if (typeof v !== "number") continue;
+    const p = wrap01(i / gridSize);
+    const d = pctDelta(p, here);
+    if (Math.abs(d) > WINDOW_PCT) continue;
     const pt = [x(p), yOf(v)];
-    if (step <= 0) behind.push(pt);
-    if (step >= 0) ahead.push(pt);
+    if (d <= 0) behind.push(pt);
+    else ahead.push(pt);
+  }
+  // Where the car is, interpolated, so behind and ahead meet at the cursor.
+  const f = wrap01(here) * gridSize;
+  const v0 = valueAt(Math.floor(f));
+  const v1 = valueAt(Math.floor(f) + 1);
+  if (typeof v0 === "number" && typeof v1 === "number") {
+    const pt = [x(here), yOf(v0 + (v1 - v0) * (f - Math.floor(f)))];
+    behind.push(pt);
+    ahead.unshift(pt);
   }
   return { behind, ahead };
 }
@@ -781,8 +800,14 @@ function drawSpeed(canvas, s) {
   // instead of being a ripple on a 0–300 axis.
   let lo = Infinity;
   let hi = -Infinity;
-  for (let step = -60; step <= 60; step++) {
-    const v = kph(sample(ref.speedMps, ref.gridSize, here + (step / 60) * WINDOW_PCT));
+  // Over the reference's own grid points, as the line is drawn, so the axis
+  // does not twitch as the car moves between them.
+  const g = ref.gridSize;
+  const at = Math.floor(wrap01(here) * g);
+  const span = Math.ceil(WINDOW_PCT * g);
+  for (let i = at - span; i <= at + span; i++) {
+    const v = kph(ref.speedMps[((i % g) + g) % g]);
+    if (!Number.isFinite(v)) continue;
     lo = Math.min(lo, v);
     hi = Math.max(hi, v);
   }

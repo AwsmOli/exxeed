@@ -509,34 +509,46 @@ const RADAR = `
 export const radar = templated({ template: RADAR, model: () => ({}), rate: 1000 });
 
 // ---------------------------------------------------------------------------
-// Blind spot: a box per side that lights when the spotter says a car is
-// there. The sim's spotter is the one lateral fact it gives (see Radar).
+// Blind spot: a window per side — Blind Spot Left and Right — each a box
+// that lights when the spotter says a car is there. The sim's spotter is the
+// one lateral fact it gives (see Radar). One template serves both: a theme
+// writes templates/spotter.html, and it can tell the sides apart by `side`.
 //
-// Template data: empty, left, right (a car alongside on that side),
-// threeWide (one each side), and spotter (the sim's word).
+// Template data: empty, side ("left" or "right"), on (a car alongside on
+// this side), twoWide (two cars this side), threeWide (one each side),
+// spotter (the sim's word).
 // ---------------------------------------------------------------------------
 
-function spotterModel(s) {
-  const sp = s.race?.radar.spotter ?? "off";
-  return {
-    empty: s.race === null ? NO_RACE(s) : null,
-    spotter: sp,
-    left: sp === "left" || sp === "twoLeft" || sp === "both",
-    right: sp === "right" || sp === "twoRight" || sp === "both",
-    threeWide: sp === "both",
+function spotterModel(side) {
+  return (s) => {
+    const sp = s.race?.radar.spotter ?? "off";
+    const left = sp === "left" || sp === "twoLeft" || sp === "both";
+    const right = sp === "right" || sp === "twoRight" || sp === "both";
+    return {
+      empty: s.race === null ? NO_RACE(s) : null,
+      side,
+      isLeft: side === "left",
+      on: side === "left" ? left : right,
+      twoWide: side === "left" ? sp === "twoLeft" : sp === "twoRight",
+      threeWide: sp === "both",
+      spotter: sp,
+    };
   };
 }
 
 const SPOTTER_TEMPLATE = `
 <div class="panel spotter" data-class="is-empty: empty">
-  <div class="spot-row">
-    <div class="spot-box" data-class="on: left"><span class="spot-cap">Blind spot</span><i></i><span class="spot-cap">Left</span></div>
-    <div class="spot-box" data-class="on: right"><span class="spot-cap">Blind spot</span><i></i><span class="spot-cap">Right</span></div>
+  <div class="spot-box" data-class="on: on">
+    <span class="spot-cap">Blind spot</span><i></i><span class="spot-cap">{{ side | upper }}</span>
   </div>
   <div class="empty">{{ empty }}</div>
 </div>`;
 
-export const spotter = templated({ template: SPOTTER_TEMPLATE, model: spotterModel, deps: ["race"] });
+export const spotterLeft = templated({ template: SPOTTER_TEMPLATE, model: spotterModel("left"), deps: ["race"] });
+export const spotterRight = templated({ template: SPOTTER_TEMPLATE, model: spotterModel("right"), deps: ["race"] });
+// A theme's templates/spotter.html serves both.
+spotterLeft.family = "spotter";
+spotterRight.family = "spotter";
 
 // ---------------------------------------------------------------------------
 // Flags: the flag out now, drawn as the flag itself, waving when it is

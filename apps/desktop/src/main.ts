@@ -37,6 +37,7 @@ import {
   THEME_CHANNEL,
   THEME_GET_CHANNEL,
   themeView,
+  MIRROR_PAIRS,
   type Theme,
   type ThemeAssets,
   type ThemeView,
@@ -1156,6 +1157,8 @@ function startOverlays(enterEditing = false): void {
 
   const layout = new OverlayLayout(profileStore().activeId, () => showControlWindow());
   overlayLayout = layout;
+  // A left/right pair moves together unless the driver set it free.
+  layout.setMirrorTest((panel) => profileStore().settingsOf(profileStore().activeId, panel).style !== "free");
   // Before any window opens: each takes its overlay's shape from the theme.
   layout.setDesignSizes(overlayTheme(themes().find(settings().get().overlayTheme)).sizes);
 
@@ -1854,6 +1857,14 @@ void app.whenReady().then(() => {
       if (command.id === profileStore().activeId) {
         const message: PanelSettingsMessage = { panel: command.panel, settings: next };
         overlayLayout?.broadcast(PANEL_SETTINGS_CHANNEL, message);
+        // A pair just made mirrored lines up at once, the other one following this one.
+        if (command.kind === "setPanelStyle" && MIRROR_PAIRS[command.panel] !== undefined) {
+          const partner = MIRROR_PAIRS[command.panel]!;
+          // Both halves of the pair share the choice.
+          profileStore().setSettings(command.id, partner, (current) => ({ ...current, style: command.style }));
+          overlayLayout?.broadcast(PANEL_SETTINGS_CHANNEL, { panel: partner, settings: profileStore().settingsOf(command.id, partner) });
+          overlayLayout?.mirrorFrom(command.panel);
+        }
       }
       broadcastProfiles();
     } else if (command.kind === "setTheme") {

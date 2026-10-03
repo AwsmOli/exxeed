@@ -1,15 +1,14 @@
 <!--
-  The spotter as one of the sim's boxes: a gold title, your car from above,
-  and a bar down each side that lights gold when a car is alongside there,
-  with CAR LEFT / CAR RIGHT as the spotter says it.
+  The spotter as one of the sim's boxes, one window per side (Blind Spot
+  Left and Right both use this file): CAR LEFT or CAR RIGHT in gold, and a
+  bar beside your car that lights gold when a car is alongside on that side.
 -->
-<div class="panel spotter ir-spotter" data-class="is-empty: empty">
+<div class="panel spotter ir-spotter" data-class="is-empty: empty; right: !isLeft">
   <div class="card grow ir-box">
-    <div class="ir-title ir-split"><span>Spotter</span><span class="ir-sub"><x-group data-if="left">Car left</x-group><x-group data-if="threeWide"> · </x-group><x-group data-if="right">Car right</x-group><x-group data-if="!left"><x-group data-if="!right">Clear</x-group></x-group></span></div>
-    <div class="ir-spot">
-      <i class="ir-spot-bar" data-class="on: left"></i>
-      <svg class="ir-spot-car" viewBox="0 0 40 84" aria-hidden="true"><path d="M12 4 Q20 0 28 4 L32 20 L32 70 Q32 80 20 81 Q8 80 8 70 L8 20 Z"></path></svg>
-      <i class="ir-spot-bar" data-class="on: right"></i>
+    <div class="ir-title">Car {{ side }}</div>
+    <div class="ir-spot" data-class="on: on">
+      <i class="ir-spot-bar"></i>
+      <svg class="ir-spot-car" viewBox="0 0 40 64" aria-hidden="true"><path d="M11 5 Q20 1 29 5 L33 17 L33 51 Q33 61 20 62 Q7 61 7 51 L7 17 Z"></path></svg>
     </div>
   </div>
   <div class="empty">{{ empty }}</div>

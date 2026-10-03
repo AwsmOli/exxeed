@@ -4,7 +4,7 @@
 
 import { inputs, pedals, trace, speed, brake, revlights } from "./driving.js";
 import { delta, sectors, corners, reference } from "./timing.js";
-import { standings, relative, radar, spotter, flags } from "./race.js";
+import { standings, relative, radar, spotterLeft, spotterRight, flags } from "./race.js";
 import { map, minimap } from "./track.js";
 import { fuel, tyres, damage, weather } from "./car.js";
 import { callouts, telemetry } from "./exxeed.js";
@@ -23,7 +23,8 @@ export const PANELS = {
   standings,
   relative,
   radar,
-  spotter,
+  "spotter-left": spotterLeft,
+  "spotter-right": spotterRight,
   flags,
   map,
   minimap,

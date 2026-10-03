@@ -32,7 +32,8 @@ const SIZES = {
   standings: [640, 420],
   relative: [440, 360],
   radar: [260, 260],
-  spotter: [300, 130],
+  "spotter-left": [150, 130],
+  "spotter-right": [150, 130],
   flags: [260, 120],
   map: [360, 360],
   minimap: [230, 230],
@@ -113,7 +114,10 @@ const builtWith = ids.map(() => null);
 /** Rebuild the panels whose template the theme changes. */
 function applyTemplates(templates) {
   ids.forEach((id, i) => {
-    const wanted = typeof templates?.[id] === "string" ? templates[id] : null;
+    // Its own template, or its family's (one spotter.html for both sides).
+    const family = PANELS[id].family;
+    const own = templates?.[id] ?? (family !== undefined ? templates?.[family] : undefined);
+    const wanted = typeof own === "string" ? own : null;
     if (wanted === builtWith[i] || PANELS[id].template === undefined) return;
     const next = build(id, wanted);
     mounted[i].el.replaceWith(next.el);

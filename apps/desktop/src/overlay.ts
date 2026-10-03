@@ -43,6 +43,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, globalShortcut, ipcMain, Menu, screen } from "electron";
 
 import {
+  MIRROR_PAIRS,
   MOVE_WINDOW_CHANNEL,
   PANEL_SPECS,
   type MoveWindowRequest,
@@ -195,6 +196,43 @@ export class OverlayLayout {
   #shortcutRegistered = false;
   #moveHandlerInstalled = false;
   #onShowMainWindow: () => void;
+
+  /** Whether a left/right pair moves together (its "mirrored" style); mirrored unless set otherwise. */
+  #isMirrored: (panel: PanelId) => boolean = () => true;
+  /** Set while placing a partner window, so its own move does not place this one back. */
+  #mirroring = false;
+
+  setMirrorTest(test: (panel: PanelId) => boolean): void {
+    this.#isMirrored = test;
+  }
+
+  /**
+   * Put `panel`'s partner (MIRROR_PAIRS) where `window` is, mirrored on the
+   * vertical centre line of the screen it is on: same height on the screen,
+   * same size, the other side.
+   */
+  mirrorFrom(panel: PanelId): void {
+    const partner = MIRROR_PAIRS[panel];
+    const window = this.#windows.get(panel);
+    if (partner === undefined || window === undefined || window.isDestroyed() || this.#mirroring) return;
+    if (!this.#isMirrored(panel) || !this.#isMirrored(partner)) return;
+    const other = this.#windows.get(partner);
+    if (other === undefined || other.isDestroyed()) return;
+    const b = window.getBounds();
+    const screenArea = screen.getDisplayMatching(b).bounds;
+    const centre = screenArea.x + screenArea.width / 2;
+    const target = { x: Math.round(2 * centre - b.x - b.width), y: b.y, width: b.width, height: b.height };
+    const now = other.getBounds();
+    // Already there (or within a pixel of rounding): nothing to do, and no echo back.
+    if (Math.abs(now.x - target.x) <= 1 && Math.abs(now.y - target.y) <= 1 && Math.abs(now.width - target.width) <= 1 && Math.abs(now.height - target.height) <= 1) return;
+    this.#mirroring = true;
+    try {
+      other.setBounds(target);
+    } finally {
+      this.#mirroring = false;
+    }
+    this.#rememberSoon(partner, other);
+  }
 
   /** Overlay id → [width, height] the current theme designs it at. */
   #sizes: Readonly<Record<string, readonly [number, number]>> = {};
@@ -361,6 +399,12 @@ export class OverlayLayout {
     // continuously for the length of a drag, so it settles first.
     window.on("moved", () => this.#rememberSoon(panel, window));
     window.on("resized", () => this.#rememberSoon(panel, window));
+    // A mirrored pair follows along, live, while one of them is dragged or sized.
+    window.on("move", () => this.mirrorFrom(panel));
+    window.on("resize", () => this.mirrorFrom(panel));
+    // The second of a mirrored pair to open takes its place from the first.
+    const partner = MIRROR_PAIRS[panel];
+    if (partner !== undefined && this.#windows.has(partner)) setImmediate(() => this.mirrorFrom(partner));
     window.once("closed", () => {
       this.#windows.delete(panel);
       if (this.#windows.size === 0) this.#releaseShortcut();

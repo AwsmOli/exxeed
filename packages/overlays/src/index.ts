@@ -52,7 +52,9 @@ export const PANELS = [
   "standings",
   "relative",
   "radar",
-  "spotter",
+  // A car alongside, a window per side: each goes where that side's eye goes.
+  "spotter-left",
+  "spotter-right",
   "flags",
   // Track.
   "map",
@@ -102,6 +104,16 @@ export interface PanelSpec {
   readonly height: number;
 }
 
+/**
+ * Overlays that come as a left and a right. With the pair's "mirrored"
+ * style, moving or resizing one moves the other to the same place on the
+ * other side of the screen, mirrored on its vertical centre line.
+ */
+export const MIRROR_PAIRS: Partial<Record<PanelId, PanelId>> = {
+  "spotter-left": "spotter-right",
+  "spotter-right": "spotter-left",
+};
+
 export const PANEL_SPECS: Record<PanelId, PanelSpec> = {
   inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110 },
   pedals: { id: "pedals", title: "Input Telemetry", width: 560, height: 170 },
@@ -116,7 +128,8 @@ export const PANEL_SPECS: Record<PanelId, PanelSpec> = {
   standings: { id: "standings", title: "Standings", width: 640, height: 420 },
   relative: { id: "relative", title: "Relatives", width: 440, height: 360 },
   radar: { id: "radar", title: "Radar", width: 260, height: 260 },
-  spotter: { id: "spotter", title: "Blind Spot", width: 300, height: 130 },
+  "spotter-left": { id: "spotter-left", title: "Blind Spot Left", width: 150, height: 130 },
+  "spotter-right": { id: "spotter-right", title: "Blind Spot Right", width: 150, height: 130 },
   flags: { id: "flags", title: "Flags", width: 260, height: 120 },
   map: { id: "map", title: "Track Map", width: 360, height: 360 },
   minimap: { id: "minimap", title: "Mini Map", width: 230, height: 230 },

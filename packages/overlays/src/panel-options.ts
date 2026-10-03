@@ -95,6 +95,14 @@ export const PANEL_PARTS: Partial<Record<PanelId, readonly PanelChoice[]>> = {
 
 /** The structures an overlay can take. The first is the default. Overlays not listed have one. */
 export const PANEL_STYLES: Partial<Record<PanelId, readonly PanelChoice[]>> = {
+  "spotter-left": [
+    { id: "mirrored", label: "Mirrored: moving one moves the other" },
+    { id: "free", label: "Placed on its own" },
+  ],
+  "spotter-right": [
+    { id: "mirrored", label: "Mirrored: moving one moves the other" },
+    { id: "free", label: "Placed on its own" },
+  ],
   delta: [
     { id: "bar", label: "Bar" },
     { id: "dial", label: "Dial" },

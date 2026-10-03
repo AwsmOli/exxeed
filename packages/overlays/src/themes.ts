@@ -343,7 +343,8 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       tyres: [260, 300],
       reference: [300, 140],
       flags: [290, 100],
-      spotter: [260, 130],
+      "spotter-left": [140, 130],
+      "spotter-right": [140, 130],
     },
     description: "The sim's own UI: dark navy boxes, gold labels, white monospace numbers, your row in gold.",
     // Colours sampled from iRacing's screenshots of the 2025 sim UI
@@ -422,7 +423,8 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       sectors: [320, 270],
       delta: [360, 90],
       flags: [340, 72],
-      spotter: [300, 120],
+      "spotter-left": [130, 120],
+      "spotter-right": [130, 120],
     },
     description: "GT7's race screen: slate slabs, boxed positions, white captions, squared digits and GT's hatched rev band.",
     // Taken from GT7's race HUD: things float over the scene rather than sit

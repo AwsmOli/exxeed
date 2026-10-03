@@ -1,18 +1,16 @@
 <!--
-  A car alongside, in Gran Turismo's language: your car from above in the
-  middle in red, as on GT's maps, and on each side a slate slab whose
-  chevrons light red when the spotter calls a car there.
+  A car alongside, in Gran Turismo's language — one window per side (Blind
+  Spot Left and Right both use this file; `side` says which). A slate slab
+  whose chevrons, pointing out to that side, light red when the spotter
+  calls a car there, beside a small red car as on GT's maps.
 -->
-<div class="panel spotter gt-spotter" data-class="is-empty: empty">
-  <div class="gt-spot">
-    <div class="gt-spot-side left" data-class="on: left">
-      <svg viewBox="0 0 30 60" aria-hidden="true"><path d="M22 8L8 30l14 22M28 8L14 30l14 22"></path></svg>
-    </div>
-    <svg class="gt-spot-car" viewBox="0 0 40 84" aria-hidden="true">
-      <path d="M12 4 Q20 0 28 4 L32 20 L32 70 Q32 80 20 81 Q8 80 8 70 L8 20 Z"></path>
-    </svg>
-    <div class="gt-spot-side right" data-class="on: right">
-      <svg viewBox="0 0 30 60" aria-hidden="true"><path d="M8 8l14 22L8 52M2 8l14 22L2 52"></path></svg>
+<div class="panel spotter gt-spotter" data-class="is-empty: empty; right: !isLeft">
+  <div class="gt-spot" data-class="on: on">
+    <svg class="gt-spot-car" viewBox="0 0 40 64" aria-hidden="true"><path d="M11 5 Q20 1 29 5 L33 17 L33 51 Q33 61 20 62 Q7 61 7 51 L7 17 Z"></path></svg>
+    <div class="gt-spot-side">
+      <svg data-if="isLeft" viewBox="0 0 30 60" aria-hidden="true"><path d="M22 8L8 30l14 22M28 8L14 30l14 22"></path></svg>
+      <svg data-if="!isLeft" viewBox="0 0 30 60" aria-hidden="true"><path d="M8 8l14 22L8 52M2 8l14 22L2 52"></path></svg>
+      <span class="gt-label">{{ side }}</span>
     </div>
   </div>
   <div class="empty">{{ empty }}</div>
