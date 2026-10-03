@@ -24,7 +24,9 @@ function fuelModel(s) {
   const f = race.fuel;
   // "Ends": the lap the tank runs dry on, at that rate.
   const ends = (per) => (per > 0 ? l(race.lap + f.levelL / per) : "—");
-  const usage = (label, per) => ({ label, perLap: l(per, 2), ends: ends(per) });
+  const usage = (label, per) => ({ label, perLap: l(per, 2), ends: ends(per), laps: per > 0 ? l(f.levelL / per) : "—" });
+  // The lap time the tank is measured against: your last, else the reference's.
+  const lapS = race.lastLapS ?? s.reference?.lapTimeS ?? null;
   const learning = f.marginL === null && f.perLapL === null;
   return {
     empty: null,
@@ -33,6 +35,10 @@ function fuelModel(s) {
     timeRemainS: race.timeRemainS,
     levelL: l(f.levelL),
     levelPct: Math.round(Math.max(0, Math.min(1, f.levelPct)) * 100),
+    /** The tank's size, from how full it is. */
+    capacityL: f.levelPct > 0.01 ? Math.round(f.levelL / f.levelPct) : null,
+    /** How long the fuel lasts at the average rate, in seconds. */
+    timeLeftS: typeof f.lapsLeft === "number" && lapS !== null ? f.lapsLeft * lapS : null,
     /** 0–1, for scaling a bar. */
     level: Math.max(0, Math.min(1, f.levelPct)).toFixed(3),
     /** The used part of the bar, which covers the gradient from the right. */

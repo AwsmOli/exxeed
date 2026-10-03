@@ -129,7 +129,8 @@ function standingsModel(s) {
     if (me >= 0) playerClass = cls;
     return cls;
   });
-  return { ...basics, show, cols, classes, player, playerClass, fieldSize };
+  const carCount = classes.reduce((n, c) => n + c.size, 0);
+  return { ...basics, show, cols, classes, player, playerClass, fieldSize, carCount };
 }
 
 const STANDINGS = `

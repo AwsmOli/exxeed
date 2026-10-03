@@ -1,0 +1,32 @@
+/* RaceLab style: what its tokens cannot say. Work in progress — Relatives
+   is built like RaceLab's; Standings, Telemetry, Delta, Fuel, Weather and
+   the maps are still to come (see the RaceLab screenshots they follow). */
+
+.rl-box { display: flex; flex-direction: column; min-height: 0; padding: 10px 12px 8px 44px; background: var(--card); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); }
+.rl-head, .rl-foot { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; color: #fff; flex: none; padding: 2px 0 8px; }
+.rl-foot { padding: 8px 0 0; font-size: 15px; }
+.rl-push { margin-left: auto; }
+.rl-dim { color: rgba(255, 255, 255, 0.45); }
+.rl-tag { display: inline-block; padding: 0 4px; border: 1.5px solid rgba(255, 255, 255, 0.5); border-radius: 3px; font-size: 11px; color: rgba(255, 255, 255, 0.6); vertical-align: middle; }
+.rl-rows { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; overflow: visible; }
+.rl-row { position: relative; display: grid; grid-template-columns: 38px 18px minmax(60px, 1fr) auto auto 52px; align-items: center; column-gap: 8px; height: 30px; flex: none; background: #141416; font-size: 15px; font-weight: 700; color: #fff; }
+.rl-row.pit { opacity: 0.45; }
+/* Markers outside the box, to the left. */
+.rl-mark { position: absolute; left: -38px; top: 2px; bottom: 2px; width: 30px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+.rl-mark:not(:empty) { background: #fff; color: #111; }
+.rl-pos { text-align: center; background: #1b1b1d; align-self: stretch; display: flex; align-items: center; justify-content: center; }
+/* The class colour: a slanted stripe and a wash behind the name. */
+.rl-stripe { align-self: stretch; position: relative; }
+.rl-stripe::before { content: ""; position: absolute; left: 6px; top: 7px; bottom: 7px; width: 4px; background: var(--cls); transform: skewX(-14deg); }
+.rl-row::before { content: ""; position: absolute; left: 34px; top: 0; bottom: 0; width: 34%; background: linear-gradient(90deg, color-mix(in srgb, var(--cls) 32%, transparent), transparent); clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%); pointer-events: none; }
+.rl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: relative; }
+/* Licence: the safety rating on a dark shade of the licence colour, then the letter on the colour. */
+.rl-lic { display: inline-flex; height: 22px; font-size: 13px; }
+.rl-lic b { padding: 0 6px; display: flex; align-items: center; background: color-mix(in srgb, var(--lic) 45%, #101010); }
+.rl-lic i { font-style: normal; padding: 0 6px; display: flex; align-items: center; background: var(--lic); }
+.rl-ir { height: 22px; padding: 0 7px; display: flex; align-items: center; background: #fff; color: #111; font-size: 13px; border-radius: 2px; }
+.rl-gap { text-align: right; padding-right: 8px; font-size: 16px; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; }
+.rl-row.lapping .rl-gap { background: linear-gradient(90deg, transparent, rgba(160, 20, 20, 0.85)); }
+.rl-row.lapped .rl-name, .rl-row.lapped .rl-gap { color: var(--lap-behind); }
+.rl-row.me { background: var(--me-bg); }
+.rl-row.me .rl-pos { background: transparent; }

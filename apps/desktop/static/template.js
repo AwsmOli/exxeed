@@ -50,7 +50,10 @@ export const FILTERS = {
   signed: (v, digits = "1") => (typeof v === "number" ? signed(v, Number(digits)) : ""),
   /** "+13.8" for a gap behind; nothing for none. */
   gap: (v, digits = "1") => (typeof v === "number" ? `+${Math.max(0, v).toFixed(Number(digits))}` : ""),
-  fixed: (v, digits = "0") => (typeof v === "number" && Number.isFinite(v) ? v.toFixed(Number(digits)) : ""),
+  fixed: (v, digits = "0") => {
+    const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+    return typeof n === "number" && Number.isFinite(n) ? n.toFixed(Number(digits)) : "";
+  },
   abs: (v) => (typeof v === "number" ? Math.abs(v) : v),
   neg: (v) => (typeof v === "number" ? -v : v),
   pct: (v) => (typeof v === "number" ? `${Math.round(v * 100)}%` : ""),
@@ -58,6 +61,8 @@ export const FILTERS = {
   lower: (v) => String(v ?? "").toLowerCase(),
   /** The first word: "A 4.12" → "A". */
   first: (v) => String(v ?? "").split(/\s+/)[0] ?? "",
+  /** The nth word, from 0: {{ license | word:1 }} is the safety rating of "B 4.62". */
+  word: (v, n = "0") => String(v ?? "").split(/\s+/)[Number(n)] ?? "",
   /** The first letter. */
   initial: (v) => String(v ?? "").charAt(0),
   /** A fallback for an empty value: {{ sof | or:— }}. */

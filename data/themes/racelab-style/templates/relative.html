@@ -1,0 +1,32 @@
+<!--
+  RaceLab's relative: a boxed SOF tag and the incidents on top; each row a
+  position cell, a slanted stripe and wash in the class colour behind the
+  name, a two-part licence chip (safety rating, then the letter), the
+  iRating in a white box and the gap in bold. Your row is an olive-gold
+  band; a car a lap ahead has a red wash under its gap. Markers sit outside
+  the box on the left (PIT). The race clock and lap along the bottom.
+-->
+<div class="panel relative rl-relative" data-class="is-empty: empty">
+  <div class="rl-box grow">
+    <div class="rl-head" data-part="header">
+      <span><span class="rl-tag">SOF</span> {{ sof | irating }}</span>
+      <span class="rl-push">✕ {{ incidents }}</span>
+    </div>
+    <div class="rl-rows">
+      <div data-each="rows" class="rl-row" data-class="me: isPlayer; pit: onPitRoad; lapping: lappingYou; lapped: lappedByYou" style="--cls:{{ classColour }};--lic:{{ licenceColour }}">
+        <span class="rl-mark"><x-group data-if="onPitRoad">PIT</x-group></span>
+        <span class="rl-pos">{{ position }}</span>
+        <span class="rl-stripe"></span>
+        <span class="rl-name">{{ name }}</span>
+        <span data-if="show.license" class="rl-lic"><b>{{ license | word:1 | fixed:1 }}</b><i>{{ license | first }}</i></span>
+        <span data-if="show.irating" class="rl-ir">{{ iRating | irating }}</span>
+        <span class="rl-gap">{{ gapS | fixed:1 }}</span>
+      </div>
+    </div>
+    <div class="rl-foot" data-part="footer">
+      <span><span class="rl-dim">{{ session | upper }}</span> {{ timeRemainS | clock }}</span>
+      <span class="rl-push"><span class="rl-dim">Lap</span> {{ lap }}<x-group data-if="lapsTotal">/{{ lapsTotal }}</x-group></span>
+    </div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

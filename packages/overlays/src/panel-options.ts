@@ -37,7 +37,10 @@ export const PANEL_PARTS: Partial<Record<PanelId, readonly PanelChoice[]>> = {
     { id: "ffb", label: "Force feedback bar" },
     { id: "wheel", label: "Steering wheel" },
   ],
-  delta: [{ id: "number", label: "Delta as a number" }],
+  delta: [
+    { id: "number", label: "Delta as a number" },
+    { id: "laps", label: "Lap times (themes that show them)" },
+  ],
   sectors: [{ id: "laps", label: "Best, last and reference lap" }],
   standings: [
     { id: "header", label: "Session header" },

@@ -34,11 +34,17 @@ function deltaModel(s, local) {
   // sim's own bar does. Which side and how far say where you are; the colour
   // says which way it is going (util.js deltaTrend).
   const ahead = d < 0;
+  const refS = s.reference?.lapTimeS ?? null;
   return {
     empty: false,
     deltaS: d,
     ...tone(d),
     ahead,
+    /** The laps beside a delta: the reference, the lap this one is heading for, best and last. */
+    refLapS: refS,
+    predictedLapS: refS === null ? null : refS + d,
+    bestLapS: s.race?.bestLapS ?? null,
+    lastLapS: s.race?.lastLapS ?? null,
     colour: local.trend(d),
     fillLeft: (ahead ? 50 : 50 - k).toFixed(2),
     fillWidth: k.toFixed(2),
