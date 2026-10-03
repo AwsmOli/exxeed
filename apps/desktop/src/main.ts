@@ -1017,13 +1017,29 @@ function forwardRendererConsole(window: BrowserWindow): void {
 
 /** Several windows: everything goes everywhere except the audio. */
 function overlaySurfaces(layout: OverlayLayout): Surfaces {
+  // The decoded clips live in whichever window plays the audio. Kept, so that
+  // when that overlay is closed the next one can be given them at once.
+  let preload: unknown = null;
+  let preloadedTo: BrowserWindow | null = null;
+  layout.onWindowsChanged(() => {
+    const host = layout.windows[0];
+    if (host !== undefined && host !== preloadedTo && preload !== null) {
+      sendTo(host, AUDIO_PRELOAD_CHANNEL, preload);
+      preloadedTo = host;
+    }
+  });
   return {
     broadcast: (channel, payload) => layout.broadcast(channel, payload),
     // The first panel opened hosts the audio. Which one it is does not matter —
     // nothing about it is visible — but it has to be exactly one.
     audio: (channel, payload) => {
       const host = layout.windows[0];
-      if (host !== undefined) sendTo(host, channel, payload);
+      if (host === undefined) return;
+      if (channel === AUDIO_PRELOAD_CHANNEL) {
+        preload = payload;
+        preloadedTo = host;
+      }
+      sendTo(host, channel, payload);
     },
     alive: () => layout.windows.some((w) => !w.isDestroyed()),
     onClosed: (callback) => {
@@ -1157,6 +1173,8 @@ function startOverlays(enterEditing = false): void {
 
   const layout = new OverlayLayout(profileStore().activeId, () => showControlWindow());
   overlayLayout = layout;
+  // What an overlay added during a session needs to be caught up with.
+  layout.setSticky([MAP_CHANNEL, REFERENCE_CHANNEL, RACE_CHANNEL, SESSION_STATUS_CHANNEL]);
   // A left/right pair moves together unless the driver set it free.
   layout.setMirrorTest((panel) => profileStore().settingsOf(profileStore().activeId, panel).style !== "free");
   // Before any window opens: each takes its overlay's shape from the theme.
@@ -1232,6 +1250,33 @@ function queueOverlayRestart(enterEditing: boolean): void {
     () => restartOverlaysForActiveProfile(enterEditing),
     () => restartOverlaysForActiveProfile(enterEditing),
   );
+}
+
+/**
+ * The active profile's overlays changed: open the ones added and close the
+ * ones removed, leaving every other overlay exactly as it was — no flicker,
+ * nothing reloaded, the session carrying on. Only going to or from no
+ * overlays at all rebuilds, because a session needs a window to run in.
+ */
+function queueOverlayChange(): void {
+  overlayTransition = overlayTransition.then(
+    () => changeOverlaysInPlace(),
+    () => changeOverlaysInPlace(),
+  );
+}
+
+async function changeOverlaysInPlace(): Promise<void> {
+  const layout = overlayLayout;
+  const panels = chosenPanels();
+  if (layout === null || layout.panels.length === 0 || panels.length === 0) {
+    await restartOverlaysForActiveProfile(overlayEditingActive);
+    return;
+  }
+  for (const window of layout.sync(panels, PRELOAD, PAGE)) forwardRendererConsole(window);
+  process.stdout.write(`  ${panels.length} overlays: ${panels.join(", ")}\n`);
+  syncOverlayVisibility();
+  syncOverlayPreview();
+  broadcastProfiles();
 }
 
 /** Enter or leave the Overlays section's edit session for the active profile. */
@@ -1819,7 +1864,7 @@ void app.whenReady().then(() => {
     } else if (command.kind === "setPanels") {
       profileStore().setPanels(command.id, command.panels);
       if (command.id === profileStore().activeId) {
-        queueOverlayRestart(overlayEditingActive);
+        queueOverlayChange();
       } else {
         broadcastProfiles();
       }

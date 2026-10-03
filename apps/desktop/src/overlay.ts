@@ -293,7 +293,61 @@ export class OverlayLayout {
 
   /** Send to every open overlay. */
   broadcast(channel: string, payload: unknown): void {
+    if (this.#sticky.has(channel)) this.#last.set(channel, payload);
     for (const window of this.#windows.values()) sendTo(window, channel, payload);
+  }
+
+  /** Channels whose last message a window opened later is caught up with. */
+  readonly #sticky = new Set<string>();
+  readonly #last = new Map<string, unknown>();
+  readonly #changed: (() => void)[] = [];
+
+  /**
+   * Remember the last message on these channels — the map, the reference
+   * lap, the race, the session's status — so an overlay added while a session
+   * runs gets them too, instead of every overlay being rebuilt to resend them.
+   */
+  setSticky(channels: readonly string[]): void {
+    for (const c of channels) this.#sticky.add(c);
+  }
+
+  /** Called whenever an overlay is added or removed. */
+  onWindowsChanged(callback: () => void): void {
+    this.#changed.push(callback);
+  }
+
+  /** The overlays open now, in the order they were opened. */
+  get panels(): PanelId[] {
+    return [...this.#windows.keys()];
+  }
+
+  /**
+   * Open the overlays in `panels` that are not open and close the ones that
+   * are open but not in it, leaving the rest exactly as they are. Returns the
+   * windows it opened, so the caller can wire them up.
+   */
+  sync(panels: readonly PanelId[], preload: string, page: string): BrowserWindow[] {
+    const wanted = new Set(panels);
+    for (const [panel, window] of [...this.#windows]) {
+      if (wanted.has(panel) || window.isDestroyed()) continue;
+      this.#remember(panel, window);
+      window.close();
+      this.#windows.delete(panel);
+      this.#designed.delete(panel);
+    }
+    const opened: BrowserWindow[] = [];
+    panels.forEach((panel, index) => {
+      if (this.#windows.has(panel)) return;
+      const window = this.create(panel, index, panels, preload, page);
+      // Caught up once it is listening: edit mode, then what it missed.
+      window.webContents.once("did-finish-load", () => {
+        sendTo(window, "exxeed:edit-mode", !this.#clickThrough);
+        for (const [channel, payload] of this.#last) sendTo(window, channel, payload);
+      });
+      opened.push(window);
+    });
+    for (const callback of this.#changed) callback();
+    return opened;
   }
 
   /**
