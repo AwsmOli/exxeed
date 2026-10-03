@@ -154,6 +154,13 @@ body.overlay .panel { width: 100%; height: 100%; }
 
 /* A template's wrapper for repeating or hiding several siblings at once (template.js): no box of its own. */
 x-group { display: contents; }
+/* Building blocks (panels/blocks.js) fill the box they are put in. */
+x-timeline, x-wheel-dial, x-trace, x-speed-trace, x-delta-dial, x-corner-chart, x-map, x-minimap, x-radar {
+  display: block; position: relative; width: 100%; height: 100%; min-width: 0; min-height: 0;
+}
+x-sweep { display: contents; }
+.panel > x-map, .panel > x-minimap, .panel > x-radar { flex: 1 1 auto; }
+x-icon { display: inline-flex; align-items: center; }
 
 .card {
   background: var(--card);
@@ -354,13 +361,50 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .speedo .ffb { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--text-3); font-weight: 700; }
 .speedo .ffb .pill-h { width: 100px; height: 4px; }
 .wheel { flex: none; align-self: center; }
+/* Input Telemetry's wheel: the icon turning inside a dial of how far it is turned. */
+.wheel.dial { position: relative; width: 64px; height: 64px; }
+.wheel.dial .wheel-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.inputs .speedo { align-items: center; }
+.inputs .gear-n { font-weight: 600; }
+/* The pedals' colours. Input Telemetry's fade lighter towards the top. */
+.pedal.clutch .pill-v > i { background: var(--blue); }
+.pedal.brake .pill-v > i { background: var(--brake); }
+.pedal.throttle .pill-v > i { background: var(--throttle); }
+.pedals-panel .pedal.brake .pill-v > i { background: linear-gradient(0deg, var(--brake), color-mix(in srgb, var(--brake) 78%, white)); }
+.pedals-panel .pedal.throttle .pill-v > i { background: linear-gradient(0deg, var(--throttle), color-mix(in srgb, var(--throttle) 70%, white)); }
+.speedo .ffb .pill-h > i { background: color-mix(in srgb, var(--text) 75%, transparent); }
+.chart-card { padding: 4px 8px 2px 0; }
+.panel.delta { justify-content: flex-start; }
+.sectors-card { padding: 0; }
+.sectors-head { padding: 7px 12px; }
+.corner-head { align-items: flex-start; }
+.corner-head .apex { font-size: 11px; margin-top: 3px; }
+.corner-chart { flex: 1; min-height: 0; margin-top: 6px; }
+.reference .ref-title { font-weight: 700; }
+.reference .ref-sub { margin: 2px 0 10px; }
+.reference .ref-time { margin-left: auto; font-weight: 600; }
+.reference .ref-notes-cap { margin: 10px 0 4px; }
+.tyres .axle { justify-content: space-around; }
+.tyres .axle-key { font-size: 10px; width: 70px; text-align: center; }
+.tyres .axle-note { font-size: 11px; }
+.fuel .predict-main { flex: 1; }
+.fuel .predict-label { font-size: 13px; }
+.fuel .predict-max { font-size: 11px; }
+.damage .damage-main { align-items: baseline; }
+.damage .damage-s { font-size: 32px; font-weight: 600; }
+.damage .damage-unit { color: var(--orange); font-weight: 700; }
+.damage .damage-cap { letter-spacing: 0.12em; margin-left: 6px; }
+.damage .damage-opt { margin-top: 8px; }
+.weather .wx-surface { font-size: 11.5px; }
+.telemetry .kvt td.warn { color: var(--orange); }
+.brake-panel .card { justify-content: center; }
 /* Room for three digits whatever the speed is, right-aligned, so a number
    going from 99 to 100 (or to 9) does not resize the chart beside it and make
    the whole panel twitch. The gear gets one digit's room for the same reason.
    In em, not ch: a ch is the width of "0", and faces whose digits are not all
    one width (Orbitron's 1 is narrow, its 8 wide) still shifted by a few pixels. */
-.speedo [data-k="speed"], .speedo [data-k="rspeed"] { display: inline-block; width: 2.9em; text-align: right; }
-.speedo [data-k="gear"], .speedo [data-k="rgear"] { display: inline-block; width: 1.15em; text-align: center; }
+.speedo .spd { display: inline-block; width: 2.9em; text-align: right; }
+.speedo .gr { display: inline-block; width: 1.15em; text-align: center; }
 .inputs-body .speedo { flex: none; }
 /* In a tall window the pedal bars stop growing and sit centred: a metre-high
    bar reads no better than a palm-high one. */

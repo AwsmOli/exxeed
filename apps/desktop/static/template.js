@@ -17,7 +17,8 @@
 //   data-if="!path"             ...or falsy
 //   data-each="rows"            the element once per item; inside it, names
 //                               look in the item first, then outwards.
-//                               $index, $first, $last and $count are set too.
+//                               {{ . }} is the item itself; $index, $first,
+//                               $last and $count are set too.
 //   data-each="r in rows"       ...with the item named, as {{ r.name }}
 //   data-class="me: isPlayer; pit: onPitRoad"
 //                               classes switched on by values
@@ -37,6 +38,12 @@ import { clock, irating, lapTime, signed } from "./panels/util.js";
 /** Formatters a template can pipe a value through. */
 export const FILTERS = {
   lapTime: (v) => lapTime(v),
+  /** "0:11.113": a lap time that always carries the minute, as a timing screen writes a sector. */
+  sectorTime: (v) => {
+    if (typeof v !== "number" || !(v > 0)) return "—";
+    const m = Math.floor(v / 60);
+    return `${m}:${(v - m * 60).toFixed(3).padStart(6, "0")}`;
+  },
   clock: (v) => clock(v),
   irating: (v) => irating(v),
   /** "+0.533", always signed. Digits default to 1. */
@@ -100,7 +107,9 @@ function parseExpression(text) {
   });
   // A quoted string is a literal, for {{ 'POSITION' }} style constants.
   const literal = /^'.*'$/.test(path) ? path.slice(1, -1) : undefined;
-  const parsed = { negate, keys: path === "" ? [] : path.split("."), filters, literal };
+  // "." is the item itself, inside data-each: {{ . }} for a list of strings.
+  const keys = path === "." ? ["$item"] : path === "" ? [] : path.split(".");
+  const parsed = { negate, keys, filters, literal };
   cache.set(text, parsed);
   return parsed;
 }
@@ -239,7 +248,7 @@ function bindEach(el, bindings) {
       copies.push(copy);
     }
     items.forEach((item, i) => {
-      const meta = { $index: i, $first: i === 0, $last: i === items.length - 1, $count: items.length };
+      const meta = { $item: item, $index: i, $first: i === 0, $last: i === items.length - 1, $count: items.length };
       const own = alias !== null ? { [alias]: item, ...meta } : meta;
       copies[i].update(alias !== null ? [own, ...scopes] : [own, item, ...scopes]);
     });

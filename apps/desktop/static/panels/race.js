@@ -2,8 +2,9 @@
 // channel, which only the live sim fills: a replay is the driver's own car and
 // nothing else, so these say so rather than sit blank.
 
+import { canvasIn, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { $, alpha, classColour, COLORS, licenceColour, fit, html, roundRect } from "./util.js";
+import { alpha, classColour, COLORS, licenceColour, fit, roundRect } from "./util.js";
 
 const NO_RACE = (s) =>
   s.status?.phase === "running" ? "live sim only — this source has no other cars" : "waiting for the sim";
@@ -166,7 +167,6 @@ const STANDINGS = `
 </div>`;
 
 export const standings = templated({ template: STANDINGS, model: standingsModel, deps: ["race"], rate: 250 });
-standings.template = STANDINGS;
 
 // ---------------------------------------------------------------------------
 // Relatives: who is around you on the road, by time, between a header of the
@@ -249,7 +249,6 @@ const RELATIVE = `
 </div>`;
 
 export const relative = templated({ template: RELATIVE, model: relativeModel, deps: ["race"], rate: 200 });
-relative.template = RELATIVE;
 
 // ---------------------------------------------------------------------------
 // Radar: cars within a few lengths, ahead and behind, each with a wedge of
@@ -266,13 +265,11 @@ const RADAR_RANGE_M = 20;
 const CAR_LEN_M = 4.6;
 const CAR_W_M = 2;
 
-export function radar() {
-  const el = html(`<div class="panel"><canvas class="fill"></canvas></div>`);
-  const canvas = $(el, "canvas");
+function radarBlock(el) {
+  const canvas = canvasIn(el);
 
   return {
-    el,
-    draw(s) {
+    paint(s) {
       const c = fit(canvas);
       if (c === null) return;
       const { ctx, w, h, r } = c;
@@ -397,3 +394,20 @@ export function radar() {
     },
   };
 }
+
+registerBlock(
+  "x-radar",
+  {
+    summary:
+      "Cars within a few lengths ahead and behind, with a warning wedge towards each, pushed to the side the spotter calls.",
+    attributes: {},
+  },
+  radarBlock,
+);
+
+const RADAR = `
+<div class="panel radar">
+  <x-radar></x-radar>
+</div>`;
+
+export const radar = templated({ template: RADAR, model: () => ({}), rate: 1000 });

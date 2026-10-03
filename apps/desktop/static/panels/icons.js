@@ -1,6 +1,8 @@
 // Small inline icons. Drawn here from plain shapes so the overlays need no
 // icon font and no image files.
 
+import { numberAttr, registerBlock } from "./blocks.js";
+
 const svg = (w, h, body, extra = "") =>
   `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${body}</svg>`;
 
@@ -53,3 +55,42 @@ export function sky(skies) {
   const body = skies === "clear" ? sun : skies === "partly cloudy" ? sun + cloud : cloud;
   return svg(20, 19, body);
 }
+
+// ---------------------------------------------------------------------------
+// The icons as a building block for templates (blocks.js):
+//
+//   <x-icon name="pump" size="26"></x-icon>
+//   <x-icon name="sky" of="{{ skies }}"></x-icon>
+// ---------------------------------------------------------------------------
+
+const ICONS = { gearbox, wheel, pump, thermometer, droplet, lanes, disc, sky };
+
+registerBlock(
+  "x-icon",
+  {
+    summary: "A small line icon in the text colour.",
+    attributes: {
+      name: Object.keys(ICONS).join(" | "),
+      size: "pixels, for wheel, pump and disc",
+      of: "for sky: the sky's state (clear, partly cloudy, mostly cloudy, overcast)",
+    },
+  },
+  (el) => {
+    let drawn = null;
+    return {
+      paint() {
+        const name = el.getAttribute("name") ?? "";
+        const key = `${name}|${el.getAttribute("size")}|${el.getAttribute("of")}`;
+        if (key === drawn) return;
+        drawn = key;
+        const icon = ICONS[name];
+        if (icon === undefined) {
+          el.replaceChildren();
+          return;
+        }
+        // Our own markup, from the functions above — never the template's text.
+        el.innerHTML = name === "sky" ? icon(el.getAttribute("of") ?? "") : icon(numberAttr(el, "size", undefined));
+      },
+    };
+  },
+);

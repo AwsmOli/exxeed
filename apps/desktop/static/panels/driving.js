@@ -4,12 +4,13 @@
 // Every canvas here is drawn from the rAF loop and nothing else (§7.0): the
 // state frame is stashed as it arrives and read at paint time.
 
-import { gearbox, wheel } from "./icons.js";
-import { $, alpha, areaLine, COLORS, deltaClass, fit, html, kph, pctDelta, sample, setText, signed, wrap01 } from "./util.js";
+import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
+import { templated } from "./templated.js";
+import { alpha, areaLine, COLORS, fit, kph, pctDelta, sample, wrap01 } from "./util.js";
 
 const gearText = (g) => (g === -1 ? "R" : g === 0 ? "N" : typeof g === "number" ? String(g) : "–");
-const pctText = (v) => String(Math.round((v ?? 0) * 100)).padStart(2, "0");
 const font = () => COLORS.font;
+const unit = (v) => Math.max(0, Math.min(1, v ?? 0));
 
 // ---------------------------------------------------------------------------
 // Shared pieces.
@@ -18,7 +19,7 @@ const font = () => COLORS.font;
 /** Throttle and brake against time — the last few seconds, newest at the right. */
 const TIMELINE_S = 5;
 
-function drawTimeline(canvas, timeline) {
+function drawTimeline(canvas, timeline, seconds = TIMELINE_S) {
   const c = fit(canvas);
   if (c === null) return;
   const { ctx, w, h, r } = c;
@@ -38,26 +39,11 @@ function drawTimeline(canvas, timeline) {
 
   if (timeline.length < 2) return;
   const now = timeline[timeline.length - 1].t;
-  const pts = timeline.filter((p) => now - p.t <= TIMELINE_S * 1000);
-  const x = (t) => w - ((now - t) / (TIMELINE_S * 1000)) * w;
+  const pts = timeline.filter((p) => now - p.t <= seconds * 1000);
+  const x = (t) => w - ((now - t) / (seconds * 1000)) * w;
   const y = (v) => bottom - v * (bottom - top);
   areaLine(ctx, pts.map((p) => [x(p.t), y(p.throttle)]), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
   areaLine(ctx, pts.map((p) => [x(p.t), y(p.brake)]), top, bottom, COLORS.brake, 0.3, 2.2 * r);
-}
-
-function pedal(label, colour, knob) {
-  return `<div class="pedal${knob ? " knob" : ""}" data-p="${label}">
-    <span class="v n">00</span>
-    <div class="pill-v"><i style="background:${colour}"></i>${knob ? "<b></b>" : ""}</div>
-  </div>`;
-}
-
-function setPedal(el, v, withPct) {
-  const p = Math.max(0, Math.min(1, v ?? 0));
-  setText($(el, ".v"), withPct ? `${pctText(p)}%` : String(Math.round(p * 100)));
-  $(el, "i").style.height = `${p * 100}%`;
-  const knob = $(el, "b");
-  if (knob !== null) knob.style.bottom = `calc(${p * 100}% - ${p * 5}px)`;
 }
 
 /** Degrees the wheel icon turns. The frame is radians at the wheel. */
@@ -68,47 +54,47 @@ const wheelDeg = (f) => (typeof f?.steerRad === "number" ? (-f.steerRad * 180) /
 // and the wheel.
 // ---------------------------------------------------------------------------
 
-export function inputs() {
-  const el = html(`
-    <div class="panel">
-      <div class="card grow">
-        <div class="inputs-body">
-          <div class="graph" data-part="graph"><canvas class="fill"></canvas></div>
-          <div class="pedals" data-part="pedals">
-            ${pedal("clutch", COLORS.blue, false)}
-            ${pedal("brake", "var(--brake)", false)}
-            ${pedal("throttle", "var(--throttle)", false)}
-          </div>
-          <div class="sep" data-part="speed"></div>
-          <div class="speedo" style="align-items:center" data-part="speed">
-            <div class="line"><span class="lg n" data-k="speed">0</span><span class="u">KM/H</span></div>
-            <div class="line good"><span class="xl n" data-k="gear" style="font-weight:600">N</span>${gearbox()}</div>
-          </div>
-          <div class="wheel" data-k="wheel" data-part="wheel">${wheel(44)}</div>
-        </div>
-      </div>
-    </div>`);
-  const canvas = $(el, "canvas");
-  const pedals = {
-    clutch: $(el, '[data-p="clutch"]'),
-    brake: $(el, '[data-p="brake"]'),
-    throttle: $(el, '[data-p="throttle"]'),
+/** What the pedals, speed, gear and wheel read, for both input panels' templates. */
+function inputsModel(s) {
+  const f = s.frame;
+  const pedal = (v) => {
+    const p = unit(v);
+    // pct: 0–100 for a bar's height; text: "07", as the sim pads it; knob: the
+    // cap's lift off the fill's top, so it never leaves the bar.
+    return { pct: Math.round(p * 100), text: String(Math.round(p * 100)).padStart(2, "0"), knob: (p * 5).toFixed(1) };
   };
-
   return {
-    el,
-    draw(s) {
-      const f = s.frame;
-      setPedal(pedals.clutch, f?.clutch ?? 0, true);
-      setPedal(pedals.brake, f?.brake, true);
-      setPedal(pedals.throttle, f?.throttle, true);
-      setText($(el, '[data-k="speed"]'), String(Math.round(kph(f?.speedMps))));
-      setText($(el, '[data-k="gear"]'), gearText(f?.gear));
-      $(el, '[data-k="wheel"]').style.transform = `rotate(${wheelDeg(f)}deg)`;
-      drawTimeline(canvas, s.timeline);
-    },
+    clutch: pedal(f?.clutch ?? 0),
+    brake: pedal(f?.brake),
+    throttle: pedal(f?.throttle),
+    speedKph: Math.round(kph(f?.speedMps)),
+    gear: gearText(f?.gear),
+    wheelDeg: wheelDeg(f).toFixed(1),
+    rpm: f?.rpm ?? null,
   };
 }
+
+const INPUTS = `
+<div class="panel inputs">
+  <div class="card grow">
+    <div class="inputs-body">
+      <div class="graph" data-part="graph"><x-timeline></x-timeline></div>
+      <div class="pedals" data-part="pedals">
+        <div class="pedal clutch"><span class="v n">{{ clutch.text }}%</span><div class="pill-v"><i style="height:{{ clutch.pct }}%"></i></div></div>
+        <div class="pedal brake"><span class="v n">{{ brake.text }}%</span><div class="pill-v"><i style="height:{{ brake.pct }}%"></i></div></div>
+        <div class="pedal throttle"><span class="v n">{{ throttle.text }}%</span><div class="pill-v"><i style="height:{{ throttle.pct }}%"></i></div></div>
+      </div>
+      <div class="sep" data-part="speed"></div>
+      <div class="speedo" data-part="speed">
+        <div class="line"><span class="lg n spd">{{ speedKph }}</span><span class="u">KM/H</span></div>
+        <div class="line good"><span class="xl n gr gear-n">{{ gear }}</span><x-icon name="gearbox"></x-icon></div>
+      </div>
+      <div class="wheel" data-part="wheel" style="transform:rotate({{ wheelDeg }}deg)"><x-icon name="wheel" size="44"></x-icon></div>
+    </div>
+  </div>
+</div>`;
+
+export const inputs = templated({ template: INPUTS, model: inputsModel });
 
 // ---------------------------------------------------------------------------
 // Input telemetry: shift lights across the top, the live delta on a tab above
@@ -175,10 +161,10 @@ function drawDial(canvas, f) {
  */
 const SWEEP_PATH = "M 6 50 C 110 50, 210 48, 282 36 S 372 12, 394 6";
 let sweepIds = 0;
-const sweepHtml = (part = "") => {
+const sweepSvg = () => {
   const clip = `sweep-reveal-${++sweepIds}`;
   return `
-  <svg class="shift-sweep" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true"${part}>
+  <svg class="shift-sweep" viewBox="0 0 400 56" preserveAspectRatio="none" aria-hidden="true">
     <clipPath id="${clip}"><rect class="sweep-reveal" x="-10" y="-20" width="0" height="96" /></clipPath>
     <path d="${SWEEP_PATH}" class="sweep-edge" />
     <path d="${SWEEP_PATH}" class="sweep-track" />
@@ -186,9 +172,9 @@ const sweepHtml = (part = "") => {
   </svg>`;
 };
 
-function drawSweep(fill, fraction, shifting) {
-  if (fill === null) return;
-  const reveal = fill.ownerSVGElement.querySelector(".sweep-reveal");
+function drawSweep(svg, fraction, shifting) {
+  const reveal = svg.querySelector(".sweep-reveal");
+  const fill = svg.querySelector(".sweep-fill");
   // From the line's left end (x 6, round cap and all) to its right end (x 394).
   const f = shifting ? 1 : Math.max(0, Math.min(1, fraction));
   reveal.setAttribute("width", f === 0 ? "0" : (16 + f * 388 + (f === 1 ? 20 : 0)).toFixed(1));
@@ -199,18 +185,22 @@ function drawSweep(fill, fraction, shifting) {
   fill.style.visibility = shifting && !flash ? "hidden" : "";
 }
 
-function drawShiftLights(lights, s, sweep = null) {
+/** How far through the shift range the revs are, 0–1, and whether to shift: null without shift points. */
+function revs(s) {
   const sl = s.race?.shiftLights ?? null;
   const rpm = s.frame?.rpm ?? null;
-  let lit = 0;
-  let blink = false;
-  if (sl !== null && rpm !== null && sl.shiftRpm > sl.firstRpm) {
-    lit = Math.max(0, Math.min(8, Math.ceil(((rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm)) * 8)));
-    blink = rpm >= sl.blinkRpm && Math.floor(performance.now() / 90) % 2 === 0;
-    drawSweep(sweep, (rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm), rpm >= sl.shiftRpm);
-  } else {
-    drawSweep(sweep, 0, false);
-  }
+  if (sl === null || rpm === null || !(sl.shiftRpm > sl.firstRpm)) return null;
+  return {
+    fraction: (rpm - sl.firstRpm) / (sl.shiftRpm - sl.firstRpm),
+    shift: rpm >= sl.shiftRpm,
+    blink: rpm >= sl.blinkRpm,
+  };
+}
+
+function drawShiftLights(lights, s) {
+  const r = revs(s);
+  const lit = r === null ? 0 : Math.max(0, Math.min(8, Math.ceil(r.fraction * 8)));
+  const blink = r !== null && r.blink && Math.floor(performance.now() / 90) % 2 === 0;
   lights.forEach((light, i) => {
     const j = i < 8 ? i : 15 - i;
     const on = blink || j < lit;
@@ -220,97 +210,129 @@ function drawShiftLights(lights, s, sweep = null) {
   });
 }
 
+registerBlock(
+  "x-shift-lights",
+  {
+    summary:
+      "Sixteen rev lights lighting from both ends inwards, in the theme's shift colours, all blinking at the shift point. Hidden when the theme's shift-style is sweep.",
+    attributes: {},
+  },
+  (el) => {
+    el.classList.add("shift");
+    el.innerHTML = "<i></i>".repeat(16);
+    const lights = [...el.children];
+    return { paint: (s) => drawShiftLights(lights, s) };
+  },
+);
+
+registerBlock(
+  "x-sweep",
+  {
+    summary:
+      "Gran Turismo's rev line: a curve that fills white with the revs and flashes red from the shift point. Shown only when the theme's shift-style is sweep.",
+    attributes: {},
+  },
+  (el) => {
+    el.innerHTML = sweepSvg();
+    const svg = el.firstElementChild;
+    return {
+      paint(s) {
+        const r = revs(s);
+        drawSweep(svg, r?.fraction ?? 0, r?.shift ?? false);
+      },
+    };
+  },
+);
+
+registerBlock(
+  "x-timeline",
+  {
+    summary: "Throttle and brake against time, newest at the right.",
+    attributes: { seconds: "how much time it spans; 5 by default" },
+  },
+  (el) => ({ paint: (s) => drawTimeline(canvasIn(el), s.timeline, numberAttr(el, "seconds", TIMELINE_S)) }),
+);
+
+registerBlock(
+  "x-wheel-dial",
+  { summary: "A ring showing how far the wheel is turned, with a tick at its top.", attributes: {} },
+  (el) => ({ paint: (s) => drawDial(canvasIn(el), s.frame) }),
+);
+
 // ---------------------------------------------------------------------------
 // Rev lights on their own, to put wherever the eye already is — above the
 // mirror, beside the dash — rather than wherever Input Telemetry sits.
 // ---------------------------------------------------------------------------
 
-export function revlights() {
-  const el = html(`
-    <div class="panel">
-      <div class="card grow revlights-card">
-        <div class="shift">${"<i></i>".repeat(16)}</div>
-        ${sweepHtml()}
-      </div>
-      <div class="empty">waiting for the sim</div>
-    </div>`);
-  const lights = [...el.querySelectorAll(".shift i")];
-  const sweep = $(el, ".sweep-fill");
+const REVLIGHTS = `
+<div class="panel revlights" data-class="is-empty: empty">
+  <div class="card grow revlights-card">
+    <x-shift-lights></x-shift-lights>
+    <x-sweep></x-sweep>
+  </div>
+  <div class="empty">waiting for the sim</div>
+</div>`;
 
+// The shift points come with the race data: without them there is nothing
+// to light the row against.
+export const revlights = templated({
+  template: REVLIGHTS,
+  model: (s) => ({ empty: s.race?.shiftLights == null, ...revsModel(s) }),
+});
+
+/** The revs for a template: rpm, shiftFraction (0–1), shifting. */
+function revsModel(s) {
+  const r = revs(s);
+  return { rpm: s.frame?.rpm ?? null, shiftFraction: r === null ? 0 : unit(r.fraction), shifting: r?.shift ?? false };
+}
+
+function pedalsModel(s) {
+  const f = s.frame;
+  const ref = s.reference;
+  const atRef = ref !== null && f !== null;
+  const d = f?.deltaS;
+  const timed = typeof d === "number" && Math.abs(d) >= 0.005;
   return {
-    el,
-    draw(s) {
-      // The shift points come with the race data: without them there is
-      // nothing to light the row against.
-      el.classList.toggle("is-empty", s.race?.shiftLights == null);
-      drawShiftLights(lights, s, sweep);
-    },
+    ...inputsModel(s),
+    ...revsModel(s),
+    refSpeedKph: atRef ? Math.round(kph(sample(ref.speedMps, ref.gridSize, f.lapDistPct))) : null,
+    refGear: atRef ? gearText(ref.gear ? sample(ref.gear, ref.gridSize, f.lapDistPct) : undefined) : null,
+    deltaS: typeof d === "number" ? d : null,
+    // Gaining is good, losing is bad; under 5 ms is neither.
+    gaining: timed && d < 0,
+    losing: timed && d > 0,
+    ffbPct: Math.round(unit(f?.ffb) * 100),
   };
 }
 
-export function pedals() {
-  const el = html(`
-    <div class="panel tab-wrap">
-      <div class="tab n" data-k="delta" data-part="delta">—</div>
-      <div class="card grow">
-        <div class="shift" data-part="revlights">${"<i></i>".repeat(16)}</div>
-        ${sweepHtml(' data-part="revlights"')}
-        <div class="inputs-body">
-          <div class="graph" data-part="graph"><canvas class="fill" data-k="graph"></canvas></div>
-          <div class="pedals" data-part="pedals">
-            ${pedal("brake", "linear-gradient(0deg,var(--brake),color-mix(in srgb,var(--brake) 78%,white))", true)}
-            ${pedal("throttle", "linear-gradient(0deg,var(--throttle),color-mix(in srgb,var(--throttle) 70%,white))", true)}
-          </div>
-          <div class="speedo">
-            <div class="line good"><span class="xl n" data-k="speed">0</span><span class="u">km/h</span>
-              <span class="gear good">${gearbox()}<span class="xl n" data-k="gear">N</span></span></div>
-            <div class="line ref" data-part="reference"><span class="xl n" data-k="rspeed">—</span><span class="u">km/h</span>
-              <span class="gear">${gearbox()}<span class="xl n" data-k="rgear">–</span></span></div>
-            <div class="ffb" data-part="ffb">FF<div class="pill-h"><i data-k="ffb" style="background:color-mix(in srgb, var(--text) 75%, transparent)"></i></div></div>
-          </div>
-          <div class="wheel" style="position:relative;width:64px;height:64px" data-part="wheel">
-            <canvas class="fill" data-k="dial"></canvas>
-            <div data-k="wheel" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">${wheel(30)}</div>
-          </div>
-        </div>
+const PEDALS = `
+<div class="panel tab-wrap pedals-panel">
+  <div class="tab n" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
+  <div class="card grow">
+    <x-shift-lights data-part="revlights"></x-shift-lights>
+    <x-sweep data-part="revlights"></x-sweep>
+    <div class="inputs-body">
+      <div class="graph" data-part="graph"><x-timeline></x-timeline></div>
+      <div class="pedals" data-part="pedals">
+        <div class="pedal knob brake"><span class="v n">{{ brake.pct }}</span><div class="pill-v"><i style="height:{{ brake.pct }}%"></i><b style="bottom:calc({{ brake.pct }}% - {{ brake.knob }}px)"></b></div></div>
+        <div class="pedal knob throttle"><span class="v n">{{ throttle.pct }}</span><div class="pill-v"><i style="height:{{ throttle.pct }}%"></i><b style="bottom:calc({{ throttle.pct }}% - {{ throttle.knob }}px)"></b></div></div>
       </div>
-    </div>`);
-  const k = (name) => $(el, `[data-k="${name}"]`);
-  const lights = [...el.querySelectorAll(".shift i")];
-  const sweepFill = $(el, ".sweep-fill");
-  const brakeP = $(el, '[data-p="brake"]');
-  const throttleP = $(el, '[data-p="throttle"]');
+      <div class="speedo">
+        <div class="line good"><span class="xl n spd">{{ speedKph }}</span><span class="u">km/h</span>
+          <span class="gear good"><x-icon name="gearbox"></x-icon><span class="xl n gr">{{ gear }}</span></span></div>
+        <div class="line ref" data-part="reference"><span class="xl n spd">{{ refSpeedKph | or:— }}</span><span class="u">km/h</span>
+          <span class="gear"><x-icon name="gearbox"></x-icon><span class="xl n gr">{{ refGear | or:– }}</span></span></div>
+        <div class="ffb" data-part="ffb">FF<div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
+      </div>
+      <div class="wheel dial" data-part="wheel">
+        <x-wheel-dial></x-wheel-dial>
+        <div class="wheel-icon" style="transform:rotate({{ wheelDeg }}deg)"><x-icon name="wheel" size="30"></x-icon></div>
+      </div>
+    </div>
+  </div>
+</div>`;
 
-  return {
-    el,
-    draw(s) {
-      const f = s.frame;
-      setPedal(brakeP, f?.brake, false);
-      setPedal(throttleP, f?.throttle, false);
-      setText(k("speed"), String(Math.round(kph(f?.speedMps))));
-      setText(k("gear"), gearText(f?.gear));
-
-      const ref = s.reference;
-      if (ref !== null && f !== null) {
-        setText(k("rspeed"), String(Math.round(kph(sample(ref.speedMps, ref.gridSize, f.lapDistPct)))));
-        setText(k("rgear"), gearText(ref.gear ? sample(ref.gear, ref.gridSize, f.lapDistPct) : undefined));
-      }
-
-      const d = f?.deltaS;
-      const tab = k("delta");
-      setText(tab, typeof d === "number" ? signed(d, 3) : "—");
-      tab.className = `tab n ${deltaClass(d)}`;
-
-      k("ffb").style.width = `${Math.round(Math.max(0, Math.min(1, f?.ffb ?? 0)) * 100)}%`;
-      k("wheel").style.transform = `rotate(${wheelDeg(f)}deg)`;
-
-      drawShiftLights(lights, s, sweepFill);
-
-      drawTimeline(k("graph"), s.timeline);
-      drawDial(k("dial"), f);
-    },
-  };
-}
+export const pedals = templated({ template: PEDALS, model: pedalsModel });
 
 // ---------------------------------------------------------------------------
 // The comparison window both lap-position panels share: a stretch of the lap
@@ -409,8 +431,6 @@ function cursor(ctx, x, top, bottom, r) {
   ctx.stroke();
 }
 
-const noReference = `<div class="empty">no reference lap for this car — nothing to compare against</div>`;
-
 // ---------------------------------------------------------------------------
 // Input comparison (§7.1): throttle and brake on one plot, yours up to the
 // car and the reference's beyond it, with the reference's braking points
@@ -418,113 +438,123 @@ const noReference = `<div class="empty">no reference lap for this car — nothin
 // single most legible piece of feedback in the app."
 // ---------------------------------------------------------------------------
 
-export function trace() {
-  const el = html(`<div class="panel is-empty"><div class="card grow" style="padding:4px 8px 2px 0"><canvas class="fill"></canvas></div>${noReference}</div>`);
-  const canvas = $(el, "canvas");
+function drawTrace(canvas, s) {
+  if (s.reference === null) return;
+  const c = fit(canvas);
+  if (c === null) return;
+  const { ctx, w, h, r } = c;
+  ctx.clearRect(0, 0, w, h);
 
-  return {
-    el,
-    draw(s) {
-      el.classList.toggle("is-empty", s.reference === null);
-      if (s.reference === null) return;
-      const c = fit(canvas);
-      if (c === null) return;
-      const { ctx, w, h, r } = c;
-      ctx.clearRect(0, 0, w, h);
+  const ref = s.reference;
+  const here = s.frame?.lapDistPct ?? 0;
+  const x = axis(w, r, here);
+  const top = 18 * r;
+  const bottom = h - 14 * r;
+  const y = (v) => bottom - v * (bottom - top);
+  chrome(ctx, w, h, r, "THROTTLE/BRAKE · %", [["100", y(1)], ["50", y(0.5)], ["0", y(0)]], s.map?.lengthM ?? s.race?.trackLengthM ?? null, here);
 
-      const ref = s.reference;
-      const here = s.frame?.lapDistPct ?? 0;
-      const x = axis(w, r, here);
-      const top = 18 * r;
-      const bottom = h - 14 * r;
-      const y = (v) => bottom - v * (bottom - top);
-      chrome(ctx, w, h, r, "THROTTLE/BRAKE · %", [["100", y(1)], ["50", y(0.5)], ["0", y(0)]], s.map?.lengthM ?? s.race?.trackLengthM ?? null, here);
+  ctx.strokeStyle = alpha(COLORS.orange, 0.8);
+  ctx.lineWidth = 1.2 * r;
+  ctx.setLineDash([3 * r, 3 * r]);
+  for (const p of ref.brakeOnsetPcts) {
+    if (Math.abs(pctDelta(p, here)) > WINDOW_PCT) continue;
+    ctx.beginPath();
+    ctx.moveTo(x(p), top);
+    ctx.lineTo(x(p), bottom);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
 
-      ctx.strokeStyle = alpha(COLORS.orange, 0.8);
-      ctx.lineWidth = 1.2 * r;
-      ctx.setLineDash([3 * r, 3 * r]);
-      for (const p of ref.brakeOnsetPcts) {
-        if (Math.abs(pctDelta(p, here)) > WINDOW_PCT) continue;
-        ctx.beginPath();
-        ctx.moveTo(x(p), top);
-        ctx.lineTo(x(p), bottom);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
+  const thr = referenceSplit(ref.throttle, ref.gridSize, here, x, y);
+  const brk = referenceSplit(ref.brake, ref.gridSize, here, x, y);
+  // Ahead: the reference is all there is, drawn as a dim version of the
+  // live colours. Behind: a thin ghost under your own trace.
+  areaLine(ctx, thr.ahead, top, bottom, alpha(COLORS.throttle, 0.45), 0.14, 1.4 * r);
+  areaLine(ctx, brk.ahead, top, bottom, alpha(COLORS.brake, 0.5), 0.16, 1.4 * r);
+  areaLine(ctx, thr.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
+  areaLine(ctx, brk.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
+  areaLine(ctx, livePoints(s.history, here, x, (p) => p.throttle, y), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
+  areaLine(ctx, livePoints(s.history, here, x, (p) => p.brake, y), top, bottom, COLORS.brake, 0.32, 2.2 * r);
 
-      const thr = referenceSplit(ref.throttle, ref.gridSize, here, x, y);
-      const brk = referenceSplit(ref.brake, ref.gridSize, here, x, y);
-      // Ahead: the reference is all there is, drawn as a dim version of the
-      // live colours. Behind: a thin ghost under your own trace.
-      areaLine(ctx, thr.ahead, top, bottom, alpha(COLORS.throttle, 0.45), 0.14, 1.4 * r);
-      areaLine(ctx, brk.ahead, top, bottom, alpha(COLORS.brake, 0.5), 0.16, 1.4 * r);
-      areaLine(ctx, thr.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
-      areaLine(ctx, brk.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
-      areaLine(ctx, livePoints(s.history, here, x, (p) => p.throttle, y), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
-      areaLine(ctx, livePoints(s.history, here, x, (p) => p.brake, y), top, bottom, COLORS.brake, 0.32, 2.2 * r);
-
-      cursor(ctx, x(here), top - 4 * r, bottom, r);
-    },
-  };
+  cursor(ctx, x(here), top - 4 * r, bottom, r);
 }
+
+/** Both comparison panels: a chart against the reference, or why there is none. */
+const comparison = (block) => `
+<div class="panel comparison" data-class="is-empty: noReference">
+  <div class="card grow chart-card">${block}</div>
+  <div class="empty">no reference lap for this car — nothing to compare against</div>
+</div>`;
+const comparisonModel = (s) => ({ noReference: s.reference === null });
+
+registerBlock(
+  "x-trace",
+  {
+    summary:
+      "Throttle and brake by lap position: yours up to the car, the reference's beyond it, its braking points dashed.",
+    attributes: {},
+  },
+  (el) => ({ paint: (s) => drawTrace(canvasIn(el), s) }),
+);
+
+export const trace = templated({ template: comparison("<x-trace></x-trace>"), model: comparisonModel });
 
 // ---------------------------------------------------------------------------
 // Speed comparison: the same window, speed against the reference's.
 // ---------------------------------------------------------------------------
 
-export function speed() {
-  const el = html(`<div class="panel is-empty"><div class="card grow" style="padding:4px 8px 2px 0"><canvas class="fill"></canvas></div>${noReference}</div>`);
-  const canvas = $(el, "canvas");
+function drawSpeed(canvas, s) {
+  if (s.reference === null) return;
+  const c = fit(canvas);
+  if (c === null) return;
+  const { ctx, w, h, r } = c;
+  ctx.clearRect(0, 0, w, h);
 
-  return {
-    el,
-    draw(s) {
-      el.classList.toggle("is-empty", s.reference === null);
-      if (s.reference === null) return;
-      const c = fit(canvas);
-      if (c === null) return;
-      const { ctx, w, h, r } = c;
-      ctx.clearRect(0, 0, w, h);
+  const ref = s.reference;
+  const here = s.frame?.lapDistPct ?? 0;
 
-      const ref = s.reference;
-      const here = s.frame?.lapDistPct ?? 0;
+  // Scaled to what is on screen, so a corner's shape fills the panel
+  // instead of being a ripple on a 0–300 axis.
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let step = -60; step <= 60; step++) {
+    const v = kph(sample(ref.speedMps, ref.gridSize, here + (step / 60) * WINDOW_PCT));
+    lo = Math.min(lo, v);
+    hi = Math.max(hi, v);
+  }
+  if (!Number.isFinite(lo)) return;
+  lo = Math.max(0, Math.floor((lo - 10) / 10) * 10);
+  hi = Math.ceil((hi + 10) / 10) * 10;
 
-      // Scaled to what is on screen, so a corner's shape fills the panel
-      // instead of being a ripple on a 0–300 axis.
-      let lo = Infinity;
-      let hi = -Infinity;
-      for (let step = -60; step <= 60; step++) {
-        const v = kph(sample(ref.speedMps, ref.gridSize, here + (step / 60) * WINDOW_PCT));
-        lo = Math.min(lo, v);
-        hi = Math.max(hi, v);
-      }
-      if (!Number.isFinite(lo)) return;
-      lo = Math.max(0, Math.floor((lo - 10) / 10) * 10);
-      hi = Math.ceil((hi + 10) / 10) * 10;
+  const x = axis(w, r, here);
+  const top = 18 * r;
+  const bottom = h - 14 * r;
+  const y = (v) => bottom - ((v - lo) / (hi - lo)) * (bottom - top);
+  const mid = Math.round((lo + hi) / 2);
+  const liveNow = kph(s.frame?.speedMps);
+  const diff = liveNow - kph(sample(ref.speedMps, ref.gridSize, here));
+  chrome(
+    ctx, w, h, r,
+    `SPEED · KM/H   ${diff >= 0 ? "+" : "−"}${Math.abs(diff).toFixed(0)}`,
+    [[String(hi), y(hi)], [String(mid), y(mid)], [String(lo), y(lo)]],
+    s.map?.lengthM ?? s.race?.trackLengthM ?? null,
+    here,
+  );
 
-      const x = axis(w, r, here);
-      const top = 18 * r;
-      const bottom = h - 14 * r;
-      const y = (v) => bottom - ((v - lo) / (hi - lo)) * (bottom - top);
-      const mid = Math.round((lo + hi) / 2);
-      const liveNow = kph(s.frame?.speedMps);
-      const diff = liveNow - kph(sample(ref.speedMps, ref.gridSize, here));
-      chrome(
-        ctx, w, h, r,
-        `SPEED · KM/H   ${diff >= 0 ? "+" : "−"}${Math.abs(diff).toFixed(0)}`,
-        [[String(hi), y(hi)], [String(mid), y(mid)], [String(lo), y(lo)]],
-        s.map?.lengthM ?? s.race?.trackLengthM ?? null,
-        here,
-      );
-
-      const refPts = referenceSplit(ref.speedMps, ref.gridSize, here, x, (v) => y(kph(v)));
-      areaLine(ctx, refPts.ahead, top, bottom, alpha(COLORS.cyan, 0.45), 0.14, 1.4 * r);
-      areaLine(ctx, refPts.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
-      areaLine(ctx, livePoints(s.history, here, x, (p) => kph(p.speed), y), top, bottom, COLORS.cyan, 0.26, 2.2 * r);
-      cursor(ctx, x(here), top - 4 * r, bottom, r);
-    },
-  };
+  const refPts = referenceSplit(ref.speedMps, ref.gridSize, here, x, (v) => y(kph(v)));
+  areaLine(ctx, refPts.ahead, top, bottom, alpha(COLORS.cyan, 0.45), 0.14, 1.4 * r);
+  areaLine(ctx, refPts.behind, top, bottom, alpha(COLORS.ink, 0.28), 0, 1 * r);
+  areaLine(ctx, livePoints(s.history, here, x, (p) => kph(p.speed), y), top, bottom, COLORS.cyan, 0.26, 2.2 * r);
+  cursor(ctx, x(here), top - 4 * r, bottom, r);
 }
+
+registerBlock(
+  "x-speed-trace",
+  { summary: "Speed by lap position against the reference's, scaled to what is on screen.", attributes: {} },
+  (el) => ({ paint: (s) => drawSpeed(canvasIn(el), s) }),
+);
+
+export const speed = templated({ template: comparison("<x-speed-trace></x-speed-trace>"), model: comparisonModel });
 
 // ---------------------------------------------------------------------------
 // Brake indicator: a bar that fills towards the reference's braking point,
@@ -537,37 +567,37 @@ const RANGE_M = 150;
 /** How long the bar stays lit past the point — long enough to be seen. */
 const HOLD_M = 25;
 
-export function brake() {
-  const at = (m) => ((RANGE_M - m) / RANGE_M) * 100;
-  const el = html(`
-    <div class="panel is-empty">
-      <div class="card grow" style="justify-content:center">
-        <div class="brake-bar"><i></i>${BOARDS.map((m) => `<s style="left:${at(m)}%"></s>`).join("")}</div>
-        <div class="brake-marks">${BOARDS.map((m) => `<span style="left:${at(m)}%">${m}m</span>`).join("")}</div>
-      </div>
-      <div class="empty">no reference lap — no braking points</div>
-    </div>`);
-  const bar = $(el, ".brake-bar");
-  const fill = $(el, ".brake-bar i");
+const atBoard = (m) => ((RANGE_M - m) / RANGE_M) * 100;
 
+function brakeModel(s) {
+  const ref = s.reference;
+  const lengthM = s.map?.lengthM ?? s.race?.trackLengthM ?? null;
+  const ready = ref !== null && ref.brakeOnsetPcts.length > 0 && lengthM !== null;
+  const boards = BOARDS.map((m) => ({ metres: m, at: atBoard(m).toFixed(1) }));
+  if (!ready || s.frame === null) return { empty: !ready, fillPct: 0, now: false, metresToGo: null, boards };
+  const here = s.frame.lapDistPct;
+  let best = Infinity;
+  for (const p of ref.brakeOnsetPcts) {
+    const d = pctDelta(p, here) * lengthM;
+    if (d > -HOLD_M && d < best) best = d;
+  }
+  const k = best > RANGE_M ? 0 : Math.min(1, (RANGE_M - Math.max(0, best)) / RANGE_M);
   return {
-    el,
-    draw(s) {
-      const ref = s.reference;
-      const lengthM = s.map?.lengthM ?? s.race?.trackLengthM ?? null;
-      const ready = ref !== null && ref.brakeOnsetPcts.length > 0 && lengthM !== null;
-      el.classList.toggle("is-empty", !ready);
-      if (!ready || s.frame === null) return;
-
-      const here = s.frame.lapDistPct;
-      let best = Infinity;
-      for (const p of ref.brakeOnsetPcts) {
-        const d = pctDelta(p, here) * lengthM;
-        if (d > -HOLD_M && d < best) best = d;
-      }
-      const k = best > RANGE_M ? 0 : Math.min(1, (RANGE_M - Math.max(0, best)) / RANGE_M);
-      fill.style.width = `${k * 100}%`;
-      bar.classList.toggle("now", best <= 0);
-    },
+    empty: false,
+    fillPct: (k * 100).toFixed(1),
+    now: best <= 0,
+    metresToGo: Number.isFinite(best) ? Math.max(0, Math.round(best)) : null,
+    boards,
   };
 }
+
+const BRAKE = `
+<div class="panel brake-panel" data-class="is-empty: empty">
+  <div class="card grow">
+    <div class="brake-bar" data-class="now: now"><i style="width:{{ fillPct }}%"></i><s data-each="boards" style="left:{{ at }}%"></s></div>
+    <div class="brake-marks"><span data-each="boards" style="left:{{ at }}%">{{ metres }}m</span></div>
+  </div>
+  <div class="empty">no reference lap — no braking points</div>
+</div>`;
+
+export const brake = templated({ template: BRAKE, model: brakeModel });

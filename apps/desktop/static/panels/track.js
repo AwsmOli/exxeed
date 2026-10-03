@@ -7,7 +7,9 @@
 // position is an index into it with no lookup to do — for the player and, off
 // the race channel, for every other car too.
 
-import { $, alpha, classColour, COLORS, deltaTrend, fit, html, mix, setText, wrap01 } from "./util.js";
+import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
+import { templated } from "./templated.js";
+import { alpha, classColour, COLORS, deltaTrend, fit, mix, wrap01 } from "./util.js";
 
 const PAD = 16;
 
@@ -123,14 +125,8 @@ const ROAD_W = 4.5;
 /** Thirds of the lap, until the sim says where its own sectors are — as Delta Sectors does. */
 const DEFAULT_SECTORS = [0, 1 / 3, 2 / 3];
 
-export function map() {
-  const el = html(`
-    <div class="panel is-empty">
-      <canvas class="fill"></canvas>
-      <div class="empty" data-k="why">waiting for the sim</div>
-    </div>`);
-  const canvas = $(el, "canvas");
-  const why = $(el, '[data-k="why"]');
+function mapBlock(el) {
+  const canvas = canvasIn(el);
 
   let path = null;
   let pathKey = "";
@@ -165,26 +161,8 @@ export function map() {
   };
 
   return {
-    el,
-    draw(s) {
-      el.classList.toggle("is-empty", s.map === null);
-      if (s.map === null) {
-        // A blank panel is indistinguishable from a broken one; the status
-        // already knows why there is no map, so borrow the sentence.
-        const st = s.status;
-        setText(
-          why,
-          st?.phase === "running"
-            ? st.recordingTo === null
-              ? "no map for this track"
-              : "recording — no map yet"
-            : st?.phase === "waiting"
-              ? "waiting for the sim"
-              : "stopped",
-        );
-        return;
-      }
-
+    paint(s) {
+      if (s.map === null) return;
       const c = fit(canvas);
       if (c === null) return;
       const { ctx, w, h, r } = c;
@@ -232,7 +210,7 @@ export function map() {
       }
 
       const off = s.options.hidden;
-      const dark = s.options.style === "dark";
+      const dark = el.hasAttribute("dark") || s.options.style === "dark";
       ctx.clearRect(0, 0, w, h);
       road(ctx, path, (dark ? ROAD_W + 1.5 : ROAD_W) * r, r, dark);
       if (!off.has("heat")) ctx.drawImage(heatLayer, 0, 0);
@@ -329,6 +307,40 @@ export function map() {
   };
 }
 
+registerBlock(
+  "x-map",
+  {
+    summary:
+      "The whole track: the road, a heat map of where time was gained (green) and lost (red), sector marks, callout points, start/finish and the cars. Hidden parts (panel options) are left out.",
+    attributes: { dark: "a dark road with each turn numbered, whatever the overlay's style" },
+  },
+  mapBlock,
+);
+
+/** A blank panel is indistinguishable from a broken one: the status already knows why there is no map. */
+function mapModel(s) {
+  if (s.map !== null) return { empty: null };
+  const st = s.status;
+  return {
+    empty:
+      st?.phase === "running"
+        ? st.recordingTo === null
+          ? "no map for this track"
+          : "recording — no map yet"
+        : st?.phase === "waiting"
+          ? "waiting for the sim"
+          : "stopped",
+  };
+}
+
+const MAP = `
+<div class="panel map" data-class="is-empty: empty">
+  <x-map></x-map>
+  <div class="empty">{{ empty }}</div>
+</div>`;
+
+export const map = templated({ template: MAP, model: mapModel, rate: 250 });
+
 // ---------------------------------------------------------------------------
 // Mini map: the next few hundred metres in a disc, turned so the road ahead
 // is up.
@@ -336,22 +348,15 @@ export function map() {
 
 const AHEAD_M = 260;
 
-export function minimap() {
-  const el = html(`
-    <div class="panel is-empty">
-      <canvas class="fill"></canvas>
-      <div class="empty">no map for this track</div>
-    </div>`);
-  const canvas = $(el, "canvas");
+function minimapBlock(el) {
+  const canvas = canvasIn(el);
 
   /** Metres per normalised map unit — the map is aspect-corrected, not scaled. */
   let metresPerUnit = null;
   let seen = -1;
 
   return {
-    el,
-    draw(s) {
-      el.classList.toggle("is-empty", s.map === null);
+    paint(s) {
       if (s.map === null || s.frame === null) return;
       const mv = s.map;
       const n = mv.x.length;
@@ -398,7 +403,7 @@ export function minimap() {
       // The car slightly below centre, so more of the disc is road ahead.
       const ox = cx;
       const oy = cy + R * 0.25;
-      const scale = (R * 1.1) / (AHEAD_M / metresPerUnit);
+      const scale = (R * 1.1) / (numberAttr(el, "ahead", AHEAD_M) / metresPerUnit);
       const rot = -Math.PI / 2 - heading;
       const cos = Math.cos(rot);
       const sin = Math.sin(rot);
@@ -427,3 +432,20 @@ export function minimap() {
     },
   };
 }
+
+registerBlock(
+  "x-minimap",
+  {
+    summary: "The road around the car in a disc, turned so the way ahead is up, with the cars on it.",
+    attributes: { ahead: "metres of road from the car to the top of the disc; 260 by default" },
+  },
+  minimapBlock,
+);
+
+const MINIMAP = `
+<div class="panel minimap" data-class="is-empty: empty">
+  <x-minimap></x-minimap>
+  <div class="empty">no map for this track</div>
+</div>`;
+
+export const minimap = templated({ template: MINIMAP, model: (s) => ({ empty: s.map === null }), rate: 250 });
