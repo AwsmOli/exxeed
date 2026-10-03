@@ -1,0 +1,101 @@
+/* Synthwave: what its tokens cannot say.
+
+   A theme's own stylesheet (theme.css), applied over overlay.css while this
+   theme — or a custom theme built on it — is in use. Custom themes can ship
+   one too, the same way. */
+
+/* Light bleeding off the big numbers, titles and bars. The panels themselves
+   are plain dark, from the tokens. */
+.titlebar { text-shadow: 0 0 8px rgba(255, 106, 213, 0.9); }
+.xl,
+.lg,
+.delta-readout,
+.tab-wrap .tab,
+.laps3 .t,
+.good,
+.bad { text-shadow: 0 0 10px currentColor; }
+.cap { text-shadow: 0 0 6px rgba(0, 240, 255, 0.7); }
+.pill-h > i,
+.pedal .pill-v > i,
+.delta-track > i { box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); filter: saturate(1.25); }
+
+/* Synthwave: your own row on a band that runs pink to cyan, lit from within. */
+.row.me {
+  background: linear-gradient(90deg, rgba(255, 43, 214, 0.55), rgba(164, 92, 255, 0.4) 50%, rgba(0, 240, 255, 0.4));
+  box-shadow: inset 0 0 12px rgba(255, 106, 213, 0.55);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
+}
+.row.me .pos { color: #ffffff; }
+/* Orbitron digits run wide: bring the big numbers down a size so they fit. */
+.xl { font-size: 21px; letter-spacing: 0; }
+.lg { font-size: 16.5px; }
+.row .n { font-size: 0.86em; }
+.titlebar .n, .titlebar .lg { font-family: var(--num-font); }
+
+/* Synthwave: the rev lights lean in towards the middle — \\\\ //// — taller and
+   closer together so the slant reads. The two halves light from the outside in. */
+.shift { gap: 4px; margin-bottom: 12px; padding: 0 4px; }
+.shift i { height: 11px; border-radius: 1px; transform: skewX(28deg); }
+.shift i:nth-child(n + 9) { transform: skewX(-28deg); }
+/* The same cut on the pedal bars' caps: no rounded knob. */
+.pedal.knob .pill-v > b { border-radius: 1px; left: 0; right: 0; height: 3px; }
+
+/* Synthwave: the two middle rev lights close up into one V, the point of the
+   sweep, instead of sitting apart like the rest. */
+/* The two middle lights always light together, so they are drawn as one
+   bigger light: the eighth stretches across both cells, slanting in at each
+   end like its neighbours, and the ninth steps aside. One shape, so
+   see-through unlit lights show no darker overlap where two would stack. */
+.shift i:nth-child(8) {
+  width: calc(200% + 4px);
+  transform: none;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 5.85px) 100%, 5.85px 100%);
+}
+.shift i:nth-child(9) { visibility: hidden; }
+
+/* Synthwave: bars with two opposite corners cut off on the diagonal — top
+   left and bottom right — instead of rounded or square ends. */
+.pill-h,
+.fuel-bar,
+.delta-track,
+.brake-bar {
+  border-radius: 0;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+.pedal .pill-v {
+  border-radius: 0;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+/* The fills inside follow the track's cut, so they need no shape of their own. */
+.pill-h > i,
+.pedal .pill-v > i,
+.brake-bar > i,
+.delta-track > i { border-radius: 0 !important; }
+
+/* Synthwave: the class colour as neon, not paint — a bright slanted stripe at
+   the row's edge, a faint tint of it behind the position, and the position
+   itself glowing in it. In place of the wash that faded across the row. */
+.row .pos {
+  background:
+    linear-gradient(108deg, var(--cls, #888) 0 5px, transparent 5px),
+    linear-gradient(90deg, color-mix(in srgb, var(--cls, #888) 26%, transparent), color-mix(in srgb, var(--cls, #888) 8%, transparent)) !important;
+  color: var(--cls, var(--text)); font-family: var(--num-font); font-weight: 800;
+  text-shadow: 0 0 9px var(--cls, transparent);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 100%, 0 100%);
+  padding: 0 6px 0 4px;
+}
+.row.me .pos { color: #ffffff; text-shadow: 0 0 9px #ffffff; }
+
+/* Synthwave: the used part of the fuel bar is plain dark, not red-brown. */
+:root { --fuel-empty: #17171b; }
+
+.revlights-card .shift { margin: 0; }
+.revlights-card .shift i { height: min(100cqh, 2.4cqw); }
+/* The joined middle light's slant follows the lights' own height, worked out
+   the same way (tan 28° of it), to match its neighbours at any size. */
+.revlights-card .shift i:nth-child(8) {
+  clip-path: polygon(0 0, 100% 0, calc(100% - min(53cqh, 1.27cqw)) 100%, min(53cqh, 1.27cqw) 100%);
+}
+
+/* Orbitron is wide: three lap times side by side need a size down to fit. */
+.laps3 .t { font-size: 12.5px; }

@@ -15,6 +15,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,6 +37,9 @@ import {
   THEME_CHANNEL,
   THEME_GET_CHANNEL,
   themeView,
+  type Theme,
+  type ThemeAssets,
+  type ThemeView,
   OVERLAY_PROFILES_CHANGED_CHANNEL,
   RACE_CHANNEL,
   REFERENCE_CHANNEL,
@@ -936,6 +940,36 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
 // preload.mts — tsc emits .mjs from .mts and .js from .ts.
 const PRELOAD = fileURLToPath(new URL("./preload.mjs", import.meta.url));
 const PAGE = fileURLToPath(new URL("../static/index.html", import.meta.url));
+/** The built-in themes' stylesheets and templates: static/themes/<id>/. */
+const BUILTIN_THEME_DIR = fileURLToPath(new URL("../static/themes/", import.meta.url));
+
+/**
+ * A built-in theme's files. Read on every apply rather than once, so editing
+ * them in development restyles the overlays on the next theme change.
+ */
+const builtinThemeAssets: ThemeAssets = (id) => {
+  const root = join(BUILTIN_THEME_DIR, id);
+  const read = (path: string): string | undefined => {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return undefined;
+    }
+  };
+  const templates: Record<string, string> = {};
+  try {
+    for (const file of readdirSync(join(root, "templates"))) {
+      if (file.endsWith(".html")) templates[file.slice(0, -".html".length)] = read(join(root, "templates", file)) ?? "";
+    }
+  } catch {
+    // A built-in with no templates of its own.
+  }
+  const css = read(join(root, "theme.css"));
+  return { ...(css !== undefined ? { css } : {}), templates };
+};
+
+/** What the overlays are sent for a theme: tokens as variables, plus stylesheets and templates. */
+const overlayTheme = (theme: Theme): ThemeView => themeView(theme, builtinThemeAssets);
 
 /**
  * Which panels to open. `EXXEED_PANELS=map,delta` for a subset; the active
@@ -1058,7 +1092,7 @@ let themeStore: ThemeStore | null = null;
  */
 function themes(): ThemeStore {
   themeStore ??= new ThemeStore(() => {
-    overlayLayout?.broadcast(THEME_CHANNEL, themeView(themes().find(settings().get().overlayTheme)));
+    overlayLayout?.broadcast(THEME_CHANNEL, overlayTheme(themes().find(settings().get().overlayTheme)));
     broadcastProfiles();
   });
   return themeStore;
@@ -1068,7 +1102,7 @@ function themes(): ThemeStore {
 function applyTheme(id: string): void {
   const theme = themes().find(id);
   settings().updateQuietly({ overlayTheme: theme.id });
-  overlayLayout?.broadcast(THEME_CHANNEL, themeView(theme));
+  overlayLayout?.broadcast(THEME_CHANNEL, overlayTheme(theme));
   broadcastProfiles();
 }
 
@@ -1755,7 +1789,7 @@ void app.whenReady().then(() => {
   );
 
   // An overlay window asks what to wear as it loads; changes arrive on THEME_CHANNEL.
-  ipcMain.handle(THEME_GET_CHANNEL, () => themeView(themes().find(settings().get().overlayTheme)));
+  ipcMain.handle(THEME_GET_CHANNEL, () => overlayTheme(themes().find(settings().get().overlayTheme)));
 
   // Renderer → main: the Overlays section of the control window.
   ipcMain.on(OVERLAY_PROFILE_COMMAND_CHANNEL, (_event, raw: unknown) => {

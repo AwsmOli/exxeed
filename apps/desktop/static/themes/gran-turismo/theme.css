@@ -1,0 +1,97 @@
+/* Gran Turismo: what its tokens cannot say.
+
+   A theme's own stylesheet (theme.css), applied over overlay.css while this
+   theme — or a custom theme built on it — is in use. Custom themes can ship
+   one too, the same way. */
+
+/* GT7's race screen: every row its own slab with the scene showing between,
+   the position in a square box with a thin light edge, your own row light
+   grey with dark type, and thin square numbers. */
+.card.rows { background: transparent; display: flex; flex-direction: column; gap: 2px; }
+.rows .row { background: var(--card); }
+.rows .row + .row { border-top: 0; }
+.row .pos {
+  background: var(--chip-bg) !important; color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+  font-weight: 500; font-size: 1.08em;
+}
+.rows .row.me {
+  background: var(--me-bg); color: var(--me-text);
+  --text-2: rgba(17, 20, 24, 0.64);
+  --text-3: rgba(17, 20, 24, 0.46);
+}
+.row.me .pos {
+  background: var(--me-bg) !important; color: var(--me-text);
+  box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 3px rgba(17, 20, 24, 0.35);
+}
+/* Car numbers as plain square chips in the class colour. */
+.row .num { border-radius: 0 !important; }
+.irk,
+.tag { border-radius: 0; }
+/* The class header: the class name on a square tab, the rest plain white caps. */
+.class-head .tag.outline { border-radius: 0; }
+/* Big numbers thin and square, like GT's speed and gear. */
+.xl,
+.lg { font-family: var(--title-font); font-weight: 400; letter-spacing: 0.01em; }
+.xl { font-size: 30px; }
+.cap { color: var(--label); letter-spacing: 0.08em; }
+/* The live delta tab: the gap in GT's red box when you are behind. */
+.tab-wrap .tab { border-radius: 0; }
+/* GT puts a time gap in a filled box: white type on red when losing, on green when gaining. */
+.tab-wrap .tab.bad,
+.delta-readout.bad { background: var(--red); color: #ffffff; }
+.tab-wrap .tab.good,
+.delta-readout.good { background: #1f9a4a; color: #ffffff; }
+.delta-track > i,
+.pill-h > i,
+.pedal .pill-v > i { border-radius: 0 !important; }
+.pedal.knob .pill-v > b { border-radius: 0; left: 0; right: 0; height: 3px; }
+
+/* -- Standings (templates/standings.html) ---------------------------------- */
+
+.gt-standings { gap: 14px; }
+.gt-head { display: flex; align-items: center; gap: 22px; flex: none; }
+.gt-big {
+  width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;
+  background: rgba(22, 27, 33, 0.92); color: #ffffff;
+  font-family: var(--title-font); font-size: 40px; font-weight: 400;
+}
+.gt-stat { display: flex; flex-direction: column; gap: 2px; color: #ffffff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.gt-label { font-family: var(--title-font); font-size: 15px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.gt-value { font-family: var(--title-font); font-size: 26px; font-weight: 400; line-height: 1; }
+
+.gt-list { display: flex; flex-direction: column; gap: 3px; min-height: 0; overflow: hidden; }
+.gt-row { position: relative; display: flex; height: 36px; flex: none; gap: 2px; font-size: 16px; }
+.gt-pos {
+  width: 44px; flex: none; display: flex; align-items: center; justify-content: center;
+  background: rgba(14, 18, 22, 0.92); color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+.gt-slab {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  background: var(--card); color: var(--text);
+}
+.gt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Where GT puts the driver's flag: the car number, on the class colour. */
+.gt-num {
+  flex: none; min-width: 30px; height: 20px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
+  background: var(--cls); color: #111418; font-size: 12px; font-weight: 700;
+}
+.gt-pit { flex: none; padding: 1px 5px; background: var(--yellow); color: #111418; font-size: 11px; font-weight: 700; }
+.gt-row.pit { opacity: 0.55; }
+
+/* Your row: light, with a white-edged position box. */
+.gt-row.me .gt-pos { background: var(--me-bg); color: var(--me-text); box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 3px rgba(17, 20, 24, 0.35); }
+.gt-row.me .gt-slab { background: var(--me-bg); color: var(--me-text); }
+/* Every row keeps the room for it, so the slabs line up; only yours fills it. */
+.gt-lead {
+  width: 96px; flex: none; display: flex; align-items: center; justify-content: center;
+  background: var(--red); color: #ffffff; font-variant-numeric: tabular-nums;
+}
+.gt-row:not(.me) .gt-lead { visibility: hidden; }
+
+/* The gaps either side of you, on lines of their own. */
+.gt-gap {
+  flex: none; height: 24px; display: flex; align-items: center; justify-content: flex-end; padding: 0 12px;
+  margin-right: 98px; background: rgba(14, 18, 22, 0.5); color: #ffffff; font-size: 15px; font-variant-numeric: tabular-nums;
+}

@@ -233,8 +233,9 @@ async function publish(
   const client = cloudClient();
   const item = link === null ? await createThemeItem(client, fields) : await updateItem(client, link.itemId, fields);
 
-  // Only what a theme is: its name, base and validated tokens. Not the file's
-  // `$schema` path or anything else that happens to be in it.
+  // Only what a theme is: its name, base, validated tokens, stylesheet and
+  // templates. Not the file's `$schema` path or anything else in it. A folder
+  // theme's theme.css and templates/ go up inline, as one document.
   const { theme } = custom;
   const payload = {
     name: title,
@@ -242,6 +243,8 @@ async function publish(
     base: theme.base ?? BUILTIN_THEMES[0]!.id,
     ...(theme.layout !== undefined ? { layout: theme.layout } : {}),
     tokens: theme.tokens,
+    ...(theme.css !== undefined ? { css: theme.css } : {}),
+    ...(theme.templates !== undefined ? { templates: theme.templates } : {}),
   };
   const published = await publishThemeVersion(client, item.id, payload, request.changelog.trim());
   store.link(request.themeId, { itemId: item.id, versionId: published.id, version: published.version, origin: "mine" });

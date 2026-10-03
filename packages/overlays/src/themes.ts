@@ -163,6 +163,61 @@ export interface Theme {
   readonly layout?: ThemeLayout;
   readonly author?: string;
   readonly tokens: Readonly<Partial<Record<ThemeToken, string>>>;
+  /**
+   * A stylesheet of the theme's own, applied over the built-in one: anything
+   * tokens cannot say. The overlays load nothing from outside the app (their
+   * Content-Security-Policy), so it can restyle but not reach out.
+   */
+  readonly css?: string;
+  /**
+   * Overlay id → an HTML template for it (static/template.js): how the
+   * overlay is built, not just how it looks. Declarative and sanitized; no code.
+   */
+  readonly templates?: Readonly<Record<string, string>>;
+}
+
+/** The most a theme's stylesheet may be. */
+export const MAX_THEME_CSS = 256_000;
+/** The most one template may be, and how many a theme may have. */
+export const MAX_THEME_TEMPLATE = 64_000;
+export const MAX_THEME_TEMPLATES = 48;
+const TEMPLATE_ID = /^[a-z][a-z0-9-]{0,39}$/;
+
+/**
+ * A theme's stylesheet and templates, checked: what is not text, too large or
+ * named oddly is dropped and reported. Shared by theme files (inline) and
+ * theme folders (theme.css, templates/*.html).
+ */
+export function parseThemeAssets(
+  css: unknown,
+  templates: unknown,
+): { css?: string; templates?: Record<string, string>; problems: string[] } {
+  const problems: string[] = [];
+  const out: { css?: string; templates?: Record<string, string>; problems: string[] } = { problems };
+  if (css !== undefined) {
+    if (typeof css !== "string") problems.push('"css" must be text');
+    else if (css.length > MAX_THEME_CSS) problems.push(`the stylesheet is over ${MAX_THEME_CSS / 1000} kB`);
+    else if (css.trim() !== "") out.css = css;
+  }
+  if (templates !== undefined) {
+    if (typeof templates !== "object" || templates === null || Array.isArray(templates)) {
+      problems.push('"templates" must be an object of overlay id → template');
+    } else {
+      const kept: Record<string, string> = {};
+      for (const [id, text] of Object.entries(templates as Record<string, unknown>)) {
+        if (Object.keys(kept).length >= MAX_THEME_TEMPLATES) {
+          problems.push(`a theme has at most ${MAX_THEME_TEMPLATES} templates`);
+          break;
+        }
+        if (!TEMPLATE_ID.test(id)) problems.push(`"${id}" is not an overlay id`);
+        else if (typeof text !== "string") problems.push(`the ${id} template must be text`);
+        else if (text.length > MAX_THEME_TEMPLATE) problems.push(`the ${id} template is over ${MAX_THEME_TEMPLATE / 1000} kB`);
+        else kept[id] = text;
+      }
+      if (Object.keys(kept).length > 0) out.templates = kept;
+    }
+  }
+  return out;
 }
 
 const COLOR = /^(#[0-9a-f]{3,8}|rgba?\(\s*[\d.\s,%/]+\)|transparent)$/i;
@@ -449,7 +504,14 @@ export interface ThemeView {
   /** The built-in this theme is built on, or its own id when it is one. */
   readonly base: string;
   readonly variables: Readonly<Record<string, string>>;
+  /** The base's stylesheet, then the theme's own. */
+  readonly css: string;
+  /** Overlay id → template: the base's, with the theme's own over them. */
+  readonly templates: Readonly<Record<string, string>>;
 }
+
+/** A built-in theme's stylesheet and templates, which ship as files beside the overlays. */
+export type ThemeAssets = (builtinId: string) => { readonly css?: string; readonly templates?: Readonly<Record<string, string>> };
 
 /** Everything a theme may name as its base: the built-ins and the classic look. */
 const BASES: readonly Theme[] = [...BUILTIN_THEMES, CLASSIC];
@@ -461,9 +523,14 @@ const baseById = (id: string): Theme | undefined => BASES.find((t) => t.id === (
 const baseOf = (theme: Theme): Theme =>
   theme.base === undefined ? theme : (baseById(theme.base) ?? BUILTIN_THEMES[0]!);
 
-export const themeView = (theme: Theme): ThemeView => {
+export const themeView = (theme: Theme, assets: ThemeAssets = () => ({})): ThemeView => {
   const base = baseOf(theme);
+  // A built-in's own files; a custom theme's from the theme, over its base's files.
+  const inherited = base === theme ? {} : assets(base.id);
+  const own = base === theme ? assets(theme.id) : { css: theme.css, templates: theme.templates };
   return {
+    css: [inherited.css, own.css].filter((c) => typeof c === "string" && c !== "").join("\n"),
+    templates: { ...inherited.templates, ...own.templates },
     id: theme.id,
     layout: theme.layout ?? BUILTIN_LAYOUT[base.id] ?? "wash",
     base: base.id,
@@ -545,6 +612,9 @@ export function parseTheme(text: string, id: string): ParsedTheme {
     }
   }
 
+  const assets = parseThemeAssets(r["css"], r["templates"]);
+  problems.push(...assets.problems);
+
   const text60 = (v: unknown, fallback: string): string =>
     typeof v === "string" && v.trim() !== "" ? v.trim().slice(0, 60) : fallback;
 
@@ -557,6 +627,8 @@ export function parseTheme(text: string, id: string): ParsedTheme {
       ...(layout !== undefined ? { layout } : {}),
       ...(typeof r["author"] === "string" ? { author: r["author"].slice(0, 60) } : {}),
       tokens,
+      ...(assets.css !== undefined ? { css: assets.css } : {}),
+      ...(assets.templates !== undefined ? { templates: assets.templates } : {}),
     },
     problems,
   };
@@ -622,6 +694,18 @@ export function themeJsonSchema(): Record<string, unknown> {
             { type: "string", description: `${TOKEN_HELP[name as ThemeToken]} Takes ${KIND_HELP[kind]}.`, ...(patterns[kind] ?? {}) },
           ]),
         ),
+      },
+      css: {
+        type: "string",
+        maxLength: MAX_THEME_CSS,
+        description:
+          "A stylesheet applied over the built-in one. In a theme folder, put it in theme.css beside theme.json instead.",
+      },
+      templates: {
+        type: "object",
+        description:
+          "Overlay id → HTML template: how that overlay is built. In a theme folder, put each in templates/<overlay>.html instead.",
+        additionalProperties: { type: "string", maxLength: MAX_THEME_TEMPLATE },
       },
     },
   };

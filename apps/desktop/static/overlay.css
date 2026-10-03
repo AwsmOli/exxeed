@@ -152,6 +152,9 @@ body.overlay .panel { width: 100%; height: 100%; }
 
 .panel { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; min-height: 0; }
 
+/* A template's wrapper for repeating or hiding several siblings at once (template.js): no box of its own. */
+x-group { display: contents; }
+
 .card {
   background: var(--card);
   border: var(--card-border);
@@ -303,6 +306,30 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 }
 .row.me .pos { color: var(--me); }
 .row.pit { opacity: 0.5; }
+/* The class colour washing in from the left behind the position (layout "wash"). */
+.row .pos { background: linear-gradient(90deg, color-mix(in srgb, var(--cls, transparent) 70%, transparent), transparent); }
+
+/* Standings and Relatives (race.js): the parts their templates name. */
+.session-head { justify-content: flex-start; }
+.session-head .clock { margin-left: auto; }
+.class-list { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; overflow: hidden; }
+.class-head { justify-content: flex-start; height: 26px; }
+.class-head .spacer { margin-left: auto; }
+.class-head .tag.outline { color: var(--cls); }
+.class-head .cap { text-align: right; }
+.class-head .c-gap { width: 46px; }
+.class-head .c-int { width: 40px; }
+.class-head .c-last { width: 72px; }
+.class-head .c-best { width: 72px; margin-right: -4px; }
+.rows.card { padding: 0; }
+.relative .conditions { justify-content: space-around; }
+.relative .row { height: 30px; font-size: 14px; }
+.relative .row .gap { font-weight: 600; }
+.relative .footer .laps { font-weight: 700; }
+/* Lapping you reads red, being lapped reads blue — the convention on every
+   relative, because it says who you should not be fighting. */
+.row.lapping { color: var(--lap-ahead); }
+.row.lapped { color: var(--lap-behind); }
 .row .num { color: var(--text-3); }
 .irk {
   display: inline-flex; align-items: center; justify-content: center; gap: 3px;
@@ -310,7 +337,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
   background: var(--chip-bg); border: 1px solid var(--line);
   font-size: 10px; font-weight: 700; color: var(--chip-text);
 }
-.irk i { width: 6px; height: 6px; border-radius: 50%; }
+.irk i { width: 6px; height: 6px; border-radius: 50%; background: var(--lic); }
 
 /* -- Panel-specific ------------------------------------------------------- */
 
@@ -479,7 +506,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
    of the sim's 2025 UI.                                                      */
 
 /* No class-colour wash behind the position: a plain number, as in the sim. */
-[data-layout="chips"] .row .pos { background: none !important; color: var(--text-2); font-family: var(--num-font); }
+[data-layout="chips"] .row .pos { background: none; color: var(--text-2); font-family: var(--num-font); }
 [data-layout="chips"] .row.me .pos { color: var(--me); }
 /* The class colour sits on the car number instead, as a chip. */
 [data-layout="chips"] .row .num {
@@ -514,7 +541,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 [data-layout="blocks"] .rows .row:nth-child(even) { background: var(--card-hi); }
 [data-layout="blocks"] .row { column-gap: 6px; }
 [data-layout="blocks"] .row .pos {
-  background: var(--chip-bg) !important; color: var(--chip-text);
+  background: var(--chip-bg); color: var(--chip-text);
   margin: 3px 0 3px 4px; border-radius: 4px; font-weight: 800; align-self: stretch;
 }
 [data-layout="blocks"] .row .num {
@@ -533,7 +560,7 @@ canvas.fill { display: block; width: 100%; height: 100%; }
    field on a darker shade of it, and a thin line in it across the panel. */
 [data-layout="blocks"] .class-head {
   background: transparent; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--cls) 55%, transparent);
-  border-radius: 0; padding: 0 12px 0 0; gap: 0; height: 22px !important; margin-top: 6px;
+  border-radius: 0; padding: 0 12px 0 0; gap: 0; height: 22px; margin-top: 6px;
   text-transform: none; letter-spacing: 0;
 }
 [data-layout="blocks"] .class-head .tag.outline {
@@ -576,148 +603,6 @@ body[data-style="stack"] .wx-wind b { font-size: 22px; }
 
 /* blocks: the lap chip in Relatives is gold, as a pit or lap marker reads there. */
 [data-layout="blocks"] .tag.lap { background: var(--orange); color: #14181c; border-radius: 3px; }
-
-/* -- Synthwave: what its tokens cannot say --------------------------------------
-   Light bleeding off the big numbers, titles and bars. The panels themselves
-   are plain dark, from the tokens. A custom theme based on Synthwave gets
-   these only while it is the built-in: they key on the theme, not the layout. */
-[data-theme="synthwave"] .titlebar { text-shadow: 0 0 8px rgba(255, 106, 213, 0.9); }
-[data-theme="synthwave"] .xl,
-[data-theme="synthwave"] .lg,
-[data-theme="synthwave"] .delta-readout,
-[data-theme="synthwave"] .tab-wrap .tab,
-[data-theme="synthwave"] .laps3 .t,
-[data-theme="synthwave"] .good,
-[data-theme="synthwave"] .bad { text-shadow: 0 0 10px currentColor; }
-[data-theme="synthwave"] .cap { text-shadow: 0 0 6px rgba(0, 240, 255, 0.7); }
-[data-theme="synthwave"] .pill-h > i,
-[data-theme="synthwave"] .pedal .pill-v > i,
-[data-theme="synthwave"] .delta-track > i { box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); filter: saturate(1.25); }
-
-/* Synthwave: your own row on a band that runs pink to cyan, lit from within. */
-[data-theme="synthwave"] .row.me {
-  background: linear-gradient(90deg, rgba(255, 43, 214, 0.55), rgba(164, 92, 255, 0.4) 50%, rgba(0, 240, 255, 0.4));
-  box-shadow: inset 0 0 12px rgba(255, 106, 213, 0.55);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.75);
-}
-[data-theme="synthwave"] .row.me .pos { color: #ffffff; }
-/* Orbitron digits run wide: bring the big numbers down a size so they fit. */
-[data-theme="synthwave"] .xl { font-size: 21px; letter-spacing: 0; }
-[data-theme="synthwave"] .lg { font-size: 16.5px; }
-[data-theme="synthwave"] .row .n { font-size: 0.86em; }
-[data-theme="synthwave"] .titlebar .n, [data-theme="synthwave"] .titlebar .lg { font-family: var(--num-font); }
-
-/* Synthwave: the rev lights lean in towards the middle — \\\\ //// — taller and
-   closer together so the slant reads. The two halves light from the outside in. */
-[data-theme="synthwave"] .shift { gap: 4px; margin-bottom: 12px; padding: 0 4px; }
-[data-theme="synthwave"] .shift i { height: 11px; border-radius: 1px; transform: skewX(28deg); }
-[data-theme="synthwave"] .shift i:nth-child(n + 9) { transform: skewX(-28deg); }
-/* The same cut on the pedal bars' caps: no rounded knob. */
-[data-theme="synthwave"] .pedal.knob .pill-v > b { border-radius: 1px; left: 0; right: 0; height: 3px; }
-
-/* Synthwave: the two middle rev lights close up into one V, the point of the
-   sweep, instead of sitting apart like the rest. */
-/* The two middle lights always light together, so they are drawn as one
-   bigger light: the eighth stretches across both cells, slanting in at each
-   end like its neighbours, and the ninth steps aside. One shape, so
-   see-through unlit lights show no darker overlap where two would stack. */
-[data-theme="synthwave"] .shift i:nth-child(8) {
-  width: calc(200% + 4px);
-  transform: none;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 5.85px) 100%, 5.85px 100%);
-}
-[data-theme="synthwave"] .shift i:nth-child(9) { visibility: hidden; }
-
-/* Synthwave: bars with two opposite corners cut off on the diagonal — top
-   left and bottom right — instead of rounded or square ends. */
-[data-theme="synthwave"] .pill-h,
-[data-theme="synthwave"] .fuel-bar,
-[data-theme="synthwave"] .delta-track,
-[data-theme="synthwave"] .brake-bar {
-  border-radius: 0;
-  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-}
-[data-theme="synthwave"] .pedal .pill-v {
-  border-radius: 0;
-  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-}
-/* The fills inside follow the track's cut, so they need no shape of their own. */
-[data-theme="synthwave"] .pill-h > i,
-[data-theme="synthwave"] .pedal .pill-v > i,
-[data-theme="synthwave"] .brake-bar > i,
-[data-theme="synthwave"] .delta-track > i { border-radius: 0 !important; }
-
-/* Synthwave: the class colour as neon, not paint — a bright slanted stripe at
-   the row's edge, a faint tint of it behind the position, and the position
-   itself glowing in it. In place of the wash that faded across the row. */
-[data-theme="synthwave"] .row .pos {
-  background:
-    linear-gradient(108deg, var(--cls, #888) 0 5px, transparent 5px),
-    linear-gradient(90deg, color-mix(in srgb, var(--cls, #888) 26%, transparent), color-mix(in srgb, var(--cls, #888) 8%, transparent)) !important;
-  color: var(--cls, var(--text)); font-family: var(--num-font); font-weight: 800;
-  text-shadow: 0 0 9px var(--cls, transparent);
-  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 100%, 0 100%);
-  padding: 0 6px 0 4px;
-}
-[data-theme="synthwave"] .row.me .pos { color: #ffffff; text-shadow: 0 0 9px #ffffff; }
-
-/* Synthwave: the used part of the fuel bar is plain dark, not red-brown. */
-[data-theme="synthwave"] { --fuel-empty: #17171b; }
-
-[data-theme="synthwave"] .revlights-card .shift { margin: 0; }
-[data-theme="synthwave"] .revlights-card .shift i { height: min(100cqh, 2.4cqw); }
-/* The joined middle light's slant follows the lights' own height, worked out
-   the same way (tan 28° of it), to match its neighbours at any size. */
-[data-theme="synthwave"] .revlights-card .shift i:nth-child(8) {
-  clip-path: polygon(0 0, 100% 0, calc(100% - min(53cqh, 1.27cqw)) 100%, min(53cqh, 1.27cqw) 100%);
-}
-
-/* Orbitron is wide: three lap times side by side need a size down to fit. */
-[data-theme="synthwave"] .laps3 .t { font-size: 12.5px; }
-
-/* -- Gran Turismo: what its tokens cannot say -----------------------------------
-   GT7's race screen: every row its own slab with the scene showing between,
-   the position in a square box with a thin light edge, your own row light
-   grey with dark type, and thin square numbers. */
-[data-theme="gran-turismo"] .card.rows { background: transparent; display: flex; flex-direction: column; gap: 2px; }
-[data-theme="gran-turismo"] .rows .row { background: var(--card); }
-[data-theme="gran-turismo"] .rows .row + .row { border-top: 0; }
-[data-theme="gran-turismo"] .row .pos {
-  background: var(--chip-bg) !important; color: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
-  font-weight: 500; font-size: 1.08em;
-}
-[data-theme="gran-turismo"] .rows .row.me {
-  background: var(--me-bg); color: var(--me-text);
-  --text-2: rgba(17, 20, 24, 0.64);
-  --text-3: rgba(17, 20, 24, 0.46);
-}
-[data-theme="gran-turismo"] .row.me .pos {
-  background: var(--me-bg) !important; color: var(--me-text);
-  box-shadow: inset 0 0 0 2px #ffffff, inset 0 0 0 3px rgba(17, 20, 24, 0.35);
-}
-/* Car numbers as plain square chips in the class colour. */
-[data-theme="gran-turismo"] .row .num { border-radius: 0 !important; }
-[data-theme="gran-turismo"] .irk,
-[data-theme="gran-turismo"] .tag { border-radius: 0; }
-/* The class header: the class name on a square tab, the rest plain white caps. */
-[data-theme="gran-turismo"] .class-head .tag.outline { border-radius: 0; }
-/* Big numbers thin and square, like GT's speed and gear. */
-[data-theme="gran-turismo"] .xl,
-[data-theme="gran-turismo"] .lg { font-family: var(--title-font); font-weight: 400; letter-spacing: 0.01em; }
-[data-theme="gran-turismo"] .xl { font-size: 30px; }
-[data-theme="gran-turismo"] .cap { color: var(--label); letter-spacing: 0.08em; }
-/* The live delta tab: the gap in GT's red box when you are behind. */
-[data-theme="gran-turismo"] .tab-wrap .tab { border-radius: 0; }
-/* GT puts a time gap in a filled box: white type on red when losing, on green when gaining. */
-[data-theme="gran-turismo"] .tab-wrap .tab.bad,
-[data-theme="gran-turismo"] .delta-readout.bad { background: var(--red); color: #ffffff; }
-[data-theme="gran-turismo"] .tab-wrap .tab.good,
-[data-theme="gran-turismo"] .delta-readout.good { background: #1f9a4a; color: #ffffff; }
-[data-theme="gran-turismo"] .delta-track > i,
-[data-theme="gran-turismo"] .pill-h > i,
-[data-theme="gran-turismo"] .pedal .pill-v > i { border-radius: 0 !important; }
-[data-theme="gran-turismo"] .pedal.knob .pill-v > b { border-radius: 0; left: 0; right: 0; height: 3px; }
 
 /* -- Rev lights as a sweep (shift-style: sweep) -----------------------------------
    One curved line rising to the right: a dark edge so it reads on any card,

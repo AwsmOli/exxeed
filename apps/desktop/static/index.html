@@ -16,7 +16,10 @@
          colours the panels set (class colours, bar widths). -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
     <title>Exxeed</title>
-    <link rel="stylesheet" href="./overlay.css" />
+    <!-- The built-in stylesheet in a cascade layer of its own, so a theme's
+         stylesheet (unlayered, renderer.js) wins over any rule in it however
+         specific — a theme author never has to out-specify the app. -->
+    <style>@import url("./overlay.css") layer(exxeed);</style>
   </head>
   <body>
     <div id="root"></div>

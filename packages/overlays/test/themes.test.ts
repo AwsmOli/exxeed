@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   BUILTIN_THEMES,
+  MAX_THEME_TEMPLATE,
   parseTheme,
+  parseThemeAssets,
   THEME_TOKENS,
   themeById,
   themeFileFor,
@@ -104,5 +106,45 @@ describe("custom themes", () => {
     const described = Object.keys(schema.properties.tokens.properties);
     expect(described.sort()).toEqual(Object.keys(THEME_TOKENS).sort());
     for (const name of described) expect(schema.properties.tokens.properties[name]!.description.length).toBeGreaterThan(10);
+  });
+
+  it("carries a stylesheet and templates, and drops what is not one", () => {
+    const parsed = parseTheme(
+      JSON.stringify({
+        name: "GT copy",
+        base: "gran-turismo",
+        css: ".row { color: red; }",
+        templates: { standings: "<div class=\"panel\"></div>", "Bad Id": "<div></div>", relative: 42 },
+      }),
+      "gt-copy",
+    );
+    expect(parsed.theme?.css).toBe(".row { color: red; }");
+    expect(parsed.theme?.templates).toEqual({ standings: '<div class="panel"></div>' });
+    expect(parsed.problems).toHaveLength(2);
+  });
+
+  it("refuses a template that is too large", () => {
+    const out = parseThemeAssets(undefined, { standings: "x".repeat(MAX_THEME_TEMPLATE + 1) });
+    expect(out.templates).toBeUndefined();
+    expect(out.problems[0]).toMatch(/standings/);
+  });
+
+  it("puts a custom theme's stylesheet and templates over its base's files", () => {
+    const files = (id: string) =>
+      id === "gran-turismo" ? { css: "/* gt */", templates: { standings: "gt", relative: "gt" } } : {};
+    const custom: Theme = {
+      id: "mine",
+      name: "Mine",
+      description: "",
+      base: "gran-turismo",
+      tokens: {},
+      css: "/* mine */",
+      templates: { relative: "mine" },
+    };
+    const view = themeView(custom, files);
+    expect(view.css).toBe("/* gt */\n/* mine */");
+    expect(view.templates).toEqual({ standings: "gt", relative: "mine" });
+    // A built-in gets its own files.
+    expect(themeView(themeById("gran-turismo"), files).templates).toEqual({ standings: "gt", relative: "gt" });
   });
 });

@@ -2,42 +2,14 @@
 // channel, which only the live sim fills: a replay is the driver's own car and
 // nothing else, so these say so rather than sit blank.
 
-import { $, alpha, classColour, clock, COLORS, licenceColour, fit, html, irating, lapTime, roundRect, setText } from "./util.js";
+import { templated } from "./templated.js";
+import { $, alpha, classColour, COLORS, licenceColour, fit, html, roundRect } from "./util.js";
 
 const NO_RACE = (s) =>
   s.status?.phase === "running" ? "live sim only — this source has no other cars" : "waiting for the sim";
 
-const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-
-const gap = (v) => (v === null || v === undefined ? "" : `+${Math.max(0, v).toFixed(1)}`);
-
-/** The class colour, bleeding in from the left behind the position. */
-const posCell = (pos, colour) =>
-  `<span class="pos" style="background:linear-gradient(90deg, ${alpha(colour, 0.7)}, ${alpha(colour, 0)})">${pos || ""}</span>`;
-
-/** Licence and iRating in one chip; either half can be switched off (panel-options.ts). */
-const irChip = (lic, simColour, ir, hidden) => {
-  const colour = licenceColour(lic, simColour);
-  const licence = hidden.has("license") ? "" : `<i style="background:${colour}"></i>${esc(lic.split(" ")[0] ?? "")}`;
-  const rating = hidden.has("irating") ? "" : irating(ir);
-  return `<span class="irk" style="--lic:${colour}">${[licence, rating].filter(Boolean).join(" ")}</span>`;
-};
-
 /** A grid's column widths, leaving out the ones switched off. */
 const columns = (...cols) => cols.filter(Boolean).join(" ");
-
-/** Rebuild at human speed, and only when something arrived. */
-function throttled(ms, fn) {
-  let at = -Infinity;
-  let seen = -1;
-  return (s) => {
-    const now = performance.now();
-    if (s.v.race === seen || now - at < ms) return;
-    at = now;
-    seen = s.v.race;
-    fn(s);
-  };
-}
 
 function lapsLine(race) {
   return race.lapsTotal !== null ? `Lap ${race.lap}/${race.lapsTotal}` : `Lap ${race.lap}`;
@@ -50,6 +22,24 @@ function sessionLetter(race) {
 // ---------------------------------------------------------------------------
 // Standings: the field by class, fastest class first, each class its own
 // card under its own header.
+//
+// A model and a template (templated.js): a theme can lay the same rows out
+// its own way. What the template can read:
+//
+//   empty            why there is nothing to show, or null
+//   session          "R", "Q", "P"…    lap, lapsTotal, lapsLine, timeRemainS
+//   show.*           number, license, irating, chip, gap, interval, last, best:
+//                    the columns the driver has on (panel options)
+//   cols             grid-template-columns for those columns
+//   player           your row (below), or null
+//   playerClass      your class (as in classes[]), or null
+//   fieldSize        cars in your class
+//   classes[]        name, colour, sof, size, rows[]
+//     rows[]         colour (the class's), position, carNumber, name, onPitRoad, isPlayer,
+//                    license, licenceColour, iRating, gapS, intervalS,
+//                    lastLapS, bestLapS, fastest,
+//                    aheadOfPlayer, behindPlayer (the cars either side of you),
+//                    behindS (for your row: the car behind's interval to you)
 // ---------------------------------------------------------------------------
 
 /** Past this many rows a class is condensed to its top and the player's neighbourhood. */
@@ -64,161 +54,202 @@ function condense(rows) {
   return rows.filter((_, i) => keep.has(i));
 }
 
+/** The columns switched on, for a template's data-if. */
+function shown(hidden, ids) {
+  const out = {};
+  for (const id of ids) out[id] = !hidden.has(id);
+  out.chip = out.license || out.irating;
+  return out;
+}
 
-export function standings() {
-  const el = html(`
-    <div class="panel is-empty">
-      <div class="titlebar split keep" style="justify-content:flex-start" data-part="header">
-        <span class="md" data-k="kind">R</span>
-        <span data-k="laps"></span>
-        <span class="muted n" style="margin-left:auto" data-k="time"></span>
-      </div>
-      <div data-k="classes" style="display:flex;flex-direction:column;gap:var(--gap);min-height:0;overflow:hidden"></div>
-      <div class="empty" data-k="why"></div>
-    </div>`);
-  const k = (name) => $(el, `[data-k="${name}"]`);
-
-  const build = throttled(250, (s) => {
-    const race = s.race;
-    setText(k("kind"), sessionLetter(race));
-    setText(k("laps"), lapsLine(race));
-    setText(k("time"), race.timeRemainS !== null ? clock(race.timeRemainS) : "");
-
-    // Columns the driver switched off are left out of the grid, not just blanked.
-    const off = s.options.hidden;
-    const chip = !off.has("license") || !off.has("irating");
-    // Lap-time columns wide enough for "1:57.870" in a monospace face too.
-    const cols = columns(
-      "30px",
-      !off.has("number") && "36px",
-      "minmax(70px,1fr)",
-      chip && "64px",
-      !off.has("gap") && "46px",
-      !off.has("interval") && "40px",
-      !off.has("last") && "72px",
-      !off.has("best") && "72px",
-    );
-
-    k("classes").innerHTML = race.classes
-      .map((sim) => {
-        const cls = { ...sim, classColor: classColour(race, sim.classColor) };
-        const head = `<div class="titlebar class-head" style="justify-content:flex-start;height:26px;--cls:${cls.classColor}">
-            <span class="tag outline" style="color:${cls.classColor}">${esc(cls.className || "CLASS")}</span>
-            <span class="muted">SoF ${cls.sof ?? "—"}</span>
-            <span style="margin-left:auto"></span>
-            ${off.has("gap") ? "" : '<span class="cap" style="width:46px;text-align:right">Gap</span>'}
-            ${off.has("interval") ? "" : '<span class="cap" style="width:40px;text-align:right">Int</span>'}
-            ${off.has("last") ? "" : '<span class="cap" style="width:72px;text-align:right">Last</span>'}
-            ${off.has("best") ? "" : '<span class="cap" style="width:72px;text-align:right;margin-right:-4px">Best</span>'}
-          </div>`;
-        const rows = condense(cls.rows)
-          .map(
-            (r) => `<div class="row${r.isPlayer ? " me" : ""}${r.onPitRoad ? " pit" : ""}" style="grid-template-columns:${cols};--cls:${cls.classColor}">
-              ${posCell(r.classPosition, cls.classColor)}
-              ${off.has("number") ? "" : `<span class="num">#${esc(r.carNumber)}</span>`}
-              <span class="who">${esc(r.name)}${r.onPitRoad ? ' <span class="tag">PIT</span>' : ""}</span>
-              ${chip ? irChip(r.license, r.licenseColor, r.iRating, off) : ""}
-              ${off.has("gap") ? "" : `<span class="r n">${r.gapS === null ? "" : gap(r.gapS)}</span>`}
-              ${off.has("interval") ? "" : `<span class="r n muted">${r.intervalS === null ? "" : gap(r.intervalS)}</span>`}
-              ${off.has("last") ? "" : `<span class="r n">${lapTime(r.lastLapS)}</span>`}
-              ${off.has("best") ? "" : `<span class="r n ${r.fastest ? "fast" : "muted"}">${lapTime(r.bestLapS)}</span>`}
-            </div>`,
-          )
-          .join("");
-        return `${head}<div class="card rows" style="padding:0">${rows}</div>`;
-      })
-      .join("");
-  });
-
+/** The parts of a race view both race panels' models start from. */
+function raceBasics(s) {
+  const race = s.race;
   return {
-    el,
-    draw(s) {
-      el.classList.toggle("is-empty", s.race === null);
-      if (s.race === null) {
-        setText(k("why"), NO_RACE(s));
-        return;
-      }
-      build(s);
-    },
+    empty: race === null ? NO_RACE(s) : null,
+    session: race === null ? "" : sessionLetter(race),
+    lap: race?.lap ?? null,
+    lapsTotal: race?.lapsTotal ?? null,
+    lapsLine: race === null ? "" : lapsLine(race),
+    timeRemainS: race?.timeRemainS ?? null,
+    incidents: race?.incidents ?? null,
   };
 }
+
+function standingsModel(s) {
+  const basics = raceBasics(s);
+  const race = s.race;
+  const show = shown(s.options.hidden, ["header", "number", "license", "irating", "gap", "interval", "last", "best"]);
+  // Lap-time columns wide enough for "1:57.870" in a monospace face too.
+  const cols = columns(
+    "30px",
+    show.number && "36px",
+    "minmax(70px,1fr)",
+    show.chip && "64px",
+    show.gap && "46px",
+    show.interval && "40px",
+    show.last && "72px",
+    show.best && "72px",
+  );
+  let player = null;
+  let playerClass = null;
+  let fieldSize = 0;
+  const classes = (race?.classes ?? []).map((sim) => {
+    const colour = classColour(race, sim.classColor);
+    const all = sim.rows;
+    const me = all.findIndex((r) => r.isPlayer);
+    if (me >= 0) fieldSize = all.length;
+    const rows = condense(all).map((r) => {
+      const at = all.indexOf(r);
+      const row = {
+        colour,
+        position: r.classPosition || "",
+        carNumber: r.carNumber,
+        name: r.name,
+        onPitRoad: r.onPitRoad,
+        isPlayer: r.isPlayer,
+        license: r.license,
+        licenceColour: licenceColour(r.license, r.licenseColor),
+        iRating: r.iRating,
+        gapS: r.gapS,
+        intervalS: r.intervalS,
+        lastLapS: r.lastLapS,
+        bestLapS: r.bestLapS,
+        fastest: r.fastest,
+        aheadOfPlayer: me >= 0 && at === me - 1,
+        behindPlayer: me >= 0 && at === me + 1,
+        behindS: r.isPlayer ? (all[at + 1]?.intervalS ?? null) : null,
+      };
+      if (r.isPlayer) player = row;
+      return row;
+    });
+    const cls = { name: sim.className || "", colour, sof: sim.sof ?? null, size: all.length, rows };
+    if (me >= 0) playerClass = cls;
+    return cls;
+  });
+  return { ...basics, show, cols, classes, player, playerClass, fieldSize };
+}
+
+const STANDINGS = `
+<div class="panel standings" data-class="is-empty: empty">
+  <div class="titlebar session-head keep" data-part="header">
+    <span class="md">{{ session }}</span>
+    <span>{{ lapsLine }}</span>
+    <span class="clock muted n">{{ timeRemainS | clock }}</span>
+  </div>
+  <div class="class-list">
+    <x-group data-each="classes">
+      <div class="titlebar class-head" style="--cls:{{ colour }}">
+        <span class="tag outline">{{ name | or:CLASS }}</span>
+        <span class="muted">SoF {{ sof | or:— }}</span>
+        <span class="spacer"></span>
+        <span data-if="show.gap" class="cap c-gap">Gap</span>
+        <span data-if="show.interval" class="cap c-int">Int</span>
+        <span data-if="show.last" class="cap c-last">Last</span>
+        <span data-if="show.best" class="cap c-best">Best</span>
+      </div>
+      <div class="card rows">
+        <div data-each="rows" class="row" data-class="me: isPlayer; pit: onPitRoad" style="grid-template-columns:{{ cols }};--cls:{{ colour }}">
+          <span class="pos">{{ position }}</span>
+          <span data-if="show.number" class="num">#{{ carNumber }}</span>
+          <span class="who">{{ name }} <span data-if="onPitRoad" class="tag">PIT</span></span>
+          <span data-if="show.chip" class="irk" style="--lic:{{ licenceColour }}"><i data-if="show.license"></i><x-group data-if="show.license">{{ license | first }} </x-group><x-group data-if="show.irating">{{ iRating | irating }}</x-group></span>
+          <span data-if="show.gap" class="r n">{{ gapS | gap }}</span>
+          <span data-if="show.interval" class="r n muted">{{ intervalS | gap }}</span>
+          <span data-if="show.last" class="r n">{{ lastLapS | lapTime }}</span>
+          <span data-if="show.best" class="r n" data-class="fast: fastest; muted: !fastest">{{ bestLapS | lapTime }}</span>
+        </div>
+      </div>
+    </x-group>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>`;
+
+export const standings = templated({ template: STANDINGS, model: standingsModel, deps: ["race"], rate: 250 });
+standings.template = STANDINGS;
 
 // ---------------------------------------------------------------------------
 // Relatives: who is around you on the road, by time, between a header of the
 // session's conditions and a footer of where the race is.
+//
+// Template data: the race basics above (empty, session, lapsLine,
+// timeRemainS, incidents), and
+//
+//   airC, trackC, sof, brakeBiasPct, clock (the time of day, "14:48")
+//   show.*        number, lap, license, irating, chip, header, footer
+//   cols          grid-template-columns for those columns
+//   rows[]        position, carNumber, name, lap, lapState (1 lapping you,
+//                 −1 being lapped), lappingYou, lappedByYou, classColour, license, licenceColour, iRating, gapS
+//                 (unsigned seconds), ahead (true for cars in front),
+//                 isPlayer, onPitRoad
 // ---------------------------------------------------------------------------
 
-
-export function relative() {
-  const el = html(`
-    <div class="panel is-empty">
-      <div class="titlebar keep" style="justify-content:space-around" data-part="header">
-        <span class="n" data-k="air"></span><span class="n" data-k="track"></span>
-        <span data-k="sof"></span><span data-k="bb"></span>
-        <span data-k="inc"></span><span class="n" data-k="clock"></span>
-      </div>
-      <div class="card rows grow" style="padding:0" data-k="rows"></div>
-      <div class="titlebar split" data-part="footer">
-        <span style="font-weight:700" data-k="laps"></span><span class="n" data-k="remain"></span>
-      </div>
-      <div class="empty" data-k="why"></div>
-    </div>`);
-  const k = (name) => $(el, `[data-k="${name}"]`);
-
-  const build = throttled(200, (s) => {
-    const race = s.race;
-    const w = race.weather;
-    setText(k("air"), `${w.airC.toFixed(0)}°C`);
-    setText(k("track"), `${w.trackC.toFixed(0)}°C`);
-    const mine = race.classes.find((c) => c.rows.some((r) => r.isPlayer));
-    setText(k("sof"), mine?.sof ? `SoF ${mine.sof}` : "");
-    setText(k("bb"), race.brakeBiasPct === null ? "" : `BB ${race.brakeBiasPct.toFixed(1)}%`);
-    setText(k("inc"), `✕ ${race.incidents}x`);
-    setText(k("clock"), new Date().toTimeString().slice(0, 5));
-    setText(k("laps"), lapsLine(race));
-    setText(k("remain"), race.timeRemainS !== null ? clock(race.timeRemainS) : "");
-
-    const off = s.options.hidden;
-    const chip = !off.has("license") || !off.has("irating");
-    const cols = columns(
-      "34px",
-      !off.has("number") && "40px",
-      "minmax(70px,1fr)",
-      !off.has("lap") && "38px",
-      chip && "56px",
-      "42px",
-    );
-
-    k("rows").innerHTML = race.relatives
-      .map((r) => {
-        // Lapping you reads red, being lapped reads blue — the convention on
-        // every relative, because it says who you should not be fighting.
-        const tone = r.lapState > 0 ? `color:${COLORS.lapAhead}` : r.lapState < 0 ? `color:${COLORS.lapBehind}` : "";
-        const colour = classColour(race, r.classColor);
-        return `<div class="row${r.isPlayer ? " me" : ""}${r.onPitRoad ? " pit" : ""}" style="grid-template-columns:${cols};height:30px;font-size:14px;--cls:${colour};${tone}">
-          ${posCell(r.position, colour)}
-          ${off.has("number") ? "" : `<span class="num">#${esc(r.carNumber)}</span>`}
-          <span class="who">${esc(r.name)}</span>
-          ${off.has("lap") ? "" : `<span class="tag lap">L${r.lap}</span>`}
-          ${chip ? irChip(r.license, r.licenseColor, r.iRating, off) : ""}
-          <span class="r n" style="font-weight:600">${r.isPlayer ? "0.0" : Math.abs(r.gapS).toFixed(1)}</span>
-        </div>`;
-      })
-      .join("");
+function relativeModel(s) {
+  const basics = raceBasics(s);
+  const race = s.race;
+  const w = race?.weather ?? null;
+  const show = shown(s.options.hidden, ["header", "number", "lap", "license", "irating", "footer"]);
+  const cols = columns("34px", show.number && "40px", "minmax(70px,1fr)", show.lap && "38px", show.chip && "56px", "42px");
+  const mine = race?.classes.find((c) => c.rows.some((r) => r.isPlayer)) ?? null;
+  const rows = (race?.relatives ?? []).map((r) => {
+    const colour = classColour(race, r.classColor);
+    return {
+      position: r.position || "",
+      carNumber: r.carNumber,
+      name: r.name,
+      lap: r.lap,
+      lapState: r.lapState,
+      lappingYou: r.lapState > 0,
+      lappedByYou: r.lapState < 0,
+      classColour: colour,
+      license: r.license,
+      licenceColour: licenceColour(r.license, r.licenseColor),
+      iRating: r.iRating,
+      gapS: r.isPlayer ? 0 : Math.abs(r.gapS),
+      ahead: !r.isPlayer && r.gapS < 0,
+      isPlayer: r.isPlayer,
+      onPitRoad: r.onPitRoad,
+    };
   });
-
   return {
-    el,
-    draw(s) {
-      el.classList.toggle("is-empty", s.race === null);
-      if (s.race === null) {
-        setText(k("why"), NO_RACE(s));
-        return;
-      }
-      build(s);
-    },
+    ...basics,
+    show,
+    cols,
+    rows,
+    airC: w?.airC ?? null,
+    trackC: w?.trackC ?? null,
+    sof: mine?.sof ?? null,
+    brakeBiasPct: race?.brakeBiasPct ?? null,
+    clock: new Date().toTimeString().slice(0, 5),
   };
 }
+
+const RELATIVE = `
+<div class="panel relative" data-class="is-empty: empty">
+  <div class="titlebar conditions keep" data-part="header">
+    <span class="n">{{ airC | fixed }}°C</span><span class="n">{{ trackC | fixed }}°C</span>
+    <span data-if="sof">SoF {{ sof }}</span>
+    <span data-if="brakeBiasPct">BB {{ brakeBiasPct | fixed:1 }}%</span>
+    <span>✕ {{ incidents }}x</span><span class="n">{{ clock }}</span>
+  </div>
+  <div class="card rows grow">
+    <div data-each="rows" class="row" data-class="me: isPlayer; pit: onPitRoad; lapping: lappingYou; lapped: lappedByYou" style="grid-template-columns:{{ cols }};--cls:{{ classColour }}">
+      <span class="pos">{{ position }}</span>
+      <span data-if="show.number" class="num">#{{ carNumber }}</span>
+      <span class="who">{{ name }}</span>
+      <span data-if="show.lap" class="tag lap">L{{ lap }}</span>
+      <span data-if="show.chip" class="irk" style="--lic:{{ licenceColour }}"><i data-if="show.license"></i><x-group data-if="show.license">{{ license | first }} </x-group><x-group data-if="show.irating">{{ iRating | irating }}</x-group></span>
+      <span class="gap r n">{{ gapS | fixed:1 }}</span>
+    </div>
+  </div>
+  <div class="titlebar split footer" data-part="footer">
+    <span class="laps">{{ lapsLine }}</span><span class="n">{{ timeRemainS | clock }}</span>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>`;
+
+export const relative = templated({ template: RELATIVE, model: relativeModel, deps: ["race"], rate: 200 });
+relative.template = RELATIVE;
 
 // ---------------------------------------------------------------------------
 // Radar: cars within a few lengths, ahead and behind, each with a wedge of

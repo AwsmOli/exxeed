@@ -1,0 +1,38 @@
+<!--
+  Gran Turismo's race standings: your position big in a box with the field
+  size and lap beside it, then your class as one list of slabs. Your gap to
+  the car ahead sits on a line of its own above your row and the car behind's
+  below it, and your gap to the leader hangs off the end of your row in red.
+
+  The data this can use is listed at the top of the Standings section of
+  static/panels/race.js.
+-->
+<div class="panel standings gt-standings" data-class="is-empty: empty">
+  <div class="gt-head keep" data-part="header">
+    <div class="gt-big">{{ player.position | or:– }}</div>
+    <div class="gt-stat">
+      <span class="gt-label">Position</span>
+      <span class="gt-value">/{{ fieldSize }}</span>
+    </div>
+    <div class="gt-stat">
+      <span class="gt-label">Lap</span>
+      <span class="gt-value">{{ lap }}<x-group data-if="lapsTotal">/{{ lapsTotal }}</x-group></span>
+    </div>
+  </div>
+  <div class="gt-list">
+    <x-group data-each="playerClass.rows">
+      <x-group data-if="isPlayer"><div data-if="intervalS" class="gt-gap">{{ intervalS | signed:3 }}</div></x-group>
+      <div class="gt-row" data-class="me: isPlayer; pit: onPitRoad" style="--cls:{{ colour }}">
+        <span class="gt-pos">{{ position }}</span>
+        <span class="gt-slab">
+          <span class="gt-name">{{ name }}</span>
+          <span data-if="onPitRoad" class="gt-pit">PIT</span>
+          <span data-if="show.number" class="gt-num">{{ carNumber }}</span>
+        </span>
+        <span class="gt-lead"><x-group data-if="isPlayer">{{ gapS | signed:3 }}</x-group></span>
+      </div>
+      <x-group data-if="isPlayer"><div data-if="behindS" class="gt-gap">{{ behindS | neg | signed:3 }}</div></x-group>
+    </x-group>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

@@ -1,7 +1,14 @@
 /**
  * Custom overlay themes on disk — TODO M9, "JSON first".
  *
- * A theme is a JSON file in `<userData>/themes/`, edited in whatever editor
+ * A theme is a folder in `<userData>/themes/`:
+ *
+ *   <id>/theme.json             name, base, tokens
+ *   <id>/theme.css              optional: a stylesheet over the built-in one
+ *   <id>/templates/<panel>.html optional: how that overlay is built
+ *
+ * or, from before themes had more than tokens, a single `<id>.json` (which
+ * can carry `css` and `templates` inline). Either is edited in whatever editor
  * its author likes. The folder is watched, so a save from VS Code restyles
  * the overlays as it lands, exactly as a save from anywhere else would. A
  * file that stops parsing keeps the last good version on screen and reports
@@ -12,14 +19,17 @@
  * as a starting point, like VS Code's default settings.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { join } from "node:path";
 
 import { app } from "electron";
 
 import {
   BUILTIN_THEMES,
+  MAX_THEME_CSS,
+  MAX_THEME_TEMPLATE,
   parseTheme,
+  parseThemeAssets,
   themeFileFor,
   themeJsonSchema,
   type Theme,
@@ -38,6 +48,20 @@ export interface ThemeLink {
 }
 
 const LINKS_FILE = ".links.json";
+/** In a theme folder. */
+const THEME_JSON = "theme.json";
+const THEME_CSS = "theme.css";
+const TEMPLATES_DIR = "templates";
+
+/** A file's text, or undefined when it is missing or too large to be what it should. */
+function readSmall(path: string, max: number): string | undefined {
+  try {
+    if (statSync(path).size > max * 4) return undefined;
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
 
 export interface CustomTheme {
   readonly theme: Theme;
@@ -49,6 +73,8 @@ export class ThemeStore {
   /** Last good parse per id, kept while its file is mid-edit and broken. */
   readonly #good = new Map<string, Theme>();
   #custom = new Map<string, CustomTheme>();
+  /** Theme id → whether it is a folder (or an old single file). */
+  #folder = new Map<string, boolean>();
   #watcher: FSWatcher | null = null;
   #timer: NodeJS.Timeout | null = null;
 
@@ -61,7 +87,8 @@ export class ThemeStore {
     this.#read();
 
     try {
-      this.#watcher = watch(dir, () => {
+      // Recursive: a save to a folder theme's stylesheet or a template is inside it.
+      this.#watcher = watch(dir, { recursive: true }, () => {
         // Editors save in several steps (write a temp file, rename it): wait
         // for them to finish.
         if (this.#timer !== null) clearTimeout(this.#timer);
@@ -77,27 +104,65 @@ export class ThemeStore {
 
   #read(): void {
     const next = new Map<string, CustomTheme>();
-    for (const file of readdirSync(this.dir)) {
-      if (!file.endsWith(".json") || file === SCHEMA_FILE || file.startsWith(".")) continue;
-      const id = file.slice(0, -".json".length);
-      // A file named after a built-in would be unreachable in the picker.
+    const folder = new Map<string, boolean>();
+    for (const entry of readdirSync(this.dir, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || entry.name === SCHEMA_FILE) continue;
+      const isFolder = entry.isDirectory();
+      if (!isFolder && !entry.name.endsWith(".json")) continue;
+      const id = isFolder ? entry.name : entry.name.slice(0, -".json".length);
+      // A theme named after a built-in would be unreachable in the picker.
       if (BUILTIN_THEMES.some((t) => t.id === id)) continue;
+      // A folder holds the same theme a file would: the folder wins.
+      if (!isFolder && next.has(id) && folder.get(id) === true) continue;
+      const jsonPath = isFolder ? join(this.dir, id, THEME_JSON) : join(this.dir, entry.name);
       let text: string;
       try {
-        text = readFileSync(join(this.dir, file), "utf8");
+        text = readFileSync(jsonPath, "utf8");
       } catch {
         continue;
       }
       const parsed = parseTheme(text, id);
-      if (parsed.theme !== null) this.#good.set(id, parsed.theme);
-      const theme = parsed.theme ?? this.#good.get(id) ?? null;
-      // Never parsed, and still does not: listed by its file name so it can be opened and fixed.
+      let theme = parsed.theme;
+      const problems = [...parsed.problems];
+      if (theme !== null && isFolder) {
+        const files = this.#folderAssets(id);
+        problems.push(...files.problems);
+        const css = [theme.css, files.css].filter((c) => c !== undefined).join("\n");
+        const templates = { ...theme.templates, ...files.templates };
+        theme = {
+          ...theme,
+          ...(css !== "" ? { css } : {}),
+          ...(Object.keys(templates).length > 0 ? { templates } : {}),
+        };
+      }
+      if (theme !== null) this.#good.set(id, theme);
+      theme ??= this.#good.get(id) ?? null;
+      // Never parsed, and still does not: listed by its name so it can be opened and fixed.
       next.set(id, {
         theme: theme ?? { id, name: id, description: "", base: BUILTIN_THEMES[0]!.id, tokens: {} },
-        problems: parsed.problems,
+        problems,
       });
+      folder.set(id, isFolder);
     }
     this.#custom = next;
+    this.#folder = folder;
+  }
+
+  /** A theme folder's theme.css and templates/*.html, checked. */
+  #folderAssets(id: string): ReturnType<typeof parseThemeAssets> {
+    const root = join(this.dir, id);
+    const css = readSmall(join(root, THEME_CSS), MAX_THEME_CSS);
+    const templates: Record<string, string> = {};
+    try {
+      for (const file of readdirSync(join(root, TEMPLATES_DIR))) {
+        if (!file.endsWith(".html")) continue;
+        const text = readSmall(join(root, TEMPLATES_DIR, file), MAX_THEME_TEMPLATE);
+        if (text !== undefined) templates[file.slice(0, -".html".length)] = text;
+      }
+    } catch {
+      // No templates folder: none of the overlays are rebuilt.
+    }
+    return parseThemeAssets(css, Object.keys(templates).length > 0 ? templates : undefined);
   }
 
   list(): readonly CustomTheme[] {
@@ -117,24 +182,36 @@ export class ThemeStore {
     return this.#custom.has(id);
   }
 
+  /** The theme's JSON: theme.json in its folder, or its single file. */
   pathOf(id: string): string {
-    return join(this.dir, `${id}.json`);
+    return this.#folder.get(id) === false ? join(this.dir, `${id}.json`) : join(this.dir, id, THEME_JSON);
+  }
+
+  /** Where the theme lives: its folder, or its single file. */
+  locationOf(id: string): string {
+    return this.#folder.get(id) === false ? join(this.dir, `${id}.json`) : join(this.dir, id);
+  }
+
+  #taken(id: string): boolean {
+    return existsSync(join(this.dir, id)) || existsSync(join(this.dir, `${id}.json`)) || BUILTIN_THEMES.some((t) => t.id === id);
   }
 
   /** A new theme file copied from `from`. Returns its id. */
   create(from: Theme, name: string): string {
     const base = slug(name) || "my-theme";
     let id = base;
-    for (let n = 2; existsSync(this.pathOf(id)) || BUILTIN_THEMES.some((t) => t.id === id); n++) id = `${base}-${n}`;
-    // Relative, so the folder can be moved or shared with its schema beside it.
-    writeFileSync(this.pathOf(id), themeFileFor(from, name, `./${SCHEMA_FILE}`));
+    for (let n = 2; this.#taken(id); n++) id = `${base}-${n}`;
+    // A folder, so a stylesheet and templates can go beside it. The schema
+    // path is relative, so the themes folder can be moved or shared whole.
+    mkdirSync(join(this.dir, id, TEMPLATES_DIR), { recursive: true });
+    writeFileSync(join(this.dir, id, THEME_JSON), themeFileFor(from, name, `../${SCHEMA_FILE}`));
     this.#read();
     return id;
   }
 
   remove(id: string): void {
     if (!this.isCustom(id)) return;
-    rmSync(this.pathOf(id), { force: true });
+    rmSync(this.locationOf(id), { recursive: true, force: true });
     this.#good.delete(id);
     this.link(id, null);
     this.#read();
@@ -154,10 +231,15 @@ export class ThemeStore {
     if (id === null) {
       const base = slug(theme.name) || "theme";
       id = base;
-      for (let n = 2; existsSync(this.pathOf(id)) || BUILTIN_THEMES.some((t) => t.id === id); n++) id = `${base}-${n}`;
+      for (let n = 2; this.#taken(id); n++) id = `${base}-${n}`;
     }
+    // Always as a folder; an update to a theme installed as a single file moves it into one.
+    rmSync(join(this.dir, `${id}.json`), { force: true });
+    const root = join(this.dir, id);
+    rmSync(root, { recursive: true, force: true });
+    mkdirSync(join(root, TEMPLATES_DIR), { recursive: true });
     const file = {
-      $schema: `./${SCHEMA_FILE}`,
+      $schema: `../${SCHEMA_FILE}`,
       name: theme.name,
       description: theme.description,
       ...(theme.author !== undefined ? { author: theme.author } : {}),
@@ -165,7 +247,11 @@ export class ThemeStore {
       ...(theme.layout !== undefined ? { layout: theme.layout } : {}),
       tokens: theme.tokens,
     };
-    writeFileSync(this.pathOf(id), `${JSON.stringify(file, null, 2)}\n`);
+    writeFileSync(join(root, THEME_JSON), `${JSON.stringify(file, null, 2)}\n`);
+    if (theme.css !== undefined) writeFileSync(join(root, THEME_CSS), theme.css);
+    for (const [panel, text] of Object.entries(theme.templates ?? {})) {
+      writeFileSync(join(root, TEMPLATES_DIR, `${panel}.html`), text);
+    }
     this.#read();
     return id;
   }

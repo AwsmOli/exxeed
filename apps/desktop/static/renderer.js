@@ -110,8 +110,12 @@ const wanted = params.get("panel");
 const ids = wanted !== null && PANELS[wanted] ? [wanted] : Object.keys(PANELS);
 if (wanted !== null) document.body.classList.add(`panel-${wanted}`);
 
-const mounted = ids.map((id) => {
-  const panel = PANELS[id]();
+/**
+ * Build one panel, with a theme's template for it if the theme has one
+ * (template.js). Only panels made from a model and a template take one.
+ */
+function build(id, template = null) {
+  const panel = PANELS[id](template);
   panel.el.dataset.panel = id;
   if (!isOverlay) {
     // Laid out at the window size main would open it at, so this page shows
@@ -122,9 +126,28 @@ const mounted = ids.map((id) => {
       panel.el.style.height = `${spec[1] - 8}px`;
     }
   }
+  return panel;
+}
+
+const mounted = ids.map((id) => {
+  const panel = build(id);
   root.append(panel.el);
   return panel;
 });
+/** The theme template each panel was last built with: null for its own. */
+const builtWith = ids.map(() => null);
+
+/** Rebuild the panels whose template the theme changes. */
+function applyTemplates(templates) {
+  ids.forEach((id, i) => {
+    const wanted = typeof templates?.[id] === "string" ? templates[id] : null;
+    if (wanted === builtWith[i] || PANELS[id].template === undefined) return;
+    const next = build(id, wanted);
+    mounted[i].el.replaceWith(next.el);
+    mounted[i] = next;
+    builtWith[i] = wanted;
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Size: reflow above the panel's layout minimum, scale below it.
@@ -306,6 +329,9 @@ if (isOverlay && wanted !== null) {
 // The theme: tokens written over the stylesheet's defaults, then the canvas
 // palette refilled from them. Live — nothing is rebuilt or restarted.
 let themed = [];
+const themeCss = document.createElement("style");
+themeCss.id = "theme-css";
+document.head.append(themeCss);
 function applyTheme(theme) {
   if (theme === null || typeof theme !== "object") return;
   const root = document.documentElement;
@@ -316,6 +342,9 @@ function applyTheme(theme) {
   root.dataset.base = theme.base ?? theme.id;
   // How rows are built (overlay.css [data-layout]): the theme's choice, or its base's.
   root.dataset.layout = theme.layout ?? "wash";
+  // The theme's own stylesheet, over the built-in one, and its templates.
+  themeCss.textContent = typeof theme.css === "string" ? theme.css : "";
+  applyTemplates(theme.templates ?? {});
   refreshColors();
   document.documentElement.dataset.shift = COLORS.shiftStyle;
   // Panels that draw their DOM from state redraw with the new colours. Not the
