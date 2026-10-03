@@ -1,0 +1,30 @@
+<!--
+  RaceLab's FUEL CALCULATOR: a red bar along the top and the title under it;
+  a framed status — SPARE or SHORT on its colour, with the margin beside it —
+  next to the level bar from E to the tank's size; the usage table (per lap,
+  laps it lasts, the lap it runs out on) for average, max and last; and the
+  green-framed readouts of the time and laps until empty. Each part can be
+  switched off.
+-->
+<div class="panel fuel rl-fuel" data-class="is-empty: empty">
+  <div class="rl-box grow rl-fuel-box">
+    <div class="rl-fuel-title" data-part="header">Fuel calculator</div>
+    <div class="rl-fuel-top" data-part="bar">
+      <div class="rl-status" data-class="short: short">
+        <b><x-group data-if="!short">Spare</x-group><x-group data-if="short">Short</x-group></b>
+        <span><x-group data-if="hasMargin">{{ marginL }}L</x-group><x-group data-if="learning">—</x-group></span>
+      </div>
+      <div class="rl-level">
+        <div class="rl-level-bar"><i style="width:{{ levelPct }}%"></i></div>
+        <div class="rl-level-scale"><span>E</span><b>{{ levelL }} L</b><span>{{ capacityL | or:— }}L</span></div>
+      </div>
+    </div>
+    <div class="rl-fuel-table" data-part="usage">
+      <span></span><span class="rl-th">Usage</span><span class="rl-th">Laps</span><span class="rl-th">Ends</span>
+      <x-group data-each="usage"><span class="rl-rh">{{ label }}</span><span>{{ perLap }}</span><span>{{ laps }}</span><span>{{ ends }}</span></x-group>
+    </div>
+    <div class="rl-until" data-part="predicted"><span>Time until empty</span><b>{{ timeLeftS | clock }}</b><i></i></div>
+    <div class="rl-until" data-part="finish"><span>Laps until empty</span><b>{{ lapsLeft }}</b><i data-class="good: spare">{{ toFinishL }} L to finish</i></div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

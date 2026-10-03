@@ -1,0 +1,21 @@
+<!--
+  RaceLab's delta: a dark round dial whose ring fills with the trend colour,
+  DELTA over the number in its own dark box, and beside it the lap times —
+  reference, session best and the lap this one is heading for — each over
+  its caption, after an orange tick. The times can be switched off.
+-->
+<div class="panel delta rl-delta" data-class="is-empty: empty">
+  <div class="rl-delta-dial">
+    <x-delta-dial></x-delta-dial>
+    <div class="rl-delta-mid">
+      <span class="rl-delta-cap">Delta</span>
+      <b class="rl-delta-num" data-part="number" data-class="good: good; bad: bad">{{ deltaS | signed:2 }}</b>
+    </div>
+  </div>
+  <div class="rl-laps" data-part="laps">
+    <div class="rl-lap"><b>{{ refLapS | lapTime }}</b><span>Reference</span></div>
+    <div class="rl-lap"><b>{{ bestLapS | lapTime }}</b><span>Session best</span></div>
+    <div class="rl-lap rl-predicted" data-class="good: good; bad: bad"><b>{{ predictedLapS | lapTime }}</b><span>Predicted</span></div>
+  </div>
+  <div class="empty">no delta yet — waiting for a timed lap against a reference</div>
+</div>

@@ -1,0 +1,19 @@
+<!--
+  RaceLab's weather: stacked cards, each a caption in light capitals over an
+  icon and a big value — track temperature, air temperature, humidity — and
+  the wind as a compass with the speed under it. Each card can be switched off.
+-->
+<div class="panel weather rl-weather" data-class="is-empty: empty">
+  <div class="rl-wx-card" data-part="sky"><span>Track temp</span><b><x-icon name="lanes"></x-icon>{{ trackC }}°C</b></div>
+  <div class="rl-wx-card" data-part="sky"><span>Air temp</span><b><x-icon name="sky" of="{{ skies }}"></x-icon>{{ airC }}°C</b></div>
+  <div class="rl-wx-card" data-part="humidity"><span>Humidity</span><b><x-icon name="droplet"></x-icon>{{ humidityPct }}%</b></div>
+  <div class="rl-wx-card rl-wx-wind" data-part="wind">
+    <span>Wind</span>
+    <div class="rl-compass">
+      <span style="left:50%;top:12%">N</span><span style="left:88%;top:50%">E</span><span style="left:50%;top:88%">S</span><span style="left:12%;top:50%">W</span>
+      <svg viewBox="0 0 44 44" aria-hidden="true"><g transform="rotate({{ windArrowDeg }} 22 22)"><path d="M22 4l9 20-9-5-9 5z" fill="#3ec9e6"></path><path d="M22 23v4M22 30v3M22 36v2" stroke="#3ec9e6" stroke-width="2.5"></path></g></svg>
+    </div>
+    <b class="rl-wind-speed">{{ windKph }} <small>km/h</small></b>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>

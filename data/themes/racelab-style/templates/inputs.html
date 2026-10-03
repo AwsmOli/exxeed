@@ -1,0 +1,16 @@
+<!-- RaceLab's TELEMETRY strip as Essential Inputs: red-edged title, input trace, three pedal bars and the rounded dial with the gear and speed. -->
+<div class="panel inputs rl-tele">
+  <div class="rl-strip">
+    <div class="rl-strip-title"><span>Telemetry</span></div>
+    <div class="rl-graph" data-part="graph"><x-timeline></x-timeline></div>
+    <div class="rl-pedals" data-part="pedals">
+      <div class="rl-pedal"><span>{{ clutch.pct }}</span><div class="rl-pbar clutch"><i style="height:{{ clutch.pct }}%"></i></div></div>
+      <div class="rl-pedal"><span>{{ brake.pct }}</span><div class="rl-pbar brake"><i style="height:{{ brake.pct }}%"></i></div></div>
+      <div class="rl-pedal"><span>{{ throttle.pct }}</span><div class="rl-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div></div>
+    </div>
+    <div class="rl-dial" data-part="speed">
+      <div class="rl-dial-ring" data-part="wheel"><x-wheel-dial></x-wheel-dial></div>
+      <div class="rl-dial-mid"><span class="rl-gear">{{ gear }}</span><span class="rl-unit">kph</span><span class="rl-speed">{{ speedKph }}</span></div>
+    </div>
+  </div>
+</div>

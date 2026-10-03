@@ -1,6 +1,10 @@
-/* RaceLab style: what its tokens cannot say. Work in progress — Relatives
-   is built like RaceLab's; Standings, Telemetry, Delta, Fuel, Weather and
-   the maps are still to come (see the RaceLab screenshots they follow). */
+/* RaceLab style: what its tokens cannot say.
+
+   Built after RaceLab's own overlays: near-black boxes with a rounded frame,
+   bold geometric type, the class colour as a slanted stripe with a wash
+   behind the name, two-part licence chips, white iRating boxes, your row as
+   an olive-gold band, markers outside the box, a TELEMETRY strip with a
+   rounded dial at its end and a round delta dial. */
 
 .rl-box { display: flex; flex-direction: column; min-height: 0; padding: 10px 12px 8px 44px; background: var(--card); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); }
 .rl-head, .rl-foot { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; color: #fff; flex: none; padding: 2px 0 8px; }
@@ -30,3 +34,138 @@
 .rl-row.lapped .rl-name, .rl-row.lapped .rl-gap { color: var(--lap-behind); }
 .rl-row.me { background: var(--me-bg); }
 .rl-row.me .rl-pos { background: transparent; }
+
+/* -- Standings ----------------------------------------------------------------- */
+
+.rl-st-box { padding: 8px 40px 8px 8px; }
+.rl-circle { display: inline-flex; width: 20px; height: 20px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; color: rgba(255, 255, 255, 0.75); vertical-align: middle; }
+/* Not clipped sideways: the markers sit outside the box. */
+.rl-st-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; overflow: visible; }
+/* A class header: a dark part with the car count, a bright slanted part with the name. */
+.rl-cls {
+  display: flex; align-items: stretch; height: 24px; margin-top: 4px; flex: none; font-size: 13px; font-weight: 700;
+  border-bottom: 1.5px solid var(--cls);
+}
+.rl-cls-count { display: flex; align-items: center; padding: 0 10px; background: color-mix(in srgb, var(--cls) 30%, #0c0c0c); color: var(--cls); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+.rl-cls-name { display: flex; align-items: center; padding: 0 22px 0 14px; margin-left: -6px; background: var(--cls); color: #111; clip-path: polygon(6px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
+.rl-cls-sof { margin-left: auto; display: flex; align-items: center; padding-right: 10px; color: var(--cls); }
+.rl-cls-col { width: 86px; display: flex; align-items: center; color: rgba(255, 255, 255, 0.75); font-weight: 600; background: #232325; padding-left: 8px; }
+.rl-cls-col:first-of-type { width: 52px; }
+.rl-st-row { display: flex; height: 26px; font-size: 14px; column-gap: 0; }
+.rl-st-row .rl-pos { width: 34px; flex: none; }
+.rl-st-row .rl-stripe { width: 16px; flex: none; }
+.rl-st-row .rl-name { flex: 1; min-width: 0; padding-left: 6px; }
+.rl-st-row .rl-ir { margin: 0 6px; height: 19px; font-size: 12px; flex: none; }
+.rl-num { width: 40px; flex: none; color: rgba(255, 255, 255, 0.55); font-size: 12px; text-align: center; }
+/* The darker block of gap, fastest and last. */
+.rl-cell { flex: none; width: 86px; align-self: stretch; display: flex; align-items: center; padding-left: 8px; background: #232325; font-weight: 600; }
+.rl-st-row .rl-cell:first-of-type { width: 52px; }
+.rl-time { font-variant-numeric: tabular-nums; }
+.rl-cell.fast { color: #d65bff; background: #19191b; }
+.rl-st-row.me .rl-cell { background: color-mix(in srgb, var(--me-bg) 85%, #232325); }
+/* Markers outside the box, on the right. */
+.rl-side { position: absolute; right: -34px; top: 2px; bottom: 2px; width: 28px; display: flex; }
+.rl-side i { font-style: normal; flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+.rl-fast { background: #8a2be2; color: #fff; }
+.rl-pit { background: #fff; color: #111; }
+
+/* -- The TELEMETRY strip (Input Telemetry, Essential Inputs) -------------------- */
+
+.rl-tele { gap: 4px; justify-content: flex-end; }
+.rl-tele-top { display: flex; align-items: flex-end; gap: 8px; flex: none; }
+.rl-tele-top > x-shift-lights { flex: 1; margin: 0 0 4px; }
+.rl-tele-delta { margin-left: auto; padding: 3px 12px; background: #141416; border-radius: 6px; font-size: 18px; font-weight: 800; color: #fff; }
+.rl-tele-delta.good { color: #2ff436; }
+.rl-tele-delta.bad { color: #ff2a2a; }
+/* The strip: a red edge with the title up it, the right end rounded round the dial. */
+.rl-strip {
+  flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; gap: 10px; padding: 8px 8px 8px 0;
+  background: #262628; border-radius: 0 999px 999px 0; box-shadow: inset 6px 0 0 #e8150f;
+}
+.rl-strip-title { width: 30px; flex: none; display: flex; align-items: center; justify-content: center; margin-left: 6px; }
+.rl-strip-title span { transform: rotate(-90deg); font-size: 15px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; white-space: nowrap; }
+.rl-graph { flex: 1 1 auto; min-width: 60px; background: #121214; border: 1.5px solid #0a0a0a; }
+.rl-pedals { display: flex; gap: 6px; flex: none; }
+.rl-pedal { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 26px; }
+.rl-pedal > span { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.85); font-variant-numeric: tabular-nums; }
+.rl-pbar { position: relative; flex: 1; width: 100%; background: #161618; border: 1.5px solid #0a0a0a; }
+.rl-pbar > i { position: absolute; left: 0; right: 0; bottom: 0; }
+.rl-pbar.clutch > i { background: #5b8cff; }
+.rl-pbar.brake > i { background: #db0303; }
+/* Throttle green with RaceLab's diagonal stripes. */
+.rl-pbar.throttle > i { background: repeating-linear-gradient(135deg, #09b61a 0 6px, #22c832 6px 12px); }
+.rl-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 120px; align-self: center; border-radius: 50%; background: #111113; }
+.rl-dial-ring { position: absolute; inset: 0; }
+.rl-dial-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.rl-gear { font-size: 34px; font-weight: 800; color: #fff; }
+.rl-unit { font-size: 11px; font-weight: 700; color: #fff; margin-top: 2px; }
+.rl-speed { font-size: 16px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-ref { font-size: 9px; font-weight: 600; color: rgba(255, 255, 255, 0.55); margin-top: 2px; white-space: nowrap; }
+.rl-ffb { flex: none; padding: 0 60px 0 40px; }
+.rl-ffb .pill-h { height: 3px; }
+.rl-ffb .pill-h > i { background: rgba(255, 255, 255, 0.7); }
+
+/* -- Delta --------------------------------------------------------------------- */
+
+.rl-delta { flex-direction: row !important; align-items: center; gap: 14px; }
+.rl-delta-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 160px; border-radius: 50%; background: repeating-linear-gradient(135deg, #1a1a1c 0 3px, #141416 3px 6px); box-shadow: 0 0 0 2px #0c0c0e; }
+.rl-delta-dial x-delta-dial { position: absolute; inset: 0; }
+.rl-delta-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.rl-delta-cap { font-size: 10px; font-weight: 700; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
+.rl-delta-num { font-size: 22px; font-weight: 800; padding: 3px 10px; background: #0c0c0e; border-radius: 6px; color: #fff; }
+.rl-delta-num.good { color: #2ff436; }
+.rl-delta-num.bad { color: #ff2a2a; }
+.rl-laps { display: flex; gap: 22px; padding: 6px 16px; background: rgba(12, 12, 14, 0.92); border-radius: 8px; box-shadow: inset 3px 0 0 #f0a020; align-self: center; flex: none; }
+.rl-lap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
+.rl-lap b { font-size: 20px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-lap span { font-size: 9px; font-weight: 700; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); letter-spacing: 0.04em; }
+.rl-predicted.good b { color: #2ff436; }
+.rl-predicted.bad b { color: #ff2a2a; }
+
+/* -- Fuel calculator -------------------------------------------------------------- */
+
+.rl-fuel-box { padding: 0 12px 10px; gap: 10px; box-shadow: inset 0 6px 0 #d00; border-radius: 0; }
+.rl-fuel-title { text-align: center; font-size: 15px; font-weight: 700; text-transform: uppercase; padding-top: 14px; flex: none; color: #fff; }
+.rl-fuel-top { display: flex; gap: 10px; align-items: stretch; flex: none; }
+/* The status box: SPARE or SHORT on its colour, the margin beside it, both framed in it. */
+.rl-status { display: flex; border: 2px solid var(--st); flex: none; --st: #09b61a; }
+.rl-status.short { --st: #db0303; }
+.rl-status > b { background: var(--st); color: #fff; padding: 4px 10px; font-size: 16px; font-weight: 800; display: flex; align-items: center; text-transform: uppercase; }
+.rl-status > span { padding: 4px 12px; font-size: 22px; font-weight: 800; color: #fff; display: flex; align-items: center; }
+.rl-level { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rl-level-bar { position: relative; height: 22px; background: #1e1e20; border: 3px solid #2a2a2c; }
+.rl-level-bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
+.rl-level-scale { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #fff; }
+.rl-level-scale b { font-size: 15px; }
+.rl-fuel-table { display: grid; grid-template-columns: auto 1fr 1fr 1fr; row-gap: 2px; column-gap: 10px; flex: none; align-items: center; }
+.rl-fuel-table > span:nth-child(4n + 1) { min-width: 56px; }
+.rl-fuel-table > span { font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; padding: 2px 4px; }
+.rl-fuel-table > .rl-th { font-size: 12px; text-transform: uppercase; }
+.rl-fuel-table > .rl-rh { font-size: 13px; text-transform: uppercase; }
+/* The "until empty" readouts: green-framed, a digital readout in the middle. */
+.rl-until { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border: 2px solid #2ff436; border-radius: 4px; flex: none; }
+.rl-until > span:first-child { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #fff; flex: 1; }
+.rl-until > b { font-family: var(--num-font); font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+.rl-until > i { font-style: normal; font-size: 15px; font-weight: 800; color: #ff2a2a; min-width: 60px; text-align: right; }
+.rl-until > i.good { color: #2ff436; }
+
+/* -- Weather: stacked cards ------------------------------------------------------- */
+
+.rl-weather { gap: 10px; padding: 10px; background: #111113; border: 1.5px solid #2a2a2c; border-radius: 16px; }
+.rl-wx-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 16px; flex: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%), #141416;
+  border: 1.5px solid #333336; border-radius: 10px;
+}
+.rl-wx-card > span { font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.9); }
+.rl-wx-card > b { display: flex; align-items: center; gap: 14px; font-size: 34px; font-weight: 500; color: #fff; }
+.rl-wx-card > b x-icon { color: rgba(255, 255, 255, 0.75); transform: scale(1.8); transform-origin: left center; margin-right: 18px; }
+.rl-wx-wind { flex: 0 1 auto; min-height: 0; align-items: center; }
+.rl-compass { position: relative; width: min(100%, 150px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #19191b, #0d0d0f); border: 1.5px solid #333336; }
+.rl-compass > span { position: absolute; font-size: 14px; color: rgba(255, 255, 255, 0.45); transform: translate(-50%, -50%); }
+.rl-compass svg { position: absolute; inset: 18%; width: 64%; height: 64%; }
+.rl-wind-speed { font-size: 28px !important; }
+
+/* -- Minimap: a striped disc ------------------------------------------------------ */
+
+.rl-minimap x-minimap { border-radius: 50%; background: repeating-linear-gradient(135deg, #1c1c1e 0 4px, #161618 4px 8px); box-shadow: inset 0 0 0 2px #2a2a2c; }

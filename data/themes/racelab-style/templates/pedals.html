@@ -1,0 +1,33 @@
+<!--
+  RaceLab's TELEMETRY strip: the title written up its red left edge, the
+  input trace on near-black, three pedal bars with their values above
+  (throttle striped green), and the right end rounded round a dial — the
+  wheel's turn on its ring, the gear big in the middle, kph and the speed
+  under it. The delta and rev lights, which RaceLab keeps elsewhere, sit on
+  top and can be switched off like the other parts.
+-->
+<div class="panel pedals-panel rl-tele">
+  <div class="rl-tele-top">
+    <x-shift-lights data-part="revlights"></x-shift-lights>
+    <x-sweep data-part="revlights"></x-sweep>
+    <div class="rl-tele-delta" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
+  </div>
+  <div class="rl-strip">
+    <div class="rl-strip-title"><span>Telemetry</span></div>
+    <div class="rl-graph" data-part="graph"><x-timeline></x-timeline></div>
+    <div class="rl-pedals" data-part="pedals">
+      <div class="rl-pedal"><span>{{ brake.pct }}</span><div class="rl-pbar brake"><i style="height:{{ brake.pct }}%"></i></div></div>
+      <div class="rl-pedal"><span>{{ throttle.pct }}</span><div class="rl-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div></div>
+    </div>
+    <div class="rl-dial">
+      <div class="rl-dial-ring" data-part="wheel"><x-wheel-dial></x-wheel-dial></div>
+      <div class="rl-dial-mid">
+        <span class="rl-gear">{{ gear }}</span>
+        <span class="rl-unit">kph</span>
+        <span class="rl-speed">{{ speedKph }}</span>
+        <span class="rl-ref" data-part="reference">ref {{ refGear | or:– }} · {{ refSpeedKph | or:— }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="rl-ffb" data-part="ffb"><div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
+</div>
