@@ -100,27 +100,24 @@
 /* Orbitron is wide: three lap times side by side need a size down to fit. */
 .laps3 .t { font-size: 12.5px; }
 
-/* -- Radar over a synthwave sunset ------------------------------------------- */
+/* -- Radar on the neon grid, seen from above ------------------------------------ */
 
 .sw-radar { position: relative; }
 .sw-radar x-radar { position: relative; z-index: 1; }
-.sw-sky { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 50% 62%, rgba(255, 43, 214, 0.28), rgba(20, 6, 40, 0.88) 62%); box-shadow: 0 0 22px rgba(255, 43, 214, 0.45), inset 0 0 0 1.5px rgba(255, 106, 213, 0.6); }
-/* The sun: yellow at the top into pink, cut by bars that thicken towards the horizon. */
-.sw-sun {
-  position: absolute; left: 50%; top: 18%; width: 58%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%;
-  background: linear-gradient(180deg, #ffe45c 0%, #ff9a3c 38%, #ff2bd6 78%);
-  -webkit-mask: linear-gradient(180deg, #000 0 48%, transparent 48% 51%, #000 51% 59%, transparent 59% 63%, #000 63% 70%, transparent 70% 75%, #000 75% 81%, transparent 81% 87%, #000 87%);
-  filter: drop-shadow(0 0 14px rgba(255, 120, 80, 0.8));
+.sw-sky {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle, rgba(40, 10, 70, 0.9), rgba(14, 6, 28, 0.92) 70%);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.35), inset 0 0 0 1.5px rgba(0, 240, 255, 0.45);
 }
-/* The grid the sun sinks into: neon lines running to the horizon. */
+/* A square grid, brightest in the middle, fading out towards the rim. */
 .sw-grid {
-  position: absolute; left: -30%; right: -30%; top: 60%; bottom: -10%;
+  position: absolute; inset: 0;
   background:
-    repeating-linear-gradient(0deg, rgba(0, 240, 255, 0.75) 0 1.5px, transparent 1.5px 14px),
-    repeating-linear-gradient(90deg, rgba(0, 240, 255, 0.75) 0 1.5px, transparent 1.5px 26px),
-    linear-gradient(180deg, rgba(20, 6, 40, 0.95), rgba(40, 8, 60, 0.95));
-  transform: perspective(120px) rotateX(58deg); transform-origin: top center;
-  box-shadow: 0 -2px 10px rgba(0, 240, 255, 0.7);
+    repeating-linear-gradient(0deg, rgba(0, 240, 255, 0.55) 0 1.5px, transparent 1.5px 22px),
+    repeating-linear-gradient(90deg, rgba(0, 240, 255, 0.55) 0 1.5px, transparent 1.5px 22px);
+  background-position: center;
+  -webkit-mask: radial-gradient(circle, #000 30%, transparent 72%);
+  filter: drop-shadow(0 0 3px rgba(0, 240, 255, 0.8));
 }
 
 /* -- Blind spot: slanted like the rev lights ----------------------------------- */
