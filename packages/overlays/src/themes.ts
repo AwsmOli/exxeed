@@ -415,7 +415,7 @@ export const BUILTIN_THEMES: readonly Theme[] = [
       pedals: [600, 180],
       inputs: [560, 120],
       revlights: [520, 70],
-      tyres: [260, 300],
+      tyres: [300, 180],
       fuel: [300, 430],
       map: [400, 300],
       minimap: [260, 280],

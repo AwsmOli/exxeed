@@ -1,17 +1,17 @@
 <!--
   A car alongside, in Gran Turismo's language — one window per side (Blind
   Spot Left and Right both use this file; `side` says which). A slate slab
-  whose chevrons, pointing out to that side, light red when the spotter
-  calls a car there, beside a small red car as on GT's maps.
+  with a warning sign and the side's name in white narrow capitals, lit red
+  when the spotter calls a car there. No arrow: an arrow reads as "go
+  there", which is the one thing not to do.
 -->
-<div class="panel spotter gt-spotter" data-class="is-empty: empty; right: !isLeft">
+<div class="panel spotter gt-spotter" data-class="is-empty: empty">
   <div class="gt-spot" data-class="on: on">
-    <svg class="gt-spot-car" viewBox="0 0 34 60" aria-hidden="true"><path d="M9.5 3 Q17 0.5 24.5 3 Q30.5 6 31.5 15 L31.5 51 Q31.5 57 27 58 L7 58 Q2.5 57 2.5 51 L2.5 15 Q3.5 6 9.5 3 Z"></path></svg>
-    <div class="gt-spot-side">
-      <svg data-if="isLeft" viewBox="0 0 30 60" aria-hidden="true"><path d="M22 8L8 30l14 22M28 8L14 30l14 22"></path></svg>
-      <svg data-if="!isLeft" viewBox="0 0 30 60" aria-hidden="true"><path d="M8 8l14 22L8 52M2 8l14 22L2 52"></path></svg>
-      <span class="gt-label">{{ side }}</span>
-    </div>
+    <svg class="gt-warn" viewBox="0 0 48 42" aria-hidden="true">
+      <path class="gt-warn-tri" d="M24 3 L45 39 H3 Z"></path>
+      <path class="gt-warn-bang" d="M24 15v12M24 32v1.5"></path>
+    </svg>
+    <span class="gt-label">{{ side }}</span>
   </div>
   <div class="empty">{{ empty }}</div>
 </div>
