@@ -176,6 +176,9 @@ function mapBlock(el) {
 
   let path = null;
   let pathKey = "";
+  /** The track's bounds in map units, per map. */
+  let extent = null;
+  let extentKey = -1;
 
   // The heat map: for each point of the track, the colour the delta bar was
   // when the car last drove over it — green where time was being gained, red
@@ -214,7 +217,24 @@ function mapBlock(el) {
       const { ctx, w, h, r } = c;
       const mv = s.map;
       const pad = PAD * r;
-      const at = (i) => [pad + mv.x[i] * (w - pad * 2), pad + mv.y[i] * (h - pad * 2)];
+      // One scale for both axes, so the track keeps its shape in any window,
+      // centred in whichever way has room to spare.
+      if (extentKey !== s.v.map) {
+        extent = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+        for (let i = 0; i < mv.x.length; i++) {
+          extent.minX = Math.min(extent.minX, mv.x[i]);
+          extent.maxX = Math.max(extent.maxX, mv.x[i]);
+          extent.minY = Math.min(extent.minY, mv.y[i]);
+          extent.maxY = Math.max(extent.maxY, mv.y[i]);
+        }
+        extentKey = s.v.map;
+      }
+      const spanX = Math.max(1e-6, extent.maxX - extent.minX);
+      const spanY = Math.max(1e-6, extent.maxY - extent.minY);
+      const k = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
+      const ox = (w - spanX * k) / 2 - extent.minX * k;
+      const oy = (h - spanY * k) / 2 - extent.minY * k;
+      const at = (i) => [ox + mv.x[i] * k, oy + mv.y[i] * k];
 
       const key = `${s.v.map}:${w}x${h}`;
       if (key !== pathKey) {
