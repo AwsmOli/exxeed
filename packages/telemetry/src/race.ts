@@ -119,6 +119,73 @@ export const SPOTTER = {
 } as const;
 
 /**
+ * `irsdk_Flags` — the bits of `SessionFlags`. Several can be set at once
+ * (green and blue, yellow and one-to-green); `flagShown` picks the one a
+ * driver needs to see.
+ */
+export const FLAG_BITS = {
+  checkered: 0x00000001,
+  white: 0x00000002,
+  green: 0x00000004,
+  yellow: 0x00000008,
+  red: 0x00000010,
+  blue: 0x00000020,
+  debris: 0x00000040,
+  crossed: 0x00000080,
+  yellowWaving: 0x00000100,
+  oneLapToGreen: 0x00000200,
+  greenHeld: 0x00000400,
+  caution: 0x00004000,
+  cautionWaving: 0x00008000,
+  black: 0x00010000,
+  disqualify: 0x00020000,
+  repair: 0x00100000,
+  startGo: 0x80000000,
+} as const;
+
+export type FlagKind =
+  | "disqualify"
+  | "black"
+  | "meatball"
+  | "red"
+  | "checkered"
+  | "white"
+  | "yellow"
+  | "blue"
+  | "debris"
+  | "green";
+
+export interface FlagShown {
+  readonly kind: FlagKind;
+  /** Waved, not just shown: a local yellow waving, a full-course caution waving. */
+  readonly waving: boolean;
+}
+
+/**
+ * The one flag that matters most right now, or null for none. Your own
+ * flags first (disqualified, black, the meatball for repairs), then the
+ * session's in order of how much they change what you do. A plain green is
+ * the normal state of a race, so it only counts at the start.
+ */
+export function flagShown(bits: number): FlagShown | null {
+  const b = bits >>> 0;
+  const on = (bit: number): boolean => (b & bit) >>> 0 !== 0;
+  if (on(FLAG_BITS.disqualify)) return { kind: "disqualify", waving: false };
+  if (on(FLAG_BITS.black)) return { kind: "black", waving: false };
+  if (on(FLAG_BITS.repair)) return { kind: "meatball", waving: false };
+  if (on(FLAG_BITS.red)) return { kind: "red", waving: false };
+  if (on(FLAG_BITS.checkered)) return { kind: "checkered", waving: true };
+  if (on(FLAG_BITS.caution) || on(FLAG_BITS.cautionWaving) || on(FLAG_BITS.yellow) || on(FLAG_BITS.yellowWaving)) {
+    return { kind: "yellow", waving: on(FLAG_BITS.cautionWaving) || on(FLAG_BITS.yellowWaving) };
+  }
+  if (on(FLAG_BITS.white)) return { kind: "white", waving: false };
+  if (on(FLAG_BITS.blue)) return { kind: "blue", waving: true };
+  if (on(FLAG_BITS.debris)) return { kind: "debris", waving: false };
+  if (on(FLAG_BITS.startGo) || on(FLAG_BITS.oneLapToGreen)) return { kind: "green", waving: on(FLAG_BITS.startGo) };
+  return null;
+}
+
+/**
  * The dash inputs that change every frame but are not worth recording: engine
  * speed for the shift lights, the clutch pedal, and force-feedback load. Read
  * at 60 Hz alongside the frame, never written to a recording (§9), and absent
@@ -171,6 +238,8 @@ export interface RaceSnapshot {
   readonly weather: Weather;
   /** Index into `SPOTTER`. */
   readonly spotter: number;
+  /** `SessionFlags`: `FLAG_BITS`, as the sim sets them. */
+  readonly sessionFlags: number;
   /** Percent front, as the car's own dash shows it. Null when the car has none. */
   readonly brakeBiasPct: number | null;
   readonly incidents: number;

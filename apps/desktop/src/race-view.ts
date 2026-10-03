@@ -9,6 +9,7 @@
 
 import type { RaceClass, RaceRow, RaceView, RelativeRow, SpotterState } from "@exxeed/overlays";
 import {
+  flagShown,
   FuelTracker,
   lapsApart,
   lapsRemaining,
@@ -76,6 +77,7 @@ export class RaceViewBuilder {
           isPlayer: c.carIdx === s.playerCarIdx,
           onPitRoad: c.onPitRoad,
         })),
+      flag: flagShown(s.sessionFlags),
       radar: {
         spotter: SPOTTER_NAMES[s.spotter] ?? "off",
         nearby:

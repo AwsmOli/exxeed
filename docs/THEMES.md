@@ -48,6 +48,13 @@ whole folder goes up as one document, and installing it writes the folder back.
   `theme.schema.json` beside your themes.
 - `layout` (`wash`, `chips` or `blocks`) picks one of three built-in row styles
   for Standings and Relatives. A template replaces that entirely.
+- `sizes` gives an overlay its design size in this theme:
+  `"sizes": { "standings": [560, 520] }`. The overlay is laid out at exactly
+  that size and scaled, whole, to its window, which keeps that shape —
+  resizing makes it bigger or smaller and never rearranges it. Overlays you
+  leave out take the base theme's size, then the app's. Give a size wherever
+  your template is a different shape from the app's (a tall, narrow
+  standings; a wide, low dashboard).
 
 ### theme.css
 
@@ -134,15 +141,16 @@ with the template and `theme.css`. Their attributes are their options.
 | `<x-icon name="…">` | a line icon: `gearbox`, `wheel`, `pump`, `thermometer`, `droplet`, `lanes`, `disc`, or `sky` with `of="{{ skies }}"`. `size` for wheel, pump and disc |
 | `<x-shift-lights>` | sixteen rev lights from both ends inwards, blinking at the shift point. Hidden when `shift-style` is `sweep` |
 | `<x-sweep shape="band" redline="0.82" mark>` | Gran Turismo's rev band, white with the revs and flashing red to shift. `shape` is `band` (a strip of upright ticks on an even curve, cut straight at the ends), `swoop`, `arch`, `arc` or `line`; `hatch` ticks the line shapes; past `redline` (0–1) the lit part is red; `mark` puts a small red arrow at the redline. Under the band, `.sweep-body` can be filled to make it the top edge of a body. Shown only when `shift-style` is `sweep`. Colours: `--sweep-lit`, `--sweep-red` in theme.css |
-| `<x-timeline seconds="5">` | throttle and brake against time |
-| `<x-wheel-dial>` | a ring showing how far the wheel is turned |
+| `<x-timeline seconds="5" fill="0.3" line-width="2.2" glow smooth>` | throttle and brake against time. `fill` 0 for no shading under the lines; `glow` in pixels; `smooth` draws curves instead of steps |
+| `<x-wheel-dial ring="7" marker="tick" track>` | a ring showing how far the wheel is turned. `marker="block"` rides a square on the ring; `track` is the ring's colour |
+| `<x-shift-lights count="16" fill="ends">` | (as above) `count` lights; `fill="left"` lights them along from the left, as round dots in RaceLab's style |
 | `<x-trace>` | throttle and brake by lap position against the reference lap |
 | `<x-speed-trace>` | speed by lap position against the reference lap |
-| `<x-delta-dial>` | the delta as a ring (Delta overlay only) |
+| `<x-delta-dial glow ring>` | the delta as a ring (Delta overlay only), with `glow` and `ring` thickness in pixels |
 | `<x-corner-chart>` | your speed through the last corner over the reference's (Corner Analysis only) |
 | `<x-map dark road="outline" cars="chevron">` | the whole track, heat map, sectors, callout points and cars. `dark` numbers the turns; `road="outline"` is a hollow white line; `cars="chevron"` draws arrowheads, yours red |
 | `<x-minimap ahead="260" road cars disc="none">` | the road around the car, turned so ahead is up. `disc="none"` fades the road out instead of framing it |
-| `<x-radar cars="chevron" disc="none">` | cars alongside, ahead and behind |
+| `<x-radar cars="chevron" disc="none" road="strip" look="glow">` | cars alongside, ahead and behind. `road="strip"` is Gran Turismo's; `look="glow"` is RaceLab's red bars and yellow glow |
 
 The blocks' colours come from the tokens: tyre temperatures from `temp-cold`,
 `temp-cool`, `temp-ok`, `temp-warm` and `temp-hot`, chevrons from `blue` and
@@ -222,6 +230,15 @@ tread's temperatures), `colour` (the tyre as one colour), `wearPct`, `edges`
 
 **Track Map** (`map`), **Mini Map** (`minimap`), **Radar** (`radar`) — `empty`
 only; the blocks draw from the live data themselves.
+
+**Blind Spot** (`spotter`) — `empty`, `left`, `right` (a car alongside on that
+side), `threeWide`, `spotter` (the sim's word: `clear`, `left`, `twoLeft`…).
+
+**Flags** (`flags`) — `flag` (null when none is out), `kind` (`green`,
+`yellow`, `blue`, `white`, `red`, `black`, `meatball`, `checkered`, `debris`,
+`disqualify`), `waving`, `label` ("Yellow"), `hint` ("Caution — no overtaking").
+The built-in template draws the flag with classes `flag-cloth <kind>` and
+`waving`.
 
 **Callouts** (`callouts`) — `empty`, `count`, `events[]`: `text`, `className`
 (`play` or `drop`), newest first.

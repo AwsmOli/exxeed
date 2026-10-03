@@ -52,6 +52,8 @@ export const PANELS = [
   "standings",
   "relative",
   "radar",
+  "spotter",
+  "flags",
   // Track.
   "map",
   "minimap",
@@ -90,41 +92,40 @@ export const DEFAULT_PANELS: readonly PanelId[] = [
 export interface PanelSpec {
   readonly id: PanelId;
   readonly title: string;
-  /** Starting size. Position and size are both remembered once changed. */
+  /**
+   * The size the panel is designed at, unless the theme gives it another
+   * (`Theme.sizes`). The panel is laid out at exactly this size and scaled,
+   * whole, to its window, which keeps this shape: resizing makes it bigger or
+   * smaller and never rearranges it. The window's width is remembered.
+   */
   readonly width: number;
   readonly height: number;
-  /**
-   * The smallest size the panel's content lays out properly at. A window made
-   * smaller than this does not squash the panel: it lays out at this size and
-   * is scaled down to fit, so it gets smaller, not broken. Above it, the panel
-   * reflows to the window, which is how its proportions are changed.
-   */
-  readonly minLayout: readonly [width: number, height: number];
 }
 
-export const PANEL_SPECS: Readonly<Record<PanelId, PanelSpec>> = {
-  inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110, minLayout: [470, 95] },
-  pedals: { id: "pedals", title: "Input Telemetry", width: 540, height: 170, minLayout: [520, 150] },
-  trace: { id: "trace", title: "Input Comparison", width: 640, height: 150, minLayout: [300, 100] },
-  speed: { id: "speed", title: "Speed Comparison", width: 640, height: 140, minLayout: [300, 90] },
-  brake: { id: "brake", title: "Brake Indicator", width: 300, height: 72, minLayout: [200, 60] },
-  // A strip: it can be made as thin as a line of lights.
-  revlights: { id: "revlights", title: "Rev Lights", width: 520, height: 44, minLayout: [240, 18] },
-  delta: { id: "delta", title: "Delta Bar", width: 340, height: 72, minLayout: [200, 60] },
-  sectors: { id: "sectors", title: "Delta Sectors", width: 280, height: 224, minLayout: [290, 210] },
-  corners: { id: "corners", title: "Corner Analysis", width: 340, height: 220, minLayout: [260, 180] },
-  reference: { id: "reference", title: "Comparison Target", width: 360, height: 190, minLayout: [300, 175] },
-  standings: { id: "standings", title: "Standings", width: 640, height: 420, minLayout: [500, 350] },
-  relative: { id: "relative", title: "Relatives", width: 440, height: 360, minLayout: [400, 330] },
-  radar: { id: "radar", title: "Radar", width: 260, height: 260, minLayout: [120, 120] },
-  map: { id: "map", title: "Track Map", width: 360, height: 360, minLayout: [160, 160] },
-  minimap: { id: "minimap", title: "Mini Map", width: 230, height: 230, minLayout: [120, 120] },
-  fuel: { id: "fuel", title: "Fuel Calculator", width: 260, height: 340, minLayout: [240, 320] },
-  tyres: { id: "tyres", title: "Tyres", width: 250, height: 340, minLayout: [240, 385] },
-  damage: { id: "damage", title: "Damage", width: 220, height: 100, minLayout: [180, 80] },
-  weather: { id: "weather", title: "Weather Conditions", width: 400, height: 130, minLayout: [360, 120] },
-  callouts: { id: "callouts", title: "Callouts", width: 320, height: 220, minLayout: [220, 120] },
-  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 340, minLayout: [260, 320] },
+export const PANEL_SPECS: Record<PanelId, PanelSpec> = {
+  inputs: { id: "inputs", title: "Essential Inputs", width: 540, height: 110 },
+  pedals: { id: "pedals", title: "Input Telemetry", width: 560, height: 170 },
+  trace: { id: "trace", title: "Input Comparison", width: 640, height: 150 },
+  speed: { id: "speed", title: "Speed Comparison", width: 640, height: 140 },
+  brake: { id: "brake", title: "Brake Indicator", width: 300, height: 72 },
+  revlights: { id: "revlights", title: "Rev Lights", width: 520, height: 44 },
+  delta: { id: "delta", title: "Delta Bar", width: 340, height: 72 },
+  sectors: { id: "sectors", title: "Delta Sectors", width: 300, height: 230 },
+  corners: { id: "corners", title: "Corner Analysis", width: 340, height: 220 },
+  reference: { id: "reference", title: "Comparison Target", width: 360, height: 190 },
+  standings: { id: "standings", title: "Standings", width: 640, height: 420 },
+  relative: { id: "relative", title: "Relatives", width: 440, height: 360 },
+  radar: { id: "radar", title: "Radar", width: 260, height: 260 },
+  spotter: { id: "spotter", title: "Blind Spot", width: 300, height: 130 },
+  flags: { id: "flags", title: "Flags", width: 260, height: 120 },
+  map: { id: "map", title: "Track Map", width: 360, height: 360 },
+  minimap: { id: "minimap", title: "Mini Map", width: 230, height: 230 },
+  fuel: { id: "fuel", title: "Fuel Calculator", width: 260, height: 340 },
+  tyres: { id: "tyres", title: "Tyres", width: 260, height: 390 },
+  damage: { id: "damage", title: "Damage", width: 220, height: 100 },
+  weather: { id: "weather", title: "Weather Conditions", width: 400, height: 130 },
+  callouts: { id: "callouts", title: "Callouts", width: 320, height: 220 },
+  telemetry: { id: "telemetry", title: "Telemetry", width: 300, height: 340 },
 };
 
 /**
@@ -191,6 +192,19 @@ export interface RelativeRow {
 
 export type SpotterState = "off" | "clear" | "left" | "right" | "both" | "twoLeft" | "twoRight";
 
+/** The flag a driver needs to see now (telemetry `flagShown`). */
+export type FlagKind =
+  | "disqualify"
+  | "black"
+  | "meatball"
+  | "red"
+  | "checkered"
+  | "white"
+  | "yellow"
+  | "blue"
+  | "debris"
+  | "green";
+
 export interface RaceView {
   readonly sessionType: string;
   /** "moderate usage" — how rubbered-in the track is, in the sim's words. */
@@ -218,6 +232,8 @@ export interface RaceView {
     readonly isPlayer: boolean;
     readonly onPitRoad: boolean;
   }[];
+  /** The flag out now, or null. */
+  readonly flag: { readonly kind: FlagKind; readonly waving: boolean } | null;
   readonly radar: {
     readonly spotter: SpotterState;
     /** Cars within radar range, metres along the road — positive ahead. */

@@ -49,5 +49,67 @@
     "title-justify": "flex-start",
     "lap-ahead": "#e2231a",
     "lap-behind": "#3aa8ff"
+  },
+  "sizes": {
+    "relative": [
+      600,
+      330
+    ],
+    "standings": [
+      720,
+      440
+    ],
+    "inputs": [
+      560,
+      150
+    ],
+    "pedals": [
+      620,
+      170
+    ],
+    "delta": [
+      600,
+      150
+    ],
+    "fuel": [
+      520,
+      420
+    ],
+    "weather": [
+      260,
+      640
+    ],
+    "revlights": [
+      420,
+      52
+    ],
+    "tyres": [
+      300,
+      340
+    ],
+    "sectors": [
+      320,
+      300
+    ],
+    "minimap": [
+      280,
+      280
+    ],
+    "radar": [
+      280,
+      280
+    ],
+    "map": [
+      420,
+      300
+    ],
+    "spotter": [
+      300,
+      130
+    ],
+    "flags": [
+      280,
+      110
+    ]
   }
 }

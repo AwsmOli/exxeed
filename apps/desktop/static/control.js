@@ -577,7 +577,7 @@ window.exxeed?.onSessionStatus(render);
 const PANEL_GROUPS = [
   ["Driving", ["inputs", "pedals", "trace", "speed", "brake", "revlights"]],
   ["Timing", ["delta", "sectors", "corners", "reference"]],
-  ["Race", ["standings", "relative", "radar"]],
+  ["Race", ["standings", "relative", "radar", "spotter", "flags"]],
   ["Track", ["map", "minimap"]],
   ["Car", ["fuel", "tyres", "damage", "weather"]],
   ["Exxeed", ["callouts", "telemetry"]],
@@ -597,6 +597,8 @@ const PANEL_LABELS = {
   standings: "Standings",
   relative: "Relatives",
   radar: "Radar",
+  spotter: "Blind Spot",
+  flags: "Flags",
   map: "Track Map",
   minimap: "Mini Map",
   fuel: "Fuel Calculator",

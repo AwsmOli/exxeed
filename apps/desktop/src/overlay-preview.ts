@@ -25,7 +25,7 @@ import {
   type TrackMapView,
 } from "@exxeed/overlays";
 import { mps, pct, radians, seconds } from "@exxeed/core";
-import { SPOTTER, type RaceSnapshot, type TyreCorner } from "@exxeed/telemetry";
+import { FLAG_BITS, SPOTTER, type RaceSnapshot, type TyreCorner } from "@exxeed/telemetry";
 
 import { RaceViewBuilder } from "./race-view.js";
 
@@ -202,6 +202,15 @@ export interface SampleRaceOptions {
  * the replayed recording holds one car and nothing else — so Standings,
  * Relatives, Radar and the car panels would otherwise sit empty.
  */
+/** A flag for some seconds of every forty, none the rest. */
+function sampleFlags(elapsedS: number): number {
+  const t = elapsedS % 40;
+  if (t < 6) return FLAG_BITS.green | FLAG_BITS.yellowWaving;
+  if (t > 14 && t < 20) return FLAG_BITS.green | FLAG_BITS.blue;
+  if (t > 28 && t < 32) return FLAG_BITS.green | FLAG_BITS.white;
+  return FLAG_BITS.green;
+}
+
 export function sampleRaceSnapshot(options: SampleRaceOptions): RaceSnapshot {
   const { elapsedS, lapS, trackLengthM } = options;
   const player = options.playerDistance ?? elapsedS / lapS + 3;
@@ -294,6 +303,9 @@ export function sampleRaceSnapshot(options: SampleRaceOptions): RaceSnapshot {
       Math.abs(((distance[1]! - distance[0]!) % 1) * trackLengthM) < 5
         ? SPOTTER.left
         : SPOTTER.clear,
+    // The flags in turn, a few seconds each with gaps of none, so the Flags
+    // overlay has something to show: a waving yellow, a blue, a white.
+    sessionFlags: sampleFlags(elapsedS),
     brakeBiasPct: 54.5,
     incidents: 2,
     repairS: 0,

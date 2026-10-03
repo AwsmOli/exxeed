@@ -507,3 +507,71 @@ const RADAR = `
 </div>`;
 
 export const radar = templated({ template: RADAR, model: () => ({}), rate: 1000 });
+
+// ---------------------------------------------------------------------------
+// Blind spot: a box per side that lights when the spotter says a car is
+// there. The sim's spotter is the one lateral fact it gives (see Radar).
+//
+// Template data: empty, left, right (a car alongside on that side),
+// threeWide (one each side), and spotter (the sim's word).
+// ---------------------------------------------------------------------------
+
+function spotterModel(s) {
+  const sp = s.race?.radar.spotter ?? "off";
+  return {
+    empty: s.race === null ? NO_RACE(s) : null,
+    spotter: sp,
+    left: sp === "left" || sp === "twoLeft" || sp === "both",
+    right: sp === "right" || sp === "twoRight" || sp === "both",
+    threeWide: sp === "both",
+  };
+}
+
+const SPOTTER_TEMPLATE = `
+<div class="panel spotter" data-class="is-empty: empty">
+  <div class="spot-row">
+    <div class="spot-box" data-class="on: left"><span class="spot-cap">Blind spot</span><i></i><span class="spot-cap">Left</span></div>
+    <div class="spot-box" data-class="on: right"><span class="spot-cap">Blind spot</span><i></i><span class="spot-cap">Right</span></div>
+  </div>
+  <div class="empty">{{ empty }}</div>
+</div>`;
+
+export const spotter = templated({ template: SPOTTER_TEMPLATE, model: spotterModel, deps: ["race"] });
+
+// ---------------------------------------------------------------------------
+// Flags: the flag out now, drawn as the flag itself, waving when it is
+// waved, with what it means beside it. Nothing at all when there is none.
+//
+// Template data: flag (null for none), kind (green, yellow, blue, white,
+// red, black, meatball, checkered, debris, disqualify), waving, label, hint.
+// ---------------------------------------------------------------------------
+
+const FLAG_WORDS = {
+  green: ["Green", "Racing"],
+  yellow: ["Yellow", "Caution — no overtaking"],
+  blue: ["Blue", "Faster car behind — let it by"],
+  white: ["White", "Final lap"],
+  red: ["Red", "Session stopped"],
+  black: ["Black", "Penalty — to the pits"],
+  meatball: ["Repair", "Damage — to the pits"],
+  checkered: ["Chequered", "Finish"],
+  debris: ["Debris", "Surface — take care"],
+  disqualify: ["Disqualified", ""],
+};
+
+function flagsModel(s) {
+  const f = s.race?.flag ?? null;
+  if (f === null) return { flag: null, kind: "", waving: false, label: "", hint: "" };
+  const [label, hint] = FLAG_WORDS[f.kind] ?? [f.kind, ""];
+  return { flag: f, kind: f.kind, waving: f.waving, label, hint };
+}
+
+const FLAGS_TEMPLATE = `
+<div class="panel flags">
+  <div class="flag-card" data-if="flag">
+    <i class="flag-cloth {{ kind }}" data-class="waving: waving"></i>
+    <div class="flag-words"><b>{{ label }}</b><span>{{ hint }}</span></div>
+  </div>
+</div>`;
+
+export const flags = templated({ template: FLAGS_TEMPLATE, model: flagsModel, deps: ["race"] });

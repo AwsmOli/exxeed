@@ -20,22 +20,24 @@ import { COLORS, refreshColors } from "./panels/util.js";
  */
 const SIZES = {
   inputs: [540, 110],
-  pedals: [540, 170],
+  pedals: [560, 170],
   trace: [640, 150],
   speed: [640, 140],
   brake: [300, 72],
   revlights: [520, 44],
   delta: [340, 72],
-  sectors: [280, 224],
+  sectors: [300, 230],
   corners: [340, 220],
   reference: [360, 190],
   standings: [640, 420],
   relative: [440, 360],
   radar: [260, 260],
+  spotter: [300, 130],
+  flags: [260, 120],
   map: [360, 360],
   minimap: [230, 230],
   fuel: [260, 340],
-  tyres: [250, 340],
+  tyres: [260, 390],
   damage: [220, 100],
   weather: [400, 130],
   callouts: [320, 220],
@@ -121,29 +123,29 @@ function applyTemplates(templates) {
 }
 
 // ---------------------------------------------------------------------------
-// Size: reflow above the panel's layout minimum, scale below it.
-//
-// A window made smaller than the panel can lay out in would otherwise squash
-// it — columns overlapping, numbers clipped. Instead the panel keeps laying
-// out at its minimum and the whole thing is scaled down to the window, so it
-// just gets smaller. Above the minimum it reflows, which is how a panel is
-// made wider or taller.
+// Size: every overlay is laid out at one design size — the theme's for it,
+// else the app's — and scaled, whole, to its window. Main keeps the window
+// in that shape, so resizing makes the overlay bigger or smaller and never
+// rearranges what is inside it.
 // ---------------------------------------------------------------------------
 
+/** [width, height] this overlay is designed at: from main, then from the theme. */
+let design = [Number(params.get("w")) || 0, Number(params.get("h")) || 0];
+let fitToWindow = () => {};
+
 if (isOverlay) {
-  const minW = Number(params.get("minw")) || 0;
-  const minH = Number(params.get("minh")) || 0;
-  const fitToWindow = () => {
+  fitToWindow = () => {
     const inset = 8; // #root's inset on both sides (overlay.css --inset)
     const w = Math.max(1, window.innerWidth - inset);
     const h = Math.max(1, window.innerHeight - inset);
-    const scale = Math.min(1, minW > 0 ? w / minW : 1, minH > 0 ? h / minH : 1);
+    const [dw, dh] = design[0] > 0 && design[1] > 0 ? [design[0] - inset, design[1] - inset] : [w, h];
+    const scale = Math.min(w / dw, h / dh);
     root.style.transformOrigin = "0 0";
-    root.style.transform = scale < 1 ? `scale(${scale})` : "";
+    root.style.transform = `scale(${scale})`;
     root.style.right = "auto";
     root.style.bottom = "auto";
-    root.style.width = `${w / scale}px`;
-    root.style.height = `${h / scale}px`;
+    root.style.width = `${dw}px`;
+    root.style.height = `${dh}px`;
     document.body.style.setProperty("--fit-scale", String(scale));
   };
   fitToWindow();
@@ -315,6 +317,16 @@ function applyTheme(theme) {
   root.dataset.base = theme.base ?? theme.id;
   // How rows are built (overlay.css [data-layout]): the theme's choice, or its base's.
   root.dataset.layout = theme.layout ?? "wash";
+  // The size this overlay is designed at in this theme (main reshapes the window to match).
+  const sized = wanted !== null ? theme.sizes?.[wanted] : undefined;
+  if (Array.isArray(sized) && sized.length === 2) {
+    design = [Number(sized[0]), Number(sized[1])];
+    fitToWindow();
+  } else if (wanted !== null && SIZES[wanted] !== undefined) {
+    // No size of its own in this theme: the app's (PANEL_SPECS, mirrored in SIZES).
+    design = [...SIZES[wanted]];
+    fitToWindow();
+  }
   // The theme's own stylesheet, over the built-in one, and its templates.
   themeCss.textContent = typeof theme.css === "string" ? theme.css : "";
   applyTemplates(theme.templates ?? {});

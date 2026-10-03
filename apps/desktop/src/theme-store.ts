@@ -246,6 +246,7 @@ export class ThemeStore {
       ...(theme.author !== undefined ? { author: theme.author } : {}),
       base: theme.base ?? BUILTIN_THEMES[0]!.id,
       ...(theme.layout !== undefined ? { layout: theme.layout } : {}),
+      ...(theme.sizes !== undefined ? { sizes: theme.sizes } : {}),
       tokens: theme.tokens,
     };
     writeFileSync(join(root, THEME_JSON), `${JSON.stringify(file, null, 2)}\n`);

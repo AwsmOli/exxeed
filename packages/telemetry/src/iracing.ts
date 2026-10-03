@@ -542,6 +542,7 @@ export function toRaceSnapshot(
       declaredWet: num(t["WeatherDeclaredWet"]) !== 0,
     },
     spotter: num(t["CarLeftRight"]),
+    sessionFlags: num(t["SessionFlags"]),
     // A car with no adjustable bias reports 0, which no real car runs.
     brakeBiasPct: bias > 0 ? bias : null,
     incidents: num(t["PlayerCarMyIncidentCount"]),

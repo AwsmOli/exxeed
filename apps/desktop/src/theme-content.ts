@@ -248,6 +248,7 @@ async function publish(
     tokens: theme.tokens,
     ...(theme.css !== undefined ? { css: theme.css } : {}),
     ...(theme.templates !== undefined ? { templates: theme.templates } : {}),
+    ...(theme.sizes !== undefined ? { sizes: theme.sizes } : {}),
   };
   const published = await publishThemeVersion(client, item.id, payload, request.changelog.trim());
   store.link(request.themeId, { itemId: item.id, versionId: published.id, version: published.version, origin: "mine" });

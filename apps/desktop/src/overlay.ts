@@ -196,6 +196,43 @@ export class OverlayLayout {
   #moveHandlerInstalled = false;
   #onShowMainWindow: () => void;
 
+  /** Overlay id → [width, height] the current theme designs it at. */
+  #sizes: Readonly<Record<string, readonly [number, number]>> = {};
+  /** The design size each open window was last laid out for. */
+  readonly #designed = new Map<PanelId, readonly [number, number]>();
+
+  /** The size `panel` is designed at: the theme's, else the app's own. */
+  #designOf(panel: PanelId): readonly [number, number] {
+    const spec = PANEL_SPECS[panel];
+    return this.#sizes[panel] ?? [spec.width, spec.height];
+  }
+
+  /**
+   * The theme's design sizes. Every open window takes its overlay's shape,
+   * at the scale it was at: a window made half size stays half size, in the
+   * new theme's proportions.
+   */
+  setDesignSizes(sizes: Readonly<Record<string, readonly [number, number]>>): void {
+    this.#sizes = sizes;
+    for (const [panel, window] of this.#windows) {
+      if (window.isDestroyed()) continue;
+      const before = this.#designed.get(panel);
+      const next = this.#designOf(panel);
+      if (before !== undefined && before[0] === next[0] && before[1] === next[1]) continue;
+      const { width } = window.getBounds();
+      const scale = before === undefined ? width / next[0] : width / before[0];
+      this.#shape(window, next);
+      window.setSize(Math.round(next[0] * scale), Math.round(next[1] * scale));
+      this.#designed.set(panel, next);
+    }
+  }
+
+  /** Lock a window to its design's proportions, and to no less than a third of it. */
+  #shape(window: BrowserWindow, design: readonly [number, number]): void {
+    window.setAspectRatio(design[0] / design[1]);
+    window.setMinimumSize(Math.max(40, Math.round(design[0] * 0.3)), Math.max(14, Math.round(design[1] * 0.3)));
+  }
+
   constructor(profileId: string, onShowMainWindow: () => void) {
     this.#profileId = profileId;
     this.#layout = loadLayout(profileId);
@@ -253,19 +290,21 @@ export class OverlayLayout {
         ? saved
         : defaultPosition(panels, index);
 
-    const width = position.width ?? spec.width;
-    const height = position.height ?? spec.height;
+    // The theme's design size sets the shape; the remembered width, how big.
+    const design = this.#designOf(panel);
+    const width = position.width ?? design[0];
+    const height = Math.round((width * design[1]) / design[0]);
 
     const window = new BrowserWindow({
       x: position.x,
       y: position.y,
       width,
       height,
-      // Below its layout minimum a panel scales down rather than squashing
-      // (renderer.js), so the window may go well under it — but not to
-      // nothing: a panel shrunk away is lost, not smaller.
-      minWidth: Math.max(48, Math.round(spec.minLayout[0] * 0.35)),
-      minHeight: Math.max(16, Math.round(spec.minLayout[1] * 0.35)),
+      // A panel is laid out at its theme's design size and scaled to its
+      // window (renderer.js), so it may be made small — but not to nothing:
+      // a panel shrunk away is lost, not smaller.
+      minWidth: Math.max(40, Math.round(design[0] * 0.3)),
+      minHeight: Math.max(14, Math.round(design[1] * 0.3)),
       title: `Exxeed — ${spec.title}`,
       transparent: true,
       frame: false,
@@ -311,8 +350,11 @@ export class OverlayLayout {
     window.setIgnoreMouseEvents(this.#clickThrough, { forward: true });
 
     void window.loadFile(page, {
-      search: `overlay=1&panel=${panel}&minw=${spec.minLayout[0]}&minh=${spec.minLayout[1]}`,
+      search: `overlay=1&panel=${panel}&w=${design[0]}&h=${design[1]}`,
     });
+    // Resizing keeps the overlay's shape: it scales, it does not reflow.
+    window.setAspectRatio(design[0] / design[1]);
+    this.#designed.set(panel, design);
 
     window.on("close", () => markClosing(window));
     // Persisting on every "moved"/"resized" would write the settings file

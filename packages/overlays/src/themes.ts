@@ -190,6 +190,40 @@ export interface Theme {
    * overlay is built, not just how it looks. Declarative and sanitized; no code.
    */
   readonly templates?: Readonly<Record<string, string>>;
+  /**
+   * Overlay id → [width, height]: the size the overlay is designed at in
+   * this theme. Its window keeps that shape, and resizing it scales the
+   * whole overlay — so a theme whose standings are tall and narrow says so
+   * here. Left out, the base theme's, then the app's own.
+   */
+  readonly sizes?: Readonly<Record<string, readonly [number, number]>>;
+}
+
+/** The smallest and largest a design size may be, in pixels. */
+const SIZE_MIN = 24;
+const SIZE_MAX = 2400;
+
+/** A theme's design sizes, checked: what is not a pair of sensible pixel counts is dropped and reported. */
+export function parseThemeSizes(raw: unknown): { sizes?: Record<string, [number, number]>; problems: string[] } {
+  const problems: string[] = [];
+  if (raw === undefined) return { problems };
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return { problems: ['"sizes" must be an object of overlay id → [width, height]'] };
+  }
+  const sizes: Record<string, [number, number]> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    const ok =
+      TEMPLATE_ID.test(id) &&
+      Array.isArray(v) &&
+      v.length === 2 &&
+      v.every((n) => typeof n === "number" && Number.isFinite(n) && n >= SIZE_MIN && n <= SIZE_MAX);
+    if (!ok) {
+      problems.push(`the size of "${id}" must be [width, height] in pixels, ${SIZE_MIN}–${SIZE_MAX}`);
+      continue;
+    }
+    sizes[id] = [Math.round((v as number[])[0]!), Math.round((v as number[])[1]!)];
+  }
+  return Object.keys(sizes).length > 0 ? { sizes, problems } : { problems };
 }
 
 /** The most a theme's stylesheet may be. */
@@ -301,6 +335,14 @@ export const BUILTIN_THEMES: readonly Theme[] = [
   {
     id: "iracing",
     name: "iRacing",
+    // The sim's boxes: compact, as its own split-time, TIRES and inputs boxes are.
+    sizes: {
+      inputs: [460, 110],
+      sectors: [280, 220],
+      fuel: [260, 330],
+      tyres: [260, 300],
+      reference: [300, 140],
+    },
     description: "The sim's own UI: dark navy boxes, gold labels, white monospace numbers, your row in gold.",
     // Colours sampled from iRacing's screenshots of the 2025 sim UI
     // (iracing.com/iracing-101-new-sim-ui): the black boxes, the results
@@ -362,6 +404,22 @@ export const BUILTIN_THEMES: readonly Theme[] = [
   {
     id: "gran-turismo",
     name: "Gran Turismo",
+    // GT's standings are a narrow column under a big position box; its speed
+    // cluster is wide and low; its rev band and course maps their own shapes.
+    sizes: {
+      standings: [560, 520],
+      relative: [520, 420],
+      pedals: [600, 180],
+      inputs: [560, 120],
+      revlights: [520, 70],
+      tyres: [260, 300],
+      fuel: [300, 430],
+      map: [400, 300],
+      minimap: [260, 280],
+      radar: [260, 290],
+      sectors: [320, 270],
+      delta: [360, 90],
+    },
     description: "GT7's race screen: slate slabs, boxed positions, white captions, squared digits and GT's hatched rev band.",
     // Taken from GT7's race HUD: things float over the scene rather than sit
     // in panels — dark slate slabs for rows, a square box with a thin light
@@ -546,6 +604,8 @@ export interface ThemeView {
   readonly css: string;
   /** Overlay id → template: the base's, with the theme's own over them. */
   readonly templates: Readonly<Record<string, string>>;
+  /** Overlay id → its design size: the base's, with the theme's own over them. */
+  readonly sizes: Readonly<Record<string, readonly [number, number]>>;
 }
 
 /** A built-in theme's stylesheet and templates, which ship as files beside the overlays. */
@@ -569,6 +629,7 @@ export const themeView = (theme: Theme, assets: ThemeAssets = () => ({})): Theme
   return {
     css: [inherited.css, own.css].filter((c) => typeof c === "string" && c !== "").join("\n"),
     templates: { ...inherited.templates, ...own.templates },
+    sizes: base === theme ? { ...theme.sizes } : { ...base.sizes, ...theme.sizes },
     id: theme.id,
     layout: theme.layout ?? BUILTIN_LAYOUT[base.id] ?? "wash",
     base: base.id,
@@ -652,6 +713,8 @@ export function parseTheme(text: string, id: string): ParsedTheme {
 
   const assets = parseThemeAssets(r["css"], r["templates"]);
   problems.push(...assets.problems);
+  const sized = parseThemeSizes(r["sizes"]);
+  problems.push(...sized.problems);
 
   const text60 = (v: unknown, fallback: string): string =>
     typeof v === "string" && v.trim() !== "" ? v.trim().slice(0, 60) : fallback;
@@ -667,6 +730,7 @@ export function parseTheme(text: string, id: string): ParsedTheme {
       tokens,
       ...(assets.css !== undefined ? { css: assets.css } : {}),
       ...(assets.templates !== undefined ? { templates: assets.templates } : {}),
+      ...(sized.sizes !== undefined ? { sizes: sized.sizes } : {}),
     },
     problems,
   };
@@ -738,6 +802,17 @@ export function themeJsonSchema(): Record<string, unknown> {
         maxLength: MAX_THEME_CSS,
         description:
           "A stylesheet applied over the built-in one. In a theme folder, put it in theme.css beside theme.json instead.",
+      },
+      sizes: {
+        type: "object",
+        description:
+          "Overlay id → [width, height]: the size each overlay is designed at in this theme. Its window keeps that shape; resizing scales the whole overlay.",
+        additionalProperties: {
+          type: "array",
+          items: { type: "number", minimum: SIZE_MIN, maximum: SIZE_MAX },
+          minItems: 2,
+          maxItems: 2,
+        },
       },
       templates: {
         type: "object",

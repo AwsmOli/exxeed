@@ -1092,7 +1092,11 @@ let themeStore: ThemeStore | null = null;
  */
 function themes(): ThemeStore {
   themeStore ??= new ThemeStore(() => {
-    overlayLayout?.broadcast(THEME_CHANNEL, overlayTheme(themes().find(settings().get().overlayTheme)));
+    {
+      const view = overlayTheme(themes().find(settings().get().overlayTheme));
+      overlayLayout?.broadcast(THEME_CHANNEL, view);
+      overlayLayout?.setDesignSizes(view.sizes);
+    }
     broadcastProfiles();
   });
   return themeStore;
@@ -1102,7 +1106,9 @@ function themes(): ThemeStore {
 function applyTheme(id: string): void {
   const theme = themes().find(id);
   settings().updateQuietly({ overlayTheme: theme.id });
-  overlayLayout?.broadcast(THEME_CHANNEL, overlayTheme(theme));
+  const view = overlayTheme(theme);
+  overlayLayout?.broadcast(THEME_CHANNEL, view);
+  overlayLayout?.setDesignSizes(view.sizes);
   broadcastProfiles();
 }
 
@@ -1150,6 +1156,8 @@ function startOverlays(enterEditing = false): void {
 
   const layout = new OverlayLayout(profileStore().activeId, () => showControlWindow());
   overlayLayout = layout;
+  // Before any window opens: each takes its overlay's shape from the theme.
+  layout.setDesignSizes(overlayTheme(themes().find(settings().get().overlayTheme)).sizes);
 
   const panels = chosenPanels();
 

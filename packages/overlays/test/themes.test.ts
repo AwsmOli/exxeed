@@ -6,6 +6,7 @@ import {
   MAX_THEME_TEMPLATE,
   parseTheme,
   parseThemeAssets,
+  parseThemeSizes,
   THEME_TOKENS,
   themeById,
   themeFileFor,
@@ -156,5 +157,18 @@ describe("custom themes", () => {
     for (const bad of ["../theme.json", "templates/../../x.html", "templates/Standings.html", "theme.js", "/etc/passwd", "templates/a/b.html", ""]) {
       expect(isThemeFile(bad), bad).toBe(false);
     }
+  });
+
+  it("reads design sizes and drops what is not a size", () => {
+    const out = parseThemeSizes({ standings: [560, 520], relative: [10, 10], map: "big", "Bad Id": [300, 300] });
+    expect(out.sizes).toEqual({ standings: [560, 520] });
+    expect(out.problems).toHaveLength(3);
+  });
+
+  it("gives a custom theme its base's sizes under its own", () => {
+    const custom: Theme = { id: "mine", name: "Mine", description: "", base: "gran-turismo", tokens: {}, sizes: { relative: [500, 300] } };
+    const view = themeView(custom);
+    expect(view.sizes["relative"]).toEqual([500, 300]);
+    expect(view.sizes["standings"]).toEqual(themeById("gran-turismo").sizes?.["standings"]);
   });
 });

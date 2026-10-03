@@ -699,3 +699,38 @@ body[data-style="stack"] .wx-wind b { font-size: 22px; }
 /* Standalone, the sweep floats over the sim like the game's own, with no box behind it. */
 :root[data-shift="sweep"] .revlights-card { background: transparent; border: 0; box-shadow: none; padding: 2px 6px; }
 :root[data-shift="sweep"] .revlights-card .shift-sweep { height: 100%; margin: 0; }
+
+/* -- Blind spot ---------------------------------------------------------------- */
+
+.spot-row { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 0; }
+.spot-box {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  padding: 8px; background: var(--card); border: var(--card-border); border-radius: var(--radius);
+}
+.spot-box::before { content: ""; position: absolute; inset: 14px 10px; border: 2px solid var(--text-3); border-radius: 4px; pointer-events: none; }
+.spot-cap { position: relative; z-index: 1; padding: 0 6px; background: var(--card); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2); }
+.spot-box i { width: 44%; aspect-ratio: 1; border-radius: 22%; background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)); }
+.spot-box.on i { background: linear-gradient(160deg, #ff8a00, #ffb000); box-shadow: 0 0 22px rgba(255, 150, 0, 0.75); }
+.spot-box.on { box-shadow: 0 0 30px rgba(255, 140, 0, 0.25); }
+
+/* -- Flags ----------------------------------------------------------------------- */
+
+.flags { justify-content: center; }
+.flag-card { display: flex; align-items: center; gap: 14px; padding: 10px 14px; background: var(--card); border: var(--card-border); border-radius: var(--radius); }
+.flag-cloth { display: block; width: 92px; height: 62px; flex: none; border-radius: 3px; box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.5); transform-origin: left center; }
+.flag-cloth.green { background: #12b33a; }
+.flag-cloth.yellow { background: #ffd400; }
+.flag-cloth.white { background: #f4f4f4; }
+.flag-cloth.red { background: #e3120b; }
+.flag-cloth.black, .flag-cloth.disqualify { background: #0b0b0b; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5); }
+.flag-cloth.disqualify { background: linear-gradient(45deg, transparent 46%, #fff 46% 54%, transparent 54%), linear-gradient(-45deg, transparent 46%, #fff 46% 54%, transparent 54%), #0b0b0b; }
+.flag-cloth.blue { background: linear-gradient(-30deg, #1556d6 0 44%, #ffd400 44% 56%, #1556d6 56%); }
+.flag-cloth.meatball { background: radial-gradient(circle, #ff7a00 0 30%, #0b0b0b 31%); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5); }
+.flag-cloth.debris { background: repeating-linear-gradient(90deg, #ffd400 0 11px, #e3120b 11px 22px); }
+.flag-cloth.checkered { background: repeating-conic-gradient(#0b0b0b 0 25%, #f4f4f4 0 50%) 0 0 / 15.4px 15.4px; }
+/* A waved flag waves. */
+.flag-cloth.waving { animation: flag-wave 0.55s ease-in-out infinite alternate; }
+@keyframes flag-wave { from { transform: perspective(160px) rotateY(-14deg) skewY(-3deg); } to { transform: perspective(160px) rotateY(14deg) skewY(3deg); } }
+.flag-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.flag-words b { font-size: 22px; font-weight: var(--num-weight); color: var(--text); text-transform: uppercase; }
+.flag-words span { font-size: 12px; color: var(--text-2); white-space: nowrap; }
