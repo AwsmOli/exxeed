@@ -19,9 +19,11 @@
   --gt-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   --gt-red: #c8141d;
   --gt-green: #1f9a4a;
-  /* GT's rev band: white ticks, red past the redline. */
-  --sweep-lit: #ffffff;
-  --sweep-red: #ff2a2a;
+  /* GT's rev band: red ticks up to half the revs, fading to white as they
+     climb, blinking white and red at the shift point. The redline arrow is red. */
+  --sweep-low: #e8232b;
+  --sweep-high: #ffffff;
+  --sweep-red: #e8232b;
 }
 
 /* -- The parts everything is built from ------------------------------------ */
@@ -172,7 +174,14 @@ body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
   font-size: 54px; font-weight: 500; display: inline-block; width: 0.7em; text-align: left;
   transform: scaleX(1.45); transform-origin: left center; margin-right: 0.35em;
 }
-.gt-at { padding-bottom: 4px; white-space: nowrap; }
+/* GT's suggested gear: a small box beside the gear, its label under it;
+   filled red when the reference is in another gear. */
+.gt-suggest { display: flex; flex-direction: column; align-items: center; gap: 3px; padding-bottom: 2px; }
+.gt-sug {
+  min-width: 30px; height: 30px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 600; color: #ffffff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45);
+}
+.gt-sug.now { background: var(--gt-red); color: #111418; box-shadow: inset 0 0 0 2px #ff5a5a; }
 .gt-unit { font-family: var(--font); font-size: 11px; color: rgba(255, 255, 255, 0.7); }
 .gt-cl-rule { width: 1px; align-self: stretch; margin: 8px 0 4px; background: rgba(255, 255, 255, 0.55); }
 .gt-cl-ref { display: flex; flex-direction: column; align-items: center; line-height: 1; }
@@ -195,8 +204,8 @@ body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
 
 /* -- The rev band ---------------------------------------------------------- */
 
-/* Upright ticks: grey unlit, white lit, red past the redline. */
-.gt-rev .sweep-band-track { fill: rgba(150, 152, 156, 0.7); }
+/* Upright ticks: dark grey unlit; lit, the colour of the revs (colour="level"). */
+.gt-rev .sweep-band-track { fill: rgba(110, 112, 116, 0.75); }
 /* Room above the band for the redline arrow. */
 .gt-revlights { justify-content: center; align-items: center; padding-top: 10px; }
 /* The band keeps the cluster's proportions, centred: stretched to a long
@@ -248,7 +257,7 @@ body[data-hidden~="revlights"] .gt-cl-row { padding-top: 6px; }
 
 /* -- Maps and radar -------------------------------------------------------- */
 
-.gt-minimap { gap: 2px; }
+.gt-minimap, .gt-radar { gap: 2px; }
 .gt-course-cap {
   display: flex; justify-content: center; align-items: center; gap: 18px; flex: none;
   font-family: var(--font); font-size: 14px; color: #ffffff; text-shadow: var(--gt-shadow);

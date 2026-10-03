@@ -181,7 +181,7 @@ irating, chip, footer}`, `cols`, and `rows[]`: `position`, `carNumber`, `name`,
 "R", "3"), `wheelDeg`, `rpm`.
 
 **Input Telemetry** (`pedals`) — everything in Essential Inputs, plus
-`refSpeedKph`, `refGear`, `deltaS`, `gaining`, `losing`, `ffbPct`,
+`refSpeedKph`, `refGear`, `refGearDiffers` (the reference is in another gear here: a suggestion to shift), `deltaS`, `gaining`, `losing`, `ffbPct`,
 `shiftFraction` (0–1 up the shift range), `shifting`.
 
 **Rev Lights** (`revlights`) — `empty`, `rpm`, `shiftFraction`, `shifting`.

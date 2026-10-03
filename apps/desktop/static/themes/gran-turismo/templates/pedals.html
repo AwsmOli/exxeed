@@ -2,20 +2,21 @@
   Gran Turismo's speed cluster: a band of upright ticks on an even curve
   across the top, cut straight at both ends, over a dark body with straight
   sides that chamfer in to a flat foot. The speed in wide squared digits,
-  km/h under it, a hairline, and the gear, wider and heavier,
-  with a small label beside it where GT says AT, and GT's small red arrow at the redline. The gap to the reference
+  km/h under it, a hairline, and the gear, wider and heavier, with GT's
+  suggested-gear box beside it: the reference lap's gear, filled red when it
+  is not the one you are in, and GT's small red arrow at the redline. The ticks light red, fade to
+  white as the revs climb past half, and blink white and red to shift. The gap to the reference
   sits in GT's red (or green) box above.
 
   Added to what GT shows, each switchable in the overlay's options: the input
-  trace on the left; on the right the reference's speed (its gear takes GT's
-  AT spot), the pedal bars and the wheel; the force feedback line under it all.
+  trace on the left; on the right the reference's speed, the pedal bars and the wheel; the force feedback line under it all.
 -->
 <div class="panel pedals-panel gt-cluster">
   <div class="gt-cl-top">
     <div class="gt-delta n" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
   </div>
   <div class="gt-cl-box">
-    <x-sweep class="gt-rev" shape="band" redline="0.82" mark data-part="revlights"></x-sweep>
+    <x-sweep class="gt-rev" shape="band" colour="level" redline="0.82" mark data-part="revlights"></x-sweep>
     <div class="gt-cl-row">
       <div class="gt-cl-side left">
         <div class="gt-cl-graph" data-part="graph"><x-timeline></x-timeline></div>
@@ -27,7 +28,10 @@
       <div class="gt-cl-rule"></div>
       <div class="gt-cl-gear">
         <span class="gt-digits gt-gear">{{ gear }}</span>
-        <span class="gt-unit gt-at" data-part="reference">ref {{ refGear | or:– }}</span>
+        <div class="gt-suggest" data-part="reference" data-if="refGear">
+          <span class="gt-sug gt-digits" data-class="now: refGearDiffers">{{ refGear }}</span>
+          <span class="gt-unit">ref</span>
+        </div>
       </div>
       <div class="gt-cl-side right">
         <div class="gt-cl-ref" data-part="reference">

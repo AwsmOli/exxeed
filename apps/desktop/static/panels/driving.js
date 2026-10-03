@@ -6,7 +6,7 @@
 
 import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { alpha, areaLine, COLORS, fit, kph, pctDelta, sample, wrap01 } from "./util.js";
+import { alpha, areaLine, COLORS, fit, kph, mix, pctDelta, sample, wrap01 } from "./util.js";
 
 const gearText = (g) => (g === -1 ? "R" : g === 0 ? "N" : typeof g === "number" ? String(g) : "–");
 const font = () => COLORS.font;
@@ -219,6 +219,15 @@ function markAt(path, x, half) {
  * height, its top an even curve — highest in the middle, dropping towards
  * the ends — cut straight down at both ends, with the body under it.
  */
+/** A CSS colour as #rrggbb, for mixing; the fallback when it is not one. */
+function hexOf(value, fallback) {
+  const v = value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  const m = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(v);
+  if (m === null) return fallback;
+  return `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
+}
+
 function bandGeometry(w, h) {
   const thick = Math.max(4, Math.round(h * 0.5));
   const drop = Math.max(0, h - thick - 1);
@@ -280,6 +289,11 @@ function sweepBlock(el) {
   const bandTrack = svg.querySelector(".sweep-band-track");
   const bandFill = svg.querySelector(".sweep-band-fill");
   let lit = fill;
+  // colour="level": the colours the lit part runs between, read from --sweep-low and --sweep-high.
+  let byLevel = false;
+  let fadeFrom = 0.5;
+  let low = "#ff0000";
+  let high = "#ffffff";
   let built = "";
   let from = 0;
   let to = 0;
@@ -295,7 +309,7 @@ function sweepBlock(el) {
       const shape = el.getAttribute("shape") ?? "swoop";
       const redline = Math.max(0, Math.min(1, numberAttr(el, "redline", 1)));
       const hatch = el.hasAttribute("hatch");
-      const key = `${w}x${h}:${shape}:${redline}:${hatch}:${el.hasAttribute("mark")}`;
+      const key = `${w}x${h}:${shape}:${redline}:${hatch}:${el.hasAttribute("mark")}:${el.getAttribute("colour")}:${el.getAttribute("fade-from")}`;
       if (key !== built) {
         built = key;
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
@@ -339,12 +353,30 @@ function sweepBlock(el) {
         // Lit colour up to the redline, the red beyond it.
         stops[1].setAttribute("offset", String(redline));
         stops[2].setAttribute("offset", String(redline));
+        byLevel = el.getAttribute("colour") === "level";
+        fadeFrom = Math.max(0, Math.min(0.99, numberAttr(el, "fade-from", 0.5)));
+        const css = getComputedStyle(svg);
+        low = hexOf(css.getPropertyValue("--sweep-low"), COLORS.red);
+        high = hexOf(css.getPropertyValue("--sweep-high"), "#ffffff");
+        if (!byLevel) for (const stop of stops) stop.style.stopColor = "";
       }
       const r = revs(s);
       const shifting = r?.shift ?? false;
       const f = shifting ? 1 : Math.max(0, Math.min(1, r?.fraction ?? 0));
       reveal.setAttribute("x", String(from - half));
       reveal.setAttribute("width", f === 0 ? "0" : (half + f * (to - from) + (f === 1 ? 2 * half : 0)).toFixed(1));
+      if (byLevel) {
+        // Gran Turismo's: the lit part is one colour, set by how high the revs
+        // are — the low colour up to fade-from, then fading into the high one —
+        // and at the shift point it blinks between the two.
+        const k = f <= fadeFrom ? 0 : (f - fadeFrom) / (1 - fadeFrom);
+        const blink = Math.floor(performance.now() / 70) % 2 === 0;
+        const colour = shifting ? (blink ? high : low) : mix(low, high, k);
+        for (const stop of stops) stop.style.stopColor = colour;
+        lit.classList.remove("shift-now");
+        lit.style.visibility = "";
+        return;
+      }
       // At the shift point the whole line takes over: full, red, and blinking
       // hard enough to catch in the corner of an eye.
       const flash = shifting && Math.floor(performance.now() / 55) % 2 === 0;
@@ -404,6 +436,9 @@ registerBlock(
       hatch: "fine ticks instead of a solid line, as Gran Turismo's rev band",
       redline: "0–1: how far along the lit part turns red; 1 (default) for never",
       mark: "a small arrow at the redline, pointing at the band, as Gran Turismo's",
+      colour:
+        "position (default: lit colour along the band, red past the redline) | level — the whole lit part one colour by how high the revs are, --sweep-low fading to --sweep-high, blinking between them at the shift point (Gran Turismo's)",
+      "fade-from": "with colour=level: how far up the revs (0–1) the fade starts; 0.5 by default",
     },
   },
   sweepBlock,
@@ -462,6 +497,9 @@ function pedalsModel(s) {
     ...revsModel(s),
     refSpeedKph: atRef ? Math.round(kph(sample(ref.speedMps, ref.gridSize, f.lapDistPct))) : null,
     refGear: atRef ? gearText(ref.gear ? sample(ref.gear, ref.gridSize, f.lapDistPct) : undefined) : null,
+    /** The reference lap is in another gear here: the suggestion to shift. */
+    refGearDiffers:
+      atRef && ref.gear ? gearText(sample(ref.gear, ref.gridSize, f.lapDistPct)) !== gearText(f?.gear) : false,
     deltaS: typeof d === "number" ? d : null,
     // Gaining is good, losing is bad; under 5 ms is neither.
     gaining: timed && d < 0,

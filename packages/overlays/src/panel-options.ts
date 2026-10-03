@@ -63,6 +63,7 @@ export const PANEL_PARTS: Partial<Record<PanelId, readonly PanelChoice[]>> = {
     { id: "callouts", label: "Callout points" },
     { id: "cars", label: "Other cars" },
   ],
+  radar: [{ id: "label", label: "Caption (themes that have one)" }],
   minimap: [
     { id: "cars", label: "Other cars" },
     { id: "label", label: "Caption (themes that have one)" },

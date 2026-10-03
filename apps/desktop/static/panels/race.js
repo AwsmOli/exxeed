@@ -305,6 +305,26 @@ function radarBlock(el) {
 
       const chevrons = el.getAttribute("cars") === "chevron";
       const bare = el.getAttribute("disc") === "none";
+      if (el.getAttribute("road") === "strip") {
+        // Gran Turismo's radar: the road as a lighter strip through the
+        // middle, a crosshair through you, fading out towards the edge.
+        const lane = CAR_W_M * m * 3.4;
+        const strip = ctx.createLinearGradient(0, cy - R, 0, cy + R);
+        strip.addColorStop(0, "rgba(255,255,255,0)");
+        strip.addColorStop(0.25, "rgba(255,255,255,0.16)");
+        strip.addColorStop(0.75, "rgba(255,255,255,0.16)");
+        strip.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = strip;
+        ctx.fillRect(cx - lane / 2, cy - R, lane, R * 2);
+        ctx.strokeStyle = alpha(COLORS.ink, 0.45);
+        ctx.lineWidth = 1 * r;
+        ctx.beginPath();
+        ctx.moveTo(cx - R, cy);
+        ctx.lineTo(cx + R, cy);
+        ctx.moveTo(cx, cy - R * 0.95);
+        ctx.lineTo(cx, cy + R * 0.95);
+        ctx.stroke();
+      }
       if (!bare) {
         const disc = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R);
         disc.addColorStop(0, "rgba(60,64,70,0.55)");
@@ -415,6 +435,7 @@ registerBlock(
     attributes: {
       cars: "car (default, a top-down car) | chevron — arrowheads, yours in red",
       disc: "shaded (default) | none — just the rings, over the scene",
+      road: "none (default) | strip — the road as a lighter strip with a crosshair, as Gran Turismo's",
     },
   },
   radarBlock,
