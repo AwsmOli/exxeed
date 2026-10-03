@@ -1658,7 +1658,7 @@ void app.whenReady().then(() => {
   installAccount();
   installEditorIpc(() => settings().get(), resolveDataDir);
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
-  installThemeContentIpc({ themes, getSettings: () => settings().get(), apply: applyTheme });
+  installThemeContentIpc({ themes, getSettings: () => settings().get(), apply: applyTheme, builtinAssets: builtinThemeAssets });
   installContentIpc({ getSettings: () => settings().get(), resolveDataDir });
   installLapImport({
     getSettings: () => settings().get(),
@@ -1868,6 +1868,8 @@ void app.whenReady().then(() => {
       applyTheme(settings().get().overlayTheme);
     } else if (command.kind === "openThemesFolder") {
       void shell.openPath(themes().dir);
+    } else if (command.kind === "inspectOverlay") {
+      overlayLayout?.inspect(command.panel);
     }
   });
 

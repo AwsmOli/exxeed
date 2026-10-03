@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   BUILTIN_THEMES,
+  isThemeFile,
   MAX_THEME_TEMPLATE,
   parseTheme,
   parseThemeAssets,
@@ -146,5 +147,14 @@ describe("custom themes", () => {
     expect(view.templates).toEqual({ standings: "gt", relative: "mine" });
     // A built-in gets its own files.
     expect(themeView(themeById("gran-turismo"), files).templates).toEqual({ standings: "gt", relative: "gt" });
+  });
+
+  it("names only a theme folder's own files, so an editor path cannot leave it", () => {
+    for (const ok of ["theme.json", "theme.css", "templates/standings.html", "templates/my-panel.html"]) {
+      expect(isThemeFile(ok), ok).toBe(true);
+    }
+    for (const bad of ["../theme.json", "templates/../../x.html", "templates/Standings.html", "theme.js", "/etc/passwd", "templates/a/b.html", ""]) {
+      expect(isThemeFile(bad), bad).toBe(false);
+    }
   });
 });

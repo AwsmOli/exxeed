@@ -651,7 +651,11 @@ function makeNameEditable(span, profile) {
 /** Which overlay's options are open, if any: `{ profileId, panel }`. Survives re-renders. */
 let openPanelOptions = null;
 
+/** The last Overlays view, for the theme editor's list of open overlays. */
+let lastOverlayView = null;
+
 function renderOverlayProfiles(view) {
+  lastOverlayView = view;
   const list = el("ov-profiles");
   if (!list) return;
 
@@ -896,6 +900,9 @@ el("ov-theme-new").addEventListener("click", () => {
 // parse keeps the last good version on screen and lists what is wrong.
 
 let editingTheme = null;
+/** The file open in the editor: theme.json, theme.css or templates/<overlay>.html. */
+let editingFile = "theme.json";
+let themeFiles = ["theme.json"];
 let editSaveTimer = null;
 /** VS Code's editor, once it has loaded (theme-editor.js). Until then, and if it cannot, the text box. */
 let themeEditor = null;
@@ -904,8 +911,12 @@ let themeEditorFailed = false;
 const themeText = () => (themeEditor !== null ? themeEditor.getValue() : el("te-text").value);
 const setThemeText = (text) => {
   el("te-text").value = text;
-  themeEditor?.setValue(text);
+  themeEditor?.open(editingFile, text);
 };
+
+/** The overlays, with their built-in templates (panels/index.js): loaded once, the first time a theme is edited. */
+let panelsModule = null;
+const panels = async () => (panelsModule ??= await import("./panels/index.js"));
 
 function themeTextChanged() {
   clearTimeout(editSaveTimer);
@@ -918,13 +929,14 @@ function themeTextChanged() {
 async function ensureThemeEditor() {
   if (themeEditor !== null || themeEditorFailed) return;
   try {
-    const [{ createThemeEditor }, schema] = await Promise.all([
+    const [{ createThemeEditor }, schema, { blockList, FILTERS }] = await Promise.all([
       import("./theme-editor.js"),
       themeContent({ op: "schema" }),
+      panels(),
     ]);
     el("te-editor").hidden = false;
-    themeEditor = await createThemeEditor(el("te-editor"), schema, themeTextChanged);
-    themeEditor.setValue(el("te-text").value);
+    themeEditor = await createThemeEditor(el("te-editor"), schema, themeTextChanged, { blocks: blockList(), filters: FILTERS });
+    themeEditor.open(editingFile, el("te-text").value);
     el("te-text").hidden = true;
     themeEditor.focus();
   } catch (err) {
@@ -945,27 +957,80 @@ function showThemeProblems(problems) {
       return li;
     }),
   );
-  el("te-status").textContent = problems.length === 0 ? "Saved — the overlays are showing it." : "Saved, with problems. A setting with a problem is ignored; a file that is not valid JSON leaves the overlays as they were.";
+  el("te-status").textContent =
+    problems.length === 0
+      ? "Saved — the overlays are showing it."
+      : "Saved, with problems. What has a problem is left out; a theme.json that is not valid JSON leaves the overlays as they were.";
   el("te-status").className = `form-status${problems.length === 0 ? "" : " bad"}`;
 }
 
 async function saveThemeText() {
   if (editingTheme === null) return;
   try {
-    showThemeProblems(await themeContent({ op: "writeFile", themeId: editingTheme, text: themeText() }));
+    showThemeProblems(await themeContent({ op: "writeFile", themeId: editingTheme, file: editingFile, text: themeText() }));
   } catch (err) {
     el("te-status").textContent = err.message;
     el("te-status").className = "form-status bad";
   }
 }
 
-el("ov-theme-edit").addEventListener("click", async () => {
-  editingTheme = el("ov-theme").value;
-  el("te-heading").textContent = `Edit ${el("ov-theme").selectedOptions[0]?.textContent ?? "theme"}`;
+/** Save what is open now, before showing something else. */
+async function flushThemeText() {
+  if (editSaveTimer === null) return;
+  clearTimeout(editSaveTimer);
+  editSaveTimer = null;
+  await saveThemeText();
+}
+
+const templatePanel = (file) => /^templates\/([a-z0-9-]+)\.html$/.exec(file)?.[1] ?? null;
+const fileLabel = (file) => {
+  const panel = templatePanel(file);
+  return panel === null ? file : `${PANEL_LABELS[panel] ?? panel}.html`;
+};
+
+function renderThemeFiles() {
+  el("te-files").replaceChildren(
+    ...themeFiles.map((file) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = fileLabel(file);
+      b.title = file;
+      b.className = file === editingFile ? "on" : "";
+      b.addEventListener("click", () => void openThemeFile(file));
+      return b;
+    }),
+  );
+  el("te-remove").hidden = editingFile === "theme.json";
+  el("te-remove").textContent = "Remove file";
+  delete el("te-remove").dataset.armed;
+
+  // What can still be added: a stylesheet, and a template for each overlay without one.
+  const add = el("te-add");
+  const options = [new Option("Add…", "")];
+  if (!themeFiles.includes("theme.css")) options.push(new Option("Stylesheet (theme.css)", "theme.css"));
+  for (const id of PANEL_ORDER) {
+    const file = `templates/${id}.html`;
+    if (!themeFiles.includes(file)) options.push(new Option(`Template: ${PANEL_LABELS[id] ?? id}`, file));
+  }
+  add.replaceChildren(...options);
+  add.value = "";
+
+  // Inspect: the open overlays, the one this template builds first.
+  const open = lastOverlayView?.profiles.find((p) => p.id === lastOverlayView.activeProfileId)?.panels ?? [];
+  const inspect = el("te-inspect-panel");
+  const keep = inspect.value;
+  inspect.replaceChildren(...open.map((id) => new Option(PANEL_LABELS[id] ?? id, id)));
+  const wanted = templatePanel(editingFile);
+  inspect.value = wanted !== null && open.includes(wanted) ? wanted : open.includes(keep) ? keep : (open[0] ?? "");
+  el("te-inspect").disabled = open.length === 0;
+}
+
+async function openThemeFile(file) {
+  await flushThemeText();
+  editingFile = file;
   el("te-status").textContent = "";
-  el("te-problems").hidden = true;
   try {
-    setThemeText(await themeContent({ op: "readFile", themeId: editingTheme }));
+    setThemeText(await themeContent({ op: "readFile", themeId: editingTheme, file }));
     el("te-text").disabled = false;
   } catch (err) {
     setThemeText("");
@@ -973,9 +1038,89 @@ el("ov-theme-edit").addEventListener("click", async () => {
     el("te-status").textContent = err.message;
     el("te-status").className = "form-status bad";
   }
+  renderThemeFiles();
+}
+
+/** What a new file starts as: what the theme uses now, so a change starts from the look on screen. */
+async function starterText(file) {
+  if (file === "theme.css") {
+    return `/* ${el("te-heading").textContent.replace(/^Edit /, "")}: a stylesheet over the built-in one.
+
+   Anything goes: it is applied after the app's own styles and wins over them.
+   Inspect an overlay (below) to see its classes, and the tokens from
+   theme.json are here as variables: var(--card), var(--red)… */
+
+`;
+  }
+  const panel = templatePanel(file);
+  const base = await themeContent({ op: "baseTemplate", themeId: editingTheme, panel });
+  const own = (await panels()).PANELS[panel]?.template ?? "";
+  const body = (base ?? own).trim();
+  // A base theme's file keeps its own header comment; the built-in gets one.
+  return base !== null
+    ? `${body}\n`
+    : `<!--
+  ${PANEL_LABELS[panel] ?? panel}, as the app builds it. Change anything: this replaces it.
+
+  {{ value | filter }}, data-if, data-each, data-class and <x-group> are the
+  template language; <x-…> tags are building blocks drawn in code. Inspect
+  the overlay and type overlayData in its console for every value there is.
+-->
+${body}
+`;
+}
+
+el("ov-theme-edit").addEventListener("click", async () => {
+  editingTheme = el("ov-theme").value;
+  editingFile = "theme.json";
+  themeEditor?.reset();
+  el("te-heading").textContent = `Edit ${el("ov-theme").selectedOptions[0]?.textContent ?? "theme"}`;
+  el("te-status").textContent = "";
+  el("te-problems").hidden = true;
+  try {
+    themeFiles = await themeContent({ op: "listFiles", themeId: editingTheme });
+  } catch {
+    themeFiles = ["theme.json"];
+  }
+  await openThemeFile("theme.json");
   el("theme-edit").showModal();
   // After the dialog is showing: the editor measures the box it is put in.
   void ensureThemeEditor();
+});
+el("te-add").addEventListener("change", async () => {
+  const file = el("te-add").value;
+  if (file === "" || editingTheme === null) return;
+  try {
+    await flushThemeText();
+    themeFiles = await themeContent({ op: "addFile", themeId: editingTheme, file, text: await starterText(file) });
+    await openThemeFile(file);
+  } catch (err) {
+    el("te-status").textContent = err.message;
+    el("te-status").className = "form-status bad";
+    renderThemeFiles();
+  }
+});
+el("te-remove").addEventListener("click", async () => {
+  const button = el("te-remove");
+  // Twice, on purpose: a template can be a lot of someone's work.
+  if (button.dataset.armed !== "1") {
+    button.dataset.armed = "1";
+    button.textContent = `Really remove ${fileLabel(editingFile)}?`;
+    return;
+  }
+  clearTimeout(editSaveTimer);
+  editSaveTimer = null;
+  try {
+    themeFiles = await themeContent({ op: "removeFile", themeId: editingTheme, file: editingFile });
+  } catch (err) {
+    el("te-status").textContent = err.message;
+    el("te-status").className = "form-status bad";
+  }
+  await openThemeFile("theme.json");
+});
+el("te-inspect").addEventListener("click", () => {
+  const panel = el("te-inspect-panel").value;
+  if (panel !== "") sendOverlayCommand({ kind: "inspectOverlay", panel });
 });
 el("te-text").addEventListener("input", themeTextChanged);
 // Tab indents, as in an editor, rather than leaving the box.
@@ -991,8 +1136,7 @@ el("te-reveal").addEventListener("click", () => {
   if (editingTheme !== null) sendOverlayCommand({ kind: "editTheme", id: editingTheme });
 });
 el("te-close").addEventListener("click", async () => {
-  clearTimeout(editSaveTimer);
-  await saveThemeText();
+  await flushThemeText();
   el("theme-edit").close();
 });
 el("ov-theme-folder").addEventListener("click", () => sendOverlayCommand({ kind: "openThemesFolder" }));

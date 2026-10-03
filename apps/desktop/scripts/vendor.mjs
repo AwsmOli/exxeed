@@ -30,13 +30,17 @@ for (const [from, to] of files) copyFileSync(from, join(out, to));
 
 // Monaco, the editor inside VS Code, for the theme editor (M9). Its prebuilt
 // AMD build runs with no bundler: a loader script, the editor, its worker and
-// the JSON language. Only those are copied — the TypeScript, CSS and HTML
-// language services are most of its 13 MB and nothing here edits them.
+// the three languages a theme is written in — JSON, CSS and HTML (templates).
+// Only those are copied: the TypeScript service and the other languages are
+// most of its 13 MB, and nothing here edits them.
 const monaco = join(packageDir("monaco-editor"), "min", "vs");
 const monacoOut = join(out, "monaco", "vs");
 rmSync(join(out, "monaco"), { recursive: true, force: true });
 mkdirSync(join(monacoOut, "language"), { recursive: true });
 copyFileSync(join(monaco, "loader.js"), join(monacoOut, "loader.js"));
-for (const dir of ["editor", "base", join("language", "json")]) {
+const languages = ["json", "css", "html"].map((l) => join("language", l));
+// The syntax colouring for CSS and HTML; JSON's comes with its language service.
+const tokenizers = ["css", "html"].map((l) => join("basic-languages", l));
+for (const dir of ["editor", "base", ...languages, ...tokenizers]) {
   cpSync(join(monaco, dir), join(monacoOut, dir), { recursive: true });
 }

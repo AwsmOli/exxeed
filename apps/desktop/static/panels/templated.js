@@ -52,6 +52,9 @@ export function templated({ template, model, local = () => ({}), frame = null, d
           at = now;
           data = model(s, mine);
           view.update(data);
+          // What the template was given, for a theme author in the overlay's
+          // developer tools (Inspect in the theme editor): type overlayData.
+          window.overlayData = data;
         }
         paintBlocks(view.el, s, data);
       },

@@ -26,6 +26,7 @@ import { app } from "electron";
 
 import {
   BUILTIN_THEMES,
+  isThemeFile,
   MAX_THEME_CSS,
   MAX_THEME_TEMPLATE,
   parseTheme,
@@ -256,11 +257,34 @@ export class ThemeStore {
     return id;
   }
 
-  /** A custom theme's file as text, for editing. Null when there is no such theme. */
-  readText(id: string): string | null {
+  /** Where one of a custom theme's files is: its JSON, or a file in its folder. */
+  #fileOf(id: string, file: string): string {
+    if (!isThemeFile(file)) throw new Error(`"${file}" is not a theme file — theme.json, theme.css or templates/<overlay>.html`);
+    return file === THEME_JSON ? this.pathOf(id) : join(this.dir, id, file);
+  }
+
+  /** The files a custom theme is made of, theme.json first and templates last. */
+  files(id: string): string[] {
+    if (!this.isCustom(id)) return [];
+    const out = [THEME_JSON];
+    if (this.#folder.get(id) !== true) return out;
+    if (existsSync(join(this.dir, id, THEME_CSS))) out.push(THEME_CSS);
+    try {
+      for (const f of readdirSync(join(this.dir, id, TEMPLATES_DIR)).sort()) {
+        const path = `${TEMPLATES_DIR}/${f}`;
+        if (isThemeFile(path)) out.push(path);
+      }
+    } catch {
+      // No templates.
+    }
+    return out;
+  }
+
+  /** A custom theme's file as text, for editing. Null when there is no such theme or file. */
+  readText(id: string, file = THEME_JSON): string | null {
     if (!this.isCustom(id)) return null;
     try {
-      return readFileSync(this.pathOf(id), "utf8");
+      return readFileSync(this.#fileOf(id, file), "utf8");
     } catch {
       return null;
     }
@@ -269,13 +293,44 @@ export class ThemeStore {
   /**
    * Save edited text and re-read it. Whatever the text is: a half-typed file
    * is still the author's file, and the last good version stays on screen
-   * until it parses again. Returns what is wrong with it.
+   * until it parses again. Returns what is wrong with the theme.
    */
-  writeText(id: string, text: string): readonly string[] {
+  writeText(id: string, text: string, file = THEME_JSON): readonly string[] {
     if (!this.isCustom(id)) return ["no such theme"];
-    writeFileSync(this.pathOf(id), text);
+    if (file !== THEME_JSON && this.#folder.get(id) !== true) return ["this theme is a single file: add a stylesheet or template to it first"];
+    writeFileSync(this.#fileOf(id, file), text);
     this.#read();
     return this.#custom.get(id)?.problems ?? [];
+  }
+
+  /** Add a stylesheet or template, starting as `text`; a single-file theme becomes a folder first. */
+  addFile(id: string, file: string, text: string): void {
+    if (!this.isCustom(id)) throw new Error("only a theme of your own can be edited");
+    if (file === THEME_JSON) throw new Error("every theme has a theme.json already");
+    this.#toFolder(id);
+    const path = this.#fileOf(id, file);
+    mkdirSync(join(this.dir, id, TEMPLATES_DIR), { recursive: true });
+    // Never over an existing file: that would throw away someone's work.
+    if (!existsSync(path)) writeFileSync(path, text);
+    this.#read();
+  }
+
+  removeFile(id: string, file: string): void {
+    if (!this.isCustom(id) || file === THEME_JSON || this.#folder.get(id) !== true) return;
+    rmSync(this.#fileOf(id, file), { force: true });
+    this.#read();
+  }
+
+  /** Move a single-file theme into a folder of its own, keeping its id. */
+  #toFolder(id: string): void {
+    if (this.#folder.get(id) === true) return;
+    const single = join(this.dir, `${id}.json`);
+    const text = readFileSync(single, "utf8");
+    mkdirSync(join(this.dir, id, TEMPLATES_DIR), { recursive: true });
+    // Its $schema path now has a folder to climb out of.
+    writeFileSync(join(this.dir, id, THEME_JSON), text.replace('"./theme.schema.json"', `"../${SCHEMA_FILE}"`));
+    rmSync(single, { force: true });
+    this.#read();
   }
 
   /** Theme id → where it came from in Content. */

@@ -90,6 +90,7 @@ export default tseslint.config(
         CustomEvent: "readonly",
         Event: "readonly",
         Node: "readonly",
+        Option: "readonly",
         HTMLElement: "readonly",
         customElements: "readonly",
         URL: "readonly",

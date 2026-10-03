@@ -1262,12 +1262,23 @@ callout packs. Four ship built in: Exxeed (the current look), iRacing, Gran
 Turismo, and Synthwave. Looks modelled on other overlay apps are community
 themes in Content, not built-ins.
 
-**Why tokens-only, like VS Code, and not custom CSS.** A theme is data, not
-code. A CSS file from a stranger can load remote URLs (a tracking pixel in every
-overlay), hide a panel, or push text off-screen, and it breaks every time a
-panel's markup changes. A fixed set of tokens cannot do any of that, can be
-validated, and survives every redesign of a panel. That is exactly why VS Code
-themes are JSON.
+**Tokens, then CSS and templates — but never code.** Tokens alone could not
+make an overlay look like Gran Turismo's or RaceLab's: those differ in
+structure (a gap on its own line between two rows, a class name on a tab), not
+just colour. So a theme can also carry a stylesheet and, per overlay, an HTML
+template (docs/THEMES.md). What keeps a stranger's theme safe:
+
+- The overlays' Content-Security-Policy loads nothing from outside the app, so
+  CSS cannot reach out (no tracking pixel, no remote font).
+- Templates are declarative (`{{ value | filter }}`, `data-if`, `data-each`,
+  `data-class`) and sanitized with DOMPurify. There are no scripts, no event
+  handlers, no links or forms, and values are only ever written as text.
+- Every overlay is a model (JS, ours) plus a template (HTML, replaceable), so
+  the data a template gets is a documented interface. Panel markup can change
+  without breaking themes as long as the models keep their fields.
+- JavaScript in themes was considered and left out for now (2026-10-03).
+  Templates and the building blocks (`<x-map>`, `<x-trace>`…) cover GT and
+  RaceLab without it.
 
 **Steps 0-2 need no backend** and can ship before M8. Step 3 is where themes
 join Content.

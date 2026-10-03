@@ -115,6 +115,11 @@ when you tab out of iRacing.
 Several of them compare you to your reference lap as you drive, which is
 where a fast lap from Garage 61 earns its keep.
 
+They come in three themes — iRacing (the default), Gran Turismo and Synthwave —
+and you can make your own. A theme can recolour the overlays, restyle them with
+its own CSS, or rebuild any overlay from its own HTML template, and themes are
+shared in Content like callout packs. See [docs/THEMES.md](docs/THEMES.md).
+
 *The pictures show sample data.*
 
 ### Driving
@@ -169,8 +174,7 @@ tested with iRacing on Windows.
 Before release: a one-click Windows installer, and more packs for more tracks.
 Until then it runs from source; see [Development](#development).
 
-After that: a race summary after each session, themes for the overlays, driver
-profiles with stats, and callouts that go quiet once you have learned a corner.
+After that: a race summary after each session, driver profiles with stats, and callouts that go quiet once you have learned a corner.
 
 ## How it's built
 
@@ -340,6 +344,9 @@ step-by-step.
 **[docs/SPEC.md](docs/SPEC.md)** is the source of truth — data model, note engine,
 corner detection, overlays, ingest pipeline, milestones, and the open questions.
 Read §12 (Pitfalls) before writing any code.
+
+**[docs/THEMES.md](docs/THEMES.md)** is the theming reference: theme files, the
+template language, the building blocks, and the data each overlay offers.
 
 [TODO.md](TODO.md) tracks the milestones.
 

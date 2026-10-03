@@ -7,7 +7,9 @@
 //
 // What it adds over a plain text box: the theme schema drives autocomplete of
 // setting names, a description on hover and a red underline under a bad
-// value; and every colour gets a swatch that opens a picker.
+// value; every colour gets a swatch that opens a picker; and in a template,
+// the building blocks, the template attributes and the {{ … | filters }}
+// complete with their descriptions.
 
 const BASE = new URL("./vendor/monaco/vs", import.meta.url).href;
 
@@ -81,12 +83,68 @@ function registerColours(monaco) {
   });
 }
 
+// -- Templates -------------------------------------------------------------------
+// HTML with Exxeed's own tags and attributes: the building blocks (x-map…) and
+// data-if / data-each / data-class, described where the editor can show them.
+
+const DIRECTIVES = [
+  { name: "data-if", description: 'Only while the value is truthy: data-if="isPlayer", or data-if="!isPlayer".' },
+  { name: "data-each", description: 'Once per item of a list: data-each="rows", or data-each="r in rows". Inside, names look in the item first; {{ . }} is the item itself; $index, $first, $last and $count are set.' },
+  { name: "data-class", description: 'Classes switched on by values: data-class="me: isPlayer; pit: onPitRoad".' },
+  { name: "data-part", description: "Hidden when the driver switches this part off in the overlay's options (its id, as the built-in template uses)." },
+];
+
+function registerTemplates(monaco, blocks, filters) {
+  monaco.languages.html.htmlDefaults.setOptions({
+    ...monaco.languages.html.htmlDefaults.options,
+    data: {
+      useDefaultDataProvider: true,
+      dataProviders: {
+        exxeed: {
+          version: 1.1,
+          tags: [
+            { name: "x-group", description: "Takes no room of its own: wraps siblings to repeat or hide them together.", attributes: [] },
+            ...blocks.map((b) => ({
+              name: b.tag,
+              description: b.summary,
+              attributes: Object.entries(b.attributes ?? {}).map(([name, description]) => ({ name, description })),
+            })),
+          ],
+          globalAttributes: DIRECTIVES,
+        },
+      },
+    },
+  });
+  // After a "|" inside {{ }}: the filters.
+  monaco.languages.registerCompletionItemProvider("html", {
+    triggerCharacters: ["|"],
+    provideCompletionItems(model, position) {
+      const before = model.getValueInRange({ startLineNumber: position.lineNumber, startColumn: 1, endLineNumber: position.lineNumber, endColumn: position.column });
+      if (!/\{\{[^}]*\|\s*\w*$/.test(before)) return { suggestions: [] };
+      const word = model.getWordUntilPosition(position);
+      const range = new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+      return {
+        suggestions: Object.keys(filters).map((name) => ({
+          label: name,
+          kind: monaco.languages.CompletionItemKind.Function,
+          insertText: name,
+          range,
+        })),
+      };
+    },
+  });
+}
+
+const LANGUAGE = (file) => (file.endsWith(".css") ? "css" : file.endsWith(".html") ? "html" : "json");
+
 /**
- * Put an editor in `host`. Resolves to a small handle: read and replace the
- * text, and be told when it changes. Rejects if Monaco cannot load, and the
- * caller keeps its plain text box.
+ * Put an editor in `host`. Resolves to a small handle: open a file's text,
+ * read it back, and be told when it changes. Rejects if Monaco cannot load,
+ * and the caller keeps its plain text box.
+ *
+ * `blocks` and `filters` describe what a template can use (panels/index.js).
  */
-export async function createThemeEditor(host, schema, onChange) {
+export async function createThemeEditor(host, schema, onChange, { blocks = [], filters = {} } = {}) {
   const monaco = await loadMonaco();
 
   if (!createThemeEditor.configured) {
@@ -101,14 +159,18 @@ export async function createThemeEditor(host, schema, onChange) {
       schemaRequest: "ignore",
       // A theme file names its schema itself: "$schema": "./theme.schema.json".
       // That wins over fileMatch, so the schema is registered at the address
-      // that path resolves to from the document's own (MODEL_URI below).
-      schemas: [{ uri: "exxeed://themes/theme.schema.json", fileMatch: ["*"], schema }],
+      // that path resolves to from the document's own (the theme.json model).
+      schemas: [
+        { uri: "exxeed://themes/theme.schema.json", fileMatch: ["*"], schema },
+        { uri: "exxeed://theme.schema.json", fileMatch: ["*"], schema },
+      ],
     });
     registerColours(monaco);
+    registerTemplates(monaco, blocks, filters);
   }
 
   const editor = monaco.editor.create(host, {
-    model: monaco.editor.createModel("", "json", monaco.Uri.parse("exxeed://themes/theme.json")),
+    model: null,
     theme: "vs-dark",
     automaticLayout: true,
     minimap: { enabled: false },
@@ -128,14 +190,29 @@ export async function createThemeEditor(host, schema, onChange) {
     if (!muted) onChange(editor.getValue());
   });
 
+  /** One model per file, kept while the editor lives, so undo survives switching tabs. */
+  const models = new Map();
+
   return {
     getValue: () => editor.getValue(),
-    setValue(text) {
-      // Loading a file is not an edit.
+    /** Show `file` with `text` in it. Loading a file is not an edit. */
+    open(file, text) {
+      let model = models.get(file);
+      if (model === undefined) {
+        model = monaco.editor.createModel("", LANGUAGE(file), monaco.Uri.parse(`exxeed://themes/${file}`));
+        models.set(file, model);
+      }
       muted = true;
-      editor.setValue(text);
+      if (model.getValue() !== text) model.setValue(text);
+      editor.setModel(model);
       muted = false;
       editor.setScrollTop(0);
+    },
+    /** Forget every file: another theme is being opened. */
+    reset() {
+      editor.setModel(null);
+      for (const m of models.values()) m.dispose();
+      models.clear();
     },
     focus: () => editor.focus(),
   };

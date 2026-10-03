@@ -10,37 +10,8 @@
 // into `state`, and the rAF loop reads it. The car moves at the display's rate,
 // not the telemetry's, and no framework re-renders on a 60 Hz frame.
 
-import { inputs, pedals, trace, speed, brake, revlights } from "./panels/driving.js";
-import { delta, sectors, corners, reference } from "./panels/timing.js";
-import { standings, relative, radar } from "./panels/race.js";
-import { map, minimap } from "./panels/track.js";
-import { fuel, tyres, damage, weather } from "./panels/car.js";
-import { callouts, telemetry } from "./panels/exxeed.js";
+import { PANELS } from "./panels/index.js";
 import { COLORS, refreshColors } from "./panels/util.js";
-
-const PANELS = {
-  inputs,
-  pedals,
-  trace,
-  speed,
-  brake,
-  revlights,
-  delta,
-  sectors,
-  corners,
-  reference,
-  standings,
-  relative,
-  radar,
-  map,
-  minimap,
-  fuel,
-  tyres,
-  damage,
-  weather,
-  callouts,
-  telemetry,
-};
 
 /**
  * Window sizes, for laying the panels out on their own outside overlay mode.

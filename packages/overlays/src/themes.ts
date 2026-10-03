@@ -184,6 +184,17 @@ export const MAX_THEME_TEMPLATES = 48;
 const TEMPLATE_ID = /^[a-z][a-z0-9-]{0,39}$/;
 
 /**
+ * The files a theme folder may hold, by path inside it: theme.json,
+ * theme.css and templates/<overlay>.html. Nothing else is read or written,
+ * so a path from the editor can never reach outside the folder.
+ */
+export function isThemeFile(path: string): boolean {
+  if (path === "theme.json" || path === "theme.css") return true;
+  const m = /^templates\/([a-z][a-z0-9-]{0,39})\.html$/.exec(path);
+  return m !== null;
+}
+
+/**
  * A theme's stylesheet and templates, checked: what is not text, too large or
  * named oddly is dropped and reported. Shared by theme files (inline) and
  * theme folders (theme.css, templates/*.html).

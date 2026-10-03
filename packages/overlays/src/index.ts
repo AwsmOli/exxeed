@@ -1326,7 +1326,9 @@ export type OverlayProfileCommand =
   /** Open a custom theme's file in the system's editor for JSON. */
   | { readonly kind: "editTheme"; readonly id: string }
   | { readonly kind: "deleteTheme"; readonly id: string }
-  | { readonly kind: "openThemesFolder" };
+  | { readonly kind: "openThemesFolder" }
+  /** Open Chromium's developer tools on an open overlay, to see how it is built. */
+  | { readonly kind: "inspectOverlay"; readonly panel: PanelId };
 
 /** Main → control window: the profile list, active id, or editing state changed. */
 export const OVERLAY_PROFILES_CHANGED_CHANNEL = "exxeed:overlay-profiles-changed";
@@ -1579,9 +1581,23 @@ export type ThemeContentRequest =
     }
   /** The JSON Schema of a theme file, for the editor's autocomplete and checks. */
   | { readonly op: "schema" }
-  /** A custom theme's file, as text, for the in-app editor. */
-  | { readonly op: "readFile"; readonly themeId: string }
-  /** Save the editor's text. Replies with what is wrong with it, if anything. */
-  | { readonly op: "writeFile"; readonly themeId: string; readonly text: string }
+  /**
+   * A custom theme's file, as text, for the in-app editor. `file` is
+   * "theme.json" (the default), "theme.css" or "templates/<overlay>.html".
+   */
+  | { readonly op: "readFile"; readonly themeId: string; readonly file?: string }
+  /** Save the editor's text. Replies with what is wrong with the theme, if anything. */
+  | { readonly op: "writeFile"; readonly themeId: string; readonly file?: string; readonly text: string }
+  /** The files a custom theme is made of, theme.json first. */
+  | { readonly op: "listFiles"; readonly themeId: string }
+  /**
+   * Add a stylesheet or a template to a custom theme, starting from `text`.
+   * A theme that is a single file becomes a folder first. Replies with its files.
+   */
+  | { readonly op: "addFile"; readonly themeId: string; readonly file: string; readonly text: string }
+  /** Take a stylesheet or template out of a custom theme. Replies with its files. */
+  | { readonly op: "removeFile"; readonly themeId: string; readonly file: string }
+  /** The template a theme's base ships for an overlay, if it has one of its own (Gran Turismo's standings). */
+  | { readonly op: "baseTemplate"; readonly themeId: string; readonly panel: string }
   | { readonly op: "addScreenshot"; readonly themeId: string }
   | { readonly op: "removeScreenshot"; readonly themeId: string; readonly mediaId: string };

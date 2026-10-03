@@ -22,6 +22,7 @@ import {
   type Settings,
   type ThemeContentPage,
   type ThemeContentRequest,
+  type ThemeAssets,
   type ThemeContentRow,
   type ThemePublishState,
   type ThemeToken,
@@ -52,6 +53,8 @@ interface ThemeContentDeps {
   readonly getSettings: () => Settings;
   /** Wear a theme, by id. */
   readonly apply: (themeId: string) => void;
+  /** A built-in theme's stylesheet and templates. */
+  readonly builtinAssets: ThemeAssets;
 }
 
 const PAGE_SIZE = 30;
@@ -277,17 +280,35 @@ export function installThemeContentIpc(deps: ThemeContentDeps): void {
         case "schema":
           return { ok: true, value: themeJsonSchema() };
         case "readFile": {
-          const text = deps.themes().readText(request.themeId);
+          const text = deps.themes().readText(request.themeId, request.file);
           if (text === null) throw new Error("only a theme of your own can be edited — use New… to make one");
           return { ok: true, value: text };
         }
         case "writeFile": {
-          // A megabyte is far more than any theme; a paste of something else stops here.
-          if (request.text.length > 1_000_000) throw new Error("that is too large to be a theme");
-          const problems = deps.themes().writeText(request.themeId, request.text);
+          // A megabyte is far more than any theme file; a paste of something else stops here.
+          if (request.text.length > 1_000_000) throw new Error("that is too large to be a theme file");
+          const problems = deps.themes().writeText(request.themeId, request.text, request.file);
           // The watcher would get there too; this makes the preview immediate.
           deps.apply(deps.getSettings().overlayTheme);
           return { ok: true, value: problems };
+        }
+        case "listFiles":
+          return { ok: true, value: deps.themes().files(request.themeId) };
+        case "addFile": {
+          if (request.text.length > 1_000_000) throw new Error("that is too large to be a theme file");
+          deps.themes().addFile(request.themeId, request.file, request.text);
+          deps.apply(deps.getSettings().overlayTheme);
+          return { ok: true, value: deps.themes().files(request.themeId) };
+        }
+        case "removeFile": {
+          deps.themes().removeFile(request.themeId, request.file);
+          deps.apply(deps.getSettings().overlayTheme);
+          return { ok: true, value: deps.themes().files(request.themeId) };
+        }
+        case "baseTemplate": {
+          const theme = deps.themes().find(request.themeId);
+          const base = theme.base ?? theme.id;
+          return { ok: true, value: deps.builtinAssets(base).templates?.[request.panel] ?? null };
         }
         case "addScreenshot": {
           const itemId = await ownedItemId(deps, request.themeId);

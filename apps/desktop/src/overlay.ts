@@ -206,6 +206,17 @@ export class OverlayLayout {
     return [...this.#windows.values()];
   }
 
+  /**
+   * Chromium's developer tools on one overlay, in a window of their own: how
+   * a theme's template came out, which classes to style, and — as
+   * `overlayData` in its console — the data the template was given.
+   */
+  inspect(panel: PanelId): void {
+    const window = this.#windows.get(panel);
+    if (window === undefined || window.isDestroyed()) return;
+    window.webContents.openDevTools({ mode: "detach", activate: true });
+  }
+
   /** Send to every open overlay. */
   broadcast(channel: string, payload: unknown): void {
     for (const window of this.#windows.values()) sendTo(window, channel, payload);
