@@ -136,6 +136,8 @@ export const THEME_FONTS = {
   squared: `"Oxanium", "Bahnschrift", "Segoe UI", system-ui, sans-serif`,
   // A narrow, upright face for captions in capitals (Barlow Condensed, bundled, OFL).
   narrow: `"Barlow Condensed", "Bahnschrift Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif`,
+  // A seven-segment display, as a dashboard's clock (DSEG7, bundled, OFL).
+  segment: `"DSEG7 Classic", "Orbitron", "Segoe UI", system-ui, sans-serif`,
   // The plain Swiss sans of console game menus: Helvetica, or Arial on Windows.
   swiss: `"Helvetica Neue", Helvetica, Arial, "Segoe UI", system-ui, sans-serif`,
   arcade: `"Audiowide", "Orbitron", "Segoe UI", system-ui, sans-serif`,

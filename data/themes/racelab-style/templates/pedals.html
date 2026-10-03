@@ -8,19 +8,19 @@
 -->
 <div class="panel pedals-panel rl-tele">
   <div class="rl-tele-top">
-    <x-shift-lights data-part="revlights"></x-shift-lights>
-    <x-sweep data-part="revlights"></x-sweep>
+    <div class="rl-dots" data-part="revlights"><x-shift-lights count="15" fill="left"></x-shift-lights></div>
     <div class="rl-tele-delta" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
   </div>
   <div class="rl-strip">
     <div class="rl-strip-title"><span>Telemetry</span></div>
-    <div class="rl-graph" data-part="graph"><x-timeline></x-timeline></div>
+    <div class="rl-graph" data-part="graph"><x-timeline fill="0" line-width="3.4" glow="5" smooth></x-timeline></div>
     <div class="rl-pedals" data-part="pedals">
-      <div class="rl-pedal"><span>{{ brake.pct }}</span><div class="rl-pbar brake"><i style="height:{{ brake.pct }}%"></i></div></div>
-      <div class="rl-pedal"><span>{{ throttle.pct }}</span><div class="rl-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div></div>
+      <div class="rl-pedal" data-class="off: !clutch.pct"><span>{{ clutch.pct }}</span><div class="rl-pbar clutch"><i style="height:{{ clutch.pct }}%"></i></div></div>
+      <div class="rl-pedal" data-class="off: !brake.pct"><span>{{ brake.pct }}</span><div class="rl-pbar brake"><i style="height:{{ brake.pct }}%"></i></div></div>
+      <div class="rl-pedal" data-class="off: !throttle.pct"><span>{{ throttle.pct }}</span><div class="rl-pbar throttle"><i style="height:{{ throttle.pct }}%"></i></div></div>
     </div>
     <div class="rl-dial">
-      <div class="rl-dial-ring" data-part="wheel"><x-wheel-dial></x-wheel-dial></div>
+      <div class="rl-dial-ring" data-part="wheel"><x-wheel-dial ring="13" marker="block" track="#0a0a0b"></x-wheel-dial></div>
       <div class="rl-dial-mid">
         <span class="rl-gear">{{ gear }}</span>
         <span class="rl-unit">kph</span>

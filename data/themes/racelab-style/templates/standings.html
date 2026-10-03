@@ -1,41 +1,51 @@
 <!--
-  RaceLab's standings: the race clock and the car count on top; per class a
-  header tab — a dark part with the class's car count, a bright slanted part
-  with its name — its SOF in the class colour and a thin line across in it;
-  each row a position cell, the slanted class stripe and wash behind the
-  name, the iRating in a white box, then a darker block of Gap, Fastest
-  (purple when it is the fastest) and Last. Markers outside the box on the
-  right: a purple stopwatch for the fastest lap, PIT.
+  RaceLab's standings, as two panels side by side: on the left, near-black,
+  the race clock and car count, then per class a tab outlined in the class
+  colour (its car count, then its name on the colour, slanted), its SOF in
+  the colour, and its drivers — position, slanted stripe and wash, name,
+  iRating in a white box; on the right, a lighter grey panel with Gap,
+  Fastest (purple when it is the fastest) and Last, headed once at the top.
+  The class colour runs as a line under each tab across both panels.
+  Markers hang outside on the right: a purple stopwatch for the fastest lap,
+  PIT. Every column can be switched off.
 -->
 <div class="panel standings rl-standings" data-class="is-empty: empty">
-  <div class="rl-box grow rl-st-box">
-    <div class="rl-head" data-part="header">
-      <span><span class="rl-circle">{{ session }}</span> {{ timeRemainS | clock }}</span>
-      <span class="rl-push">⛑ {{ carCount }}</span>
+  <div class="rl-st">
+    <div class="rl-st-line rl-st-top">
+      <div class="rl-st-l rl-head" data-part="header">
+        <span><span class="rl-circle">{{ session }}</span> {{ timeRemainS | clock }}</span>
+        <span class="rl-push">⛑ {{ carCount }}</span>
+      </div>
+      <div class="rl-st-r rl-st-colhead">
+        <span data-if="show.gap" class="rl-c-gap">Gap</span>
+        <span data-if="show.best" class="rl-c-time">Fastest</span>
+        <span data-if="show.last" class="rl-c-time">Last</span>
+      </div>
     </div>
-    <div class="rl-st-list">
-      <x-group data-each="classes">
-        <div class="rl-cls" style="--cls:{{ colour }}">
-          <span class="rl-cls-count">⛑ {{ size }}</span>
-          <span class="rl-cls-name">{{ name | or:CLASS }}</span>
+    <x-group data-each="classes">
+      <div class="rl-st-line rl-st-cls" style="--cls:{{ colour }}">
+        <div class="rl-st-l rl-cls">
+          <span class="rl-cls-tab"><span class="rl-cls-count">⛑ {{ size }}</span><span class="rl-cls-name">{{ name | or:CLASS }}</span></span>
           <span class="rl-cls-sof">SOF {{ sof | or:— }}</span>
-          <span data-if="show.gap" class="rl-cls-col">Gap</span>
-          <span data-if="show.best" class="rl-cls-col">Fastest</span>
-          <span data-if="show.last" class="rl-cls-col">Last</span>
         </div>
-        <div data-each="rows" class="rl-row rl-st-row" data-class="me: isPlayer; pit: onPitRoad" style="--cls:{{ colour }}">
+        <div class="rl-st-r"></div>
+      </div>
+      <div data-each="rows" class="rl-st-line rl-st-row" data-class="me: isPlayer; pit: onPitRoad" style="--cls:{{ colour }}">
+        <div class="rl-st-l rl-row">
           <span class="rl-pos">{{ position }}</span>
           <span class="rl-stripe"></span>
           <span class="rl-name">{{ name }}</span>
           <span data-if="show.irating" class="rl-ir">{{ iRating | irating }}</span>
           <span data-if="show.number" class="rl-num">#{{ carNumber }}</span>
-          <span data-if="show.gap" class="rl-cell">{{ gapS | fixed:1 | or:- }}</span>
-          <span data-if="show.best" class="rl-cell rl-time" data-class="fast: fastest">{{ bestLapS | lapTime }}</span>
-          <span data-if="show.last" class="rl-cell rl-time">{{ lastLapS | lapTime }}</span>
+        </div>
+        <div class="rl-st-r">
+          <span data-if="show.gap" class="rl-c-gap">{{ gapS | fixed:1 | or:- }}</span>
+          <span data-if="show.best" class="rl-c-time" data-class="fast: fastest">{{ bestLapS | lapTime }}</span>
+          <span data-if="show.last" class="rl-c-time">{{ lastLapS | lapTime }}</span>
           <span class="rl-side"><x-group data-if="fastest"><i class="rl-fast">⏱</i></x-group><x-group data-if="onPitRoad"><i class="rl-pit">PIT</i></x-group></span>
         </div>
-      </x-group>
-    </div>
+      </div>
+    </x-group>
   </div>
   <div class="empty">{{ empty }}</div>
 </div>

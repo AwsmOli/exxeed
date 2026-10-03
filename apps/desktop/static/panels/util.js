@@ -308,20 +308,34 @@ export function roundRect(ctx, x, y, w, h, radius) {
  * The shaded area chart both comparison panels use: a line with a soft fill
  * under it, fading to nothing at the bottom of its lane.
  */
-export function areaLine(ctx, points, top, bottom, colour, fillAlpha, width) {
+export function areaLine(ctx, points, top, bottom, colour, fillAlpha, width, opts = {}) {
   if (points.length < 2) return;
   ctx.beginPath();
   ctx.moveTo(points[0][0], points[0][1]);
-  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  if (opts.smooth) {
+    // Through the midpoints, each sample a control point: a smooth line, as
+    // RaceLab draws its traces, instead of the steps of the raw samples.
+    for (let i = 1; i < points.length - 1; i++) {
+      const [x, y] = points[i];
+      const [nx, ny] = points[i + 1];
+      ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+    }
+    ctx.lineTo(points[points.length - 1][0], points[points.length - 1][1]);
+  } else {
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+  }
   ctx.strokeStyle = colour;
   ctx.lineWidth = width;
   ctx.lineJoin = "round";
-  // A theme that glows more than the default (Synthwave) gets a neon line.
-  // The default's 6px is for small lit things, not every trace.
-  if (COLORS.glow > 6) {
+  ctx.lineCap = "round";
+  // A theme that glows more than the default (Synthwave) gets a neon line,
+  // and so does a block asked for one. The default's 6px is for small lit
+  // things, not every trace.
+  const glow = opts.glow ?? (COLORS.glow > 6 ? width * 3.5 : 0);
+  if (glow > 0) {
     ctx.save();
     ctx.shadowColor = colour;
-    ctx.shadowBlur = width * 3.5;
+    ctx.shadowBlur = glow;
     ctx.stroke();
     ctx.restore();
   }

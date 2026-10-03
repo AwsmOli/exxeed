@@ -32,6 +32,12 @@
 /* Two more, same licence: Oxanium's squared digits and Barlow Condensed's
    narrow capitals, for themes that name "squared" and "narrow". */
 @font-face {
+  font-family: "DSEG7 Classic";
+  src: url("./fonts/DSEG7Classic-Bold.ttf") format("truetype");
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
   font-family: "Oxanium";
   src: url("./fonts/Oxanium.ttf") format("truetype");
   font-weight: 200 800;

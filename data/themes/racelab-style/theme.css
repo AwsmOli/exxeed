@@ -1,241 +1,263 @@
 /* RaceLab style: what its tokens cannot say.
 
-   Built after RaceLab's own overlays: near-black boxes with a rounded frame,
-   bold geometric type, the class colour as a slanted stripe with a wash
-   behind the name, two-part licence chips, white iRating boxes, your row as
-   an olive-gold band, markers outside the box, a TELEMETRY strip with a
-   rounded dial at its end and a round delta dial. */
+   Built after RaceLab's own overlays (racelab.app): near-black boxes with a
+   thin rounded frame, bold geometric type with a drop shadow, the class
+   colour as a slanted stripe with a wash behind the name, two-part licence
+   chips, white iRating boxes, your row as an olive-gold band, markers
+   hanging outside the box, a TELEMETRY strip with a rounded dial at its
+   end, a glowing round delta dial and a fuel calculator. */
 
-.rl-box { display: flex; flex-direction: column; min-height: 0; padding: 6px 8px; background: var(--card); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); }
-/* Room outside the box for the markers RaceLab hangs beside a row: left on
-   Relatives, right on Standings. The gutter is the scene, not the box. */
-.rl-relative { padding-left: 36px; }
-.rl-standings { padding-right: 34px; }
-.rl-head, .rl-foot { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 700; color: #fff; flex: none; padding: 0 2px 5px; }
-.rl-foot { padding: 5px 2px 0; font-size: 14px; }
+/* -- Shared ------------------------------------------------------------------- */
+
+.rl-box { display: flex; flex-direction: column; min-height: 0; padding: 6px 8px 6px; background: #151517; border-radius: 10px; border: 1.5px solid #2c2c2f; }
+.rl-head, .rl-foot { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 700; color: #fff; flex: none; padding: 2px 4px 6px; }
+.rl-foot { padding: 6px 4px 1px; font-size: 14px; }
 .rl-push { margin-left: auto; }
 .rl-dim { color: rgba(255, 255, 255, 0.45); }
-.rl-tag { display: inline-block; padding: 0 4px; border: 1.5px solid rgba(255, 255, 255, 0.5); border-radius: 3px; font-size: 11px; color: rgba(255, 255, 255, 0.6); vertical-align: middle; }
-/* Rows share the box's height, up to their own. Clipped top and bottom, but
-   not at the sides: the markers sit outside the box. */
+.rl-tag { display: inline-block; padding: 0 4px; border: 1.5px solid rgba(255, 255, 255, 0.45); border-radius: 3px; font-size: 11px; color: rgba(255, 255, 255, 0.55); vertical-align: middle; }
+.rl-circle { display: inline-flex; width: 20px; height: 20px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; color: rgba(255, 255, 255, 0.75); vertical-align: middle; }
+/* RaceLab's type sits on the scene with a hard drop shadow. */
+.rl-name, .rl-gap, .rl-pos, .rl-head, .rl-foot, .rl-c-gap, .rl-c-time { text-shadow: 0 2px 2px rgba(0, 0, 0, 0.8); }
+
+/* -- A row: position cell, slanted edge, stripe and wash, name ------------------- */
+
 .rl-rows { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 2px; overflow-x: visible; overflow-y: clip; }
-.rl-row { position: relative; display: grid; grid-template-columns: 38px 18px minmax(60px, 1fr) auto auto 52px; align-items: center; column-gap: 8px; height: auto; flex: 1 1 0; min-height: 20px; max-height: 30px; background: #141416; font-size: 15px; font-weight: 700; color: #fff; }
+/* Relatives' rows sit in an inner panel with its own thin frame. */
+.rl-inner { padding: 2px; border: 1.5px solid #2a2a2d; border-radius: 6px; background: #0e0e10; }
+.rl-row {
+  position: relative; display: grid; grid-template-columns: 40px 20px minmax(60px, 1fr) auto auto 56px; align-items: center; column-gap: 8px;
+  height: auto; flex: 1 1 0; min-height: 20px; max-height: 32px;
+  background: linear-gradient(180deg, #1d1d20, #151517); font-size: 16px; font-weight: 700; color: #fff;
+}
 .rl-row.pit { opacity: 0.45; }
-/* Markers outside the box, to the left. */
-.rl-mark { position: absolute; left: -44px; top: 2px; bottom: 2px; width: 30px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
-.rl-mark:not(:empty) { background: #fff; color: #111; }
-.rl-pos { text-align: center; background: #1b1b1d; align-self: stretch; display: flex; align-items: center; justify-content: center; }
-/* The class colour: a slanted stripe and a wash behind the name. */
+/* The position cell ends in a slant, where the class's wash begins. */
+.rl-pos { align-self: stretch; display: flex; align-items: center; justify-content: center; background: #19191b; clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%); font-variant-numeric: tabular-nums; }
 .rl-stripe { align-self: stretch; position: relative; }
-.rl-stripe::before { content: ""; position: absolute; left: 6px; top: 7px; bottom: 7px; width: 4px; background: var(--cls); transform: skewX(-14deg); }
-.rl-row::before { content: ""; position: absolute; left: 34px; top: 0; bottom: 0; width: 34%; background: linear-gradient(90deg, color-mix(in srgb, var(--cls) 32%, transparent), transparent); clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%); pointer-events: none; }
+.rl-stripe::before { content: ""; position: absolute; left: 4px; top: 22%; bottom: 22%; width: 5px; border-radius: 1px; background: var(--cls); transform: skewX(-14deg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.rl-row::before {
+  content: ""; position: absolute; left: 34px; top: 0; bottom: 0; width: 30%; pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--cls) 34%, transparent), transparent);
+  clip-path: polygon(7px 0, 100% 0, 100% 100%, 0 100%);
+}
 .rl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: relative; }
 /* Licence: the safety rating on a dark shade of the licence colour, then the letter on the colour. */
-.rl-lic { display: inline-flex; height: 22px; font-size: 13px; }
-.rl-lic b { padding: 0 6px; display: flex; align-items: center; background: color-mix(in srgb, var(--lic) 45%, #101010); }
+.rl-lic { display: inline-flex; height: 22px; font-size: 13px; border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.rl-lic b { padding: 0 6px; display: flex; align-items: center; background: color-mix(in srgb, var(--lic) 42%, #0f0f10); }
 .rl-lic i { font-style: normal; padding: 0 6px; display: flex; align-items: center; background: var(--lic); }
-.rl-ir { height: 22px; padding: 0 7px; display: flex; align-items: center; background: #fff; color: #111; font-size: 13px; border-radius: 2px; }
-.rl-gap { text-align: right; padding-right: 8px; font-size: 16px; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; }
-.rl-row.lapping .rl-gap { background: linear-gradient(90deg, transparent, rgba(160, 20, 20, 0.85)); }
+.rl-ir { height: 22px; padding: 0 8px; display: flex; align-items: center; background: #fff; color: #111; font-size: 13px; border-radius: 3px; text-shadow: none; }
+.rl-gap { text-align: right; padding-right: 10px; font-size: 17px; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.rl-row.lapping .rl-gap { background: linear-gradient(90deg, transparent, rgba(150, 18, 18, 0.9)); }
 .rl-row.lapped .rl-name, .rl-row.lapped .rl-gap { color: var(--lap-behind); }
 .rl-row.me { background: var(--me-bg); }
-.rl-row.me .rl-pos { background: transparent; }
+.rl-row.me .rl-pos { background: color-mix(in srgb, var(--me-bg) 80%, #000); }
+.rl-row.me::before { display: none; }
 
-/* -- Standings ----------------------------------------------------------------- */
+/* -- Relatives ------------------------------------------------------------------ */
 
-.rl-st-box { padding: 6px 8px; }
-.rl-circle { display: inline-flex; width: 20px; height: 20px; border: 1.5px solid rgba(255, 255, 255, 0.6); border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; color: rgba(255, 255, 255, 0.75); vertical-align: middle; }
-/* Not clipped sideways: the markers sit outside the box. */
-.rl-st-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; flex: 1 1 auto; overflow-x: visible; overflow-y: clip; }
-/* A class header: a dark part with the car count, a bright slanted part with the name. */
-.rl-cls {
-  display: flex; align-items: stretch; height: 24px; margin-top: 4px; flex: none; font-size: 13px; font-weight: 700;
-  border-bottom: 1.5px solid var(--cls);
-}
-.rl-cls-count { display: flex; align-items: center; padding: 0 10px; background: color-mix(in srgb, var(--cls) 30%, #0c0c0c); color: var(--cls); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
-.rl-cls-name { display: flex; align-items: center; padding: 0 22px 0 14px; margin-left: -6px; background: var(--cls); color: #111; clip-path: polygon(6px 0, 100% 0, calc(100% - 10px) 100%, 0 100%); }
-.rl-cls-sof { margin-left: auto; display: flex; align-items: center; padding-right: 10px; color: var(--cls); }
-.rl-cls-col { width: 86px; display: flex; align-items: center; color: rgba(255, 255, 255, 0.75); font-weight: 600; background: #232325; padding-left: 8px; }
-.rl-cls-col:first-of-type { width: 52px; }
-.rl-st-row { display: flex; height: 26px; flex: none; min-height: 0; max-height: none; font-size: 14px; column-gap: 0; }
-.rl-st-row .rl-pos { width: 34px; flex: none; }
-.rl-st-row .rl-stripe { width: 16px; flex: none; }
-.rl-st-row .rl-name { flex: 1; min-width: 0; padding-left: 6px; }
-.rl-st-row .rl-ir { margin: 0 6px; height: 19px; font-size: 12px; flex: none; }
-.rl-num { width: 40px; flex: none; color: rgba(255, 255, 255, 0.55); font-size: 12px; text-align: center; }
-/* The darker block of gap, fastest and last. */
-.rl-cell { flex: none; width: 86px; align-self: stretch; display: flex; align-items: center; padding-left: 8px; background: #232325; font-weight: 600; }
-.rl-st-row .rl-cell:first-of-type { width: 52px; }
-.rl-time { font-variant-numeric: tabular-nums; }
-.rl-cell.fast { color: #d65bff; background: #19191b; }
-.rl-st-row.me .rl-cell { background: color-mix(in srgb, var(--me-bg) 85%, #232325); }
-/* Markers outside the box, on the right. */
-.rl-side { position: absolute; right: -40px; top: 2px; bottom: 2px; width: 28px; display: flex; }
-.rl-side i { font-style: normal; flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+/* Room outside the box for the markers RaceLab hangs beside a row. */
+.rl-relative { padding-left: 38px; }
+.rl-mark { position: absolute; left: -46px; top: 1px; bottom: 1px; width: 32px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+.rl-mark.pit { background: #fff; color: #111; }
+.rl-mark.you { background: #111; }
+.rl-mark.you i { width: 14px; height: 14px; border-radius: 50%; background: #f37a1f; }
+
+/* -- Standings: two panels side by side ---------------------------------------------- */
+
+.rl-standings { padding-right: 36px; }
+.rl-st { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 4px; min-height: 0; overflow-x: visible; overflow-y: clip; }
+.rl-st > x-group { display: contents; }
+.rl-st-line { display: contents; }
+.rl-st-l { background: #151517; min-width: 0; }
+.rl-st-r { background: #27272a; display: flex; align-items: stretch; }
+.rl-st-top .rl-st-l { border-radius: 10px 0 0 0; padding: 6px 10px; }
+.rl-st-top .rl-st-r { border-radius: 10px 10px 0 0; margin-top: 18px; align-items: center; }
+.rl-st-colhead span { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.85); padding-left: 10px; }
+.rl-c-gap { width: 58px; flex: none; display: flex; align-items: center; padding-left: 10px; font-weight: 700; color: #fff; }
+.rl-c-time { width: 96px; flex: none; display: flex; align-items: center; padding-left: 10px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-c-time.fast { color: #d65bff; background: #161618; }
+/* A class: a tab outlined in its colour — car count, then its name on the colour — and a line across both panels. */
+.rl-st-cls > div { border-bottom: 2px solid var(--cls); }
+.rl-cls { display: flex; align-items: center; height: 30px; padding: 3px 6px 0 4px; }
+.rl-cls-tab { display: flex; align-self: stretch; border: 2px solid var(--cls); border-bottom: 0; clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%); }
+.rl-cls-count { display: flex; align-items: center; padding: 0 10px; background: color-mix(in srgb, var(--cls) 22%, #0c0c0c); color: #fff; font-size: 13px; font-weight: 700; }
+.rl-cls-name { display: flex; align-items: center; padding: 0 22px 0 12px; background: var(--cls); color: #111; font-size: 14px; font-weight: 800; clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%); margin-left: -8px; }
+.rl-cls-sof { margin-left: auto; color: var(--cls); font-size: 14px; font-weight: 700; }
+/* Rows separated by a dark line in each panel, not by a gap onto the scene. */
+.rl-st-row > .rl-st-l { display: flex; align-items: center; gap: 0; height: 32px; border-top: 2px solid #0c0c0e; font-size: 16px; }
+.rl-st-row > .rl-st-r { height: 32px; border-top: 2px solid #1b1b1d; }
+.rl-st-row .rl-row { max-height: none; }
+.rl-st-row > .rl-st-l.rl-row { display: flex; }
+.rl-st-row .rl-pos { width: 38px; flex: none; }
+.rl-st-row .rl-stripe { width: 20px; flex: none; }
+.rl-st-row .rl-name { flex: 1; min-width: 0; padding-left: 4px; }
+.rl-st-row .rl-ir { margin: 0 6px; height: 21px; font-size: 12.5px; flex: none; }
+.rl-num { width: 40px; flex: none; color: rgba(255, 255, 255, 0.5); font-size: 12px; text-align: center; }
+.rl-st-row.me > div { background: var(--me-bg); }
+.rl-st-row.me .rl-c-time.fast { background: color-mix(in srgb, var(--me-bg) 70%, #000); }
+.rl-st-row.pit > div { opacity: 0.45; }
+/* Markers outside the right panel, beside their row. */
+.rl-st-row > .rl-st-r { position: relative; }
+.rl-side { position: absolute; right: -38px; top: 0; bottom: 0; width: 32px; display: flex; }
+.rl-side i { font-style: normal; flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
 .rl-fast { background: #8a2be2; color: #fff; }
 .rl-pit { background: #fff; color: #111; }
 
-/* -- The TELEMETRY strip (Input Telemetry, Essential Inputs) -------------------- */
+/* -- The TELEMETRY strip (Input Telemetry) ---------------------------------------- */
 
 .rl-tele { gap: 4px; justify-content: flex-end; }
-.rl-tele-top { display: flex; align-items: flex-end; gap: 8px; flex: none; }
-.rl-tele-top > x-shift-lights { flex: 1; margin: 0 0 4px; }
+.rl-tele-top { display: flex; align-items: center; gap: 8px; flex: none; }
+.rl-tele-top .rl-dots { flex: 1; max-width: 360px; }
 .rl-tele-delta { margin-left: auto; padding: 3px 12px; background: #141416; border-radius: 6px; font-size: 18px; font-weight: 800; color: #fff; }
 .rl-tele-delta.good { color: #2ff436; }
 .rl-tele-delta.bad { color: #ff2a2a; }
-/* The strip: a red edge with the title up it, the right end rounded round the dial. */
 .rl-strip {
   flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; gap: 10px; padding: 8px 8px 8px 0;
-  background: #262628; border-radius: 0 999px 999px 0; box-shadow: inset 6px 0 0 #e8150f;
+  background: #262628; border-radius: 0 999px 999px 0; box-shadow: inset 7px 0 0 #e8150f;
 }
-.rl-strip-title { width: 30px; flex: none; display: flex; align-items: center; justify-content: center; margin-left: 6px; }
-.rl-strip-title span { transform: rotate(-90deg); font-size: 15px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; white-space: nowrap; }
-.rl-graph { flex: 1 1 auto; min-width: 60px; background: #121214; border: 1.5px solid #0a0a0a; }
+.rl-strip-title { width: 30px; flex: none; display: flex; align-items: center; justify-content: center; margin-left: 7px; }
+.rl-strip-title span { transform: rotate(-90deg); font-family: "Roboto", "Segoe UI", var(--font); font-size: 15px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: #fff; white-space: nowrap; }
+.rl-graph { flex: 1 1 auto; min-width: 60px; background: #1a1a1c; border: 2px solid #0a0a0b; }
 .rl-pedals { display: flex; gap: 6px; flex: none; }
 .rl-pedal { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 26px; }
-.rl-pedal > span { font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.85); font-variant-numeric: tabular-nums; }
-.rl-pbar { position: relative; flex: 1; width: 100%; background: #161618; border: 1.5px solid #0a0a0a; }
+.rl-pedal > span { font-size: 13px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-pedal.off > span { color: rgba(255, 255, 255, 0.25); }
+.rl-pbar { position: relative; flex: 1; width: 100%; background: #1d1d1f; border: 2px solid #0a0a0b; }
 .rl-pbar > i { position: absolute; left: 0; right: 0; bottom: 0; }
-.rl-pbar.clutch > i { background: #5b8cff; }
-.rl-pbar.brake > i { background: #db0303; }
-/* Throttle green with RaceLab's diagonal stripes. */
-.rl-pbar.throttle > i { background: repeating-linear-gradient(135deg, #09b61a 0 6px, #22c832 6px 12px); }
-.rl-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 120px; align-self: center; border-radius: 50%; background: #111113; }
+.rl-pbar.clutch > i { background: #4d7bff; }
+.rl-pbar.brake > i { background: #e01010; }
+/* Throttle green, with RaceLab's faint diagonal stripes. */
+.rl-pbar.throttle > i { background: repeating-linear-gradient(160deg, #10b81e 0 9px, #22c62f 9px 14px); }
+.rl-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 130px; align-self: center; border-radius: 50%; background: #1e1e20; }
 .rl-dial-ring { position: absolute; inset: 0; }
 .rl-dial-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
-.rl-gear { font-size: 34px; font-weight: 800; color: #fff; }
-.rl-unit { font-size: 11px; font-weight: 700; color: #fff; margin-top: 2px; }
-.rl-speed { font-size: 16px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
-.rl-ref { font-size: 9px; font-weight: 600; color: rgba(255, 255, 255, 0.55); margin-top: 2px; white-space: nowrap; }
-.rl-ffb { flex: none; padding: 0 60px 0 40px; }
+.rl-gear { font-family: "Roboto", "Segoe UI", var(--font); font-size: 40px; font-weight: 800; color: #fff; }
+/* Inside the telemetry dial's thick ring, a size down so the gear clears it. */
+.rl-dial .rl-gear { font-size: 30px; }
+.rl-dial .rl-dial-mid { padding-top: 6px; }
+.rl-unit { font-size: 12px; font-weight: 700; color: #fff; margin-top: 2px; }
+.rl-speed { font-size: 18px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-ref { font-size: 9px; font-weight: 600; color: rgba(255, 255, 255, 0.5); margin-top: 2px; white-space: nowrap; }
+.rl-ffb { flex: none; padding: 0 70px 0 44px; }
 .rl-ffb .pill-h { height: 3px; }
-.rl-ffb .pill-h > i { background: rgba(255, 255, 255, 0.7); }
-
-/* -- Delta --------------------------------------------------------------------- */
-
-.rl-delta { flex-direction: row !important; align-items: center; gap: 14px; }
-.rl-delta-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 160px; container-type: size; border-radius: 50%; background: repeating-linear-gradient(135deg, #1a1a1c 0 3px, #141416 3px 6px); box-shadow: 0 0 0 2px #0c0c0e; }
-.rl-delta-dial x-delta-dial { position: absolute; inset: 0; }
-.rl-delta-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-/* Sized from the dial, so the number's box always fits inside it. */
-.rl-delta-mid { gap: 3cqh; }
-.rl-delta-cap { font-size: max(8px, 9cqh); font-weight: 700; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
-.rl-delta-num { font-size: 19cqh; font-weight: 800; padding: 2cqh 5cqh; max-width: 86cqw; background: #0c0c0e; border-radius: 6px; color: #fff; white-space: nowrap; }
-.rl-delta-num.good { color: #2ff436; }
-.rl-delta-num.bad { color: #ff2a2a; }
-.rl-laps { display: flex; gap: 4cqw; min-width: 0; overflow: hidden; flex: 1 1 auto; max-width: 520px; padding: 6px 16px; background: rgba(12, 12, 14, 0.92); border-radius: 8px; box-shadow: inset 3px 0 0 #f0a020; align-self: center; }
-.rl-delta { container-type: inline-size; }
-.rl-lap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; }
-.rl-lap { flex: 0 1 auto; min-width: 0; }
-.rl-lap b { font-size: clamp(12px, 6.2cqw, 20px); font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
-.rl-lap span { font-size: 9px; font-weight: 700; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); letter-spacing: 0.04em; }
-.rl-predicted.good b { color: #2ff436; }
-.rl-predicted.bad b { color: #ff2a2a; }
-
-/* -- Fuel calculator -------------------------------------------------------------- */
-
-.rl-fuel-box { padding: 0 12px 10px; gap: 10px; box-shadow: inset 0 6px 0 #d00; border-radius: 0; }
-.rl-fuel-title { text-align: center; font-size: 15px; font-weight: 700; text-transform: uppercase; padding-top: 14px; flex: none; color: #fff; }
-.rl-fuel-top { display: flex; gap: 10px; align-items: stretch; flex: none; }
-/* The status box: SPARE or SHORT on its colour, the margin beside it, both framed in it. */
-.rl-status { display: flex; border: 2px solid var(--st); flex: none; --st: #09b61a; }
-.rl-status.short { --st: #db0303; }
-.rl-status > b { background: var(--st); color: #fff; padding: 4px 10px; font-size: 16px; font-weight: 800; display: flex; align-items: center; text-transform: uppercase; }
-.rl-status > span { padding: 4px 12px; font-size: 22px; font-weight: 800; color: #fff; display: flex; align-items: center; }
-.rl-level { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.rl-level-bar { position: relative; height: 22px; background: #1e1e20; border: 3px solid #2a2a2c; }
-.rl-level-bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
-.rl-level-scale { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #fff; }
-.rl-level-scale b { font-size: 15px; }
-.rl-fuel-table { display: grid; grid-template-columns: auto 1fr 1fr 1fr; row-gap: 2px; column-gap: 10px; flex: none; align-items: center; }
-.rl-fuel-table > span:nth-child(4n + 1) { min-width: 56px; }
-.rl-fuel-table > span { font-size: 15px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; padding: 2px 4px; }
-.rl-fuel-table > .rl-th { font-size: 12px; text-transform: uppercase; }
-.rl-fuel-table > .rl-rh { font-size: 13px; text-transform: uppercase; }
-/* The "until empty" readouts: green-framed, a digital readout in the middle. */
-.rl-until { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border: 2px solid #2ff436; border-radius: 4px; flex: none; }
-.rl-until > span:first-child { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #fff; flex: 1; }
-.rl-until > b { font-family: var(--num-font); font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
-.rl-until > i { font-style: normal; font-size: 15px; font-weight: 800; color: #ff2a2a; min-width: 60px; text-align: right; }
-.rl-until > i.good { color: #2ff436; }
-
-/* -- Weather: stacked cards ------------------------------------------------------- */
-
-.rl-weather { gap: 10px; padding: 10px; background: #111113; border: 1.5px solid #2a2a2c; border-radius: 16px; }
-.rl-wx-card {
-  display: flex; flex-direction: column; gap: 6px; padding: 10px 16px; flex: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 40%), #141416;
-  border: 1.5px solid #333336; border-radius: 10px;
-}
-.rl-wx-card > span { font-size: 13px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.9); }
-.rl-wx-card > b { display: flex; align-items: center; gap: 14px; font-size: 34px; font-weight: 500; color: #fff; }
-.rl-wx-card > b x-icon { color: rgba(255, 255, 255, 0.75); transform: scale(1.8); transform-origin: left center; margin-right: 18px; }
-.rl-wx-wind { flex: 0 1 auto; min-height: 0; align-items: center; }
-.rl-compass { position: relative; width: min(100%, 150px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #19191b, #0d0d0f); border: 1.5px solid #333336; }
-.rl-compass > span { position: absolute; font-size: 14px; color: rgba(255, 255, 255, 0.45); transform: translate(-50%, -50%); }
-.rl-compass svg { position: absolute; inset: 18%; width: 64%; height: 64%; }
-.rl-wind-speed { font-size: 28px !important; }
-
-/* -- Minimap: a striped disc ------------------------------------------------------ */
-
-.rl-minimap x-minimap { border-radius: 50%; background: repeating-linear-gradient(135deg, #1c1c1e 0 4px, #161618 4px 8px); box-shadow: inset 0 0 0 2px #2a2a2c; }
-
-/* -- Delta sectors: rows like the Relative's ---------------------------------------- */
-
-.rl-sec-row { display: grid; grid-template-columns: 44px 18px 1fr auto; }
-.rl-sec-row .rl-pos { font-size: 14px; }
-.rl-sec-row .rl-name { font-variant-numeric: tabular-nums; }
-.rl-sec-row .rl-gap { padding-right: 10px; min-width: 76px; }
-/* The sector's colour is how it went: green gained, red lost, white still to drive. */
-.rl-sec-row { --cls: #9a9a9e; }
-.rl-sec-row.good { --cls: #2ff436; }
-.rl-sec-row.bad { --cls: #ff2a2a; }
-.rl-sec-row.good .rl-gap { color: #2ff436; }
-.rl-sec-row.bad .rl-gap { color: #ff2a2a; }
-.rl-sec-row.live { background: #1e1e21; }
-.rl-sec-row.live .rl-pos { color: var(--yellow); }
+.rl-ffb .pill-h > i { background: rgba(255, 255, 255, 0.6); }
 
 /* -- The dashboard (Essential Inputs) and the dots (Rev Lights) ------------------- */
 
 .rl-dash { gap: 0; align-items: stretch; justify-content: center; }
-.rl-dash-pill {
-  position: relative; display: flex; align-items: center; gap: 14px; height: 100px; flex: none;
-  padding: 0 34px 0 6px; background: #000; border-radius: 999px;
-}
-.rl-gear-ring { position: relative; width: 104px; height: 104px; flex: none; margin: -2px 0; }
+.rl-dash-pill { position: relative; display: flex; align-items: center; gap: 14px; height: 100px; flex: none; padding: 0 34px 0 6px; background: #000; border-radius: 999px; }
+.rl-gear-ring { position: relative; width: 104px; height: 104px; flex: none; margin: -2px 0; border-radius: 50%; background: #1d1d1f; }
 .rl-gear-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(135deg); }
 .rl-gear-ring circle { fill: none; stroke-width: 7; }
-.rl-ring-track { stroke: #3a3a3d; }
-.rl-ring-fill { stroke: #42d63a; transition: stroke-dasharray 60ms linear; }
+.rl-ring-track { stroke: #6a6a6e; }
+.rl-ring-fill { stroke: #42d63a; }
 .rl-gear-ring .rl-gear { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 42px; }
 .rl-dash-mid { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-/* Round dots, along from the left. */
-.rl-dash-mid .shift, .rl-revlights .shift { gap: 6px; margin: 0; padding: 0; }
-.rl-dash-mid .shift i, .rl-revlights .shift i { height: auto; aspect-ratio: 1; border-radius: 50%; background: #8e8e92; }
+/* Round dots, along from the left; lit ones glow. */
+.rl-dash-mid .shift, .rl-dots .shift { gap: 6px; margin: 0; padding: 0; }
+.rl-dash-mid .shift i, .rl-dots .shift i { height: auto; aspect-ratio: 1; border-radius: 50%; background: #8e8e92; }
 .rl-dash-vals { display: flex; gap: 22px; }
 .rl-dash-vals > span { display: flex; flex-direction: column; line-height: 1.05; }
 .rl-dash-vals small { font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
 .rl-dash-vals b { font-size: 26px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; min-width: 2.2em; }
 .rl-dash-pos { font-size: 40px; font-weight: 800; color: #f2903c; flex: none; }
-/* The small pill hanging under it: track and air temperature, the last lap. */
-.rl-dash-sub {
-  align-self: flex-start; display: flex; align-items: center; gap: 14px; margin: -8px 0 0 70px; padding: 4px 14px;
-  background: #2a2a2d; border: 1.5px solid #4a4a4e; border-radius: 999px; font-size: 14px; font-weight: 700; color: #fff; z-index: 1;
-}
+.rl-dash-sub { align-self: flex-start; display: flex; align-items: center; gap: 14px; margin: -8px 0 0 70px; padding: 4px 14px; background: #2a2a2d; border: 1.5px solid #4a4a4e; border-radius: 999px; font-size: 14px; font-weight: 700; color: #fff; z-index: 1; }
 .rl-dash-sub x-icon { color: rgba(255, 255, 255, 0.75); margin-right: 4px; }
 .rl-revlights { justify-content: center; }
-.rl-revlights .rl-dots { background: #000; border-radius: 999px; padding: 8px 14px; }
+.rl-dots { background: #000; border-radius: 999px; padding: 8px 14px; }
 
-/* -- Tyres ------------------------------------------------------------------------ */
+/* -- Delta ------------------------------------------------------------------------ */
+
+.rl-delta { flex-direction: row !important; align-items: center; gap: 14px; container-type: inline-size; }
+.rl-delta-dial { position: relative; flex: none; aspect-ratio: 1; height: 100%; max-height: 170px; container-type: size; border-radius: 50%; background: repeating-linear-gradient(135deg, #1b1b1d 0 3px, #141416 3px 6px); box-shadow: 0 0 0 2px #0c0c0e, inset 0 0 0 9cqh #101012; }
+.rl-delta-dial x-delta-dial { position: absolute; inset: 0; }
+/* The small white diamond where the ring starts. */
+.rl-diamond { position: absolute; left: 50%; top: 2.5cqh; width: 7cqh; height: 7cqh; border: 1.5px solid #fff; background: #111; transform: translateX(-50%) rotate(45deg); }
+.rl-delta-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3cqh; }
+.rl-delta-cap { font-size: max(8px, 9cqh); font-weight: 700; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; }
+.rl-delta-num { font-size: 19cqh; font-weight: 800; padding: 2cqh 5cqh; max-width: 86cqw; background: #0c0c0e; border-radius: 6px; color: #fff; white-space: nowrap; }
+.rl-delta-num.good { color: #2ff436; }
+.rl-delta-num.bad { color: #ff2a2a; }
+.rl-laps { display: flex; gap: 4cqw; min-width: 0; overflow: hidden; flex: 1 1 auto; max-width: 520px; padding: 6px 16px; background: rgba(10, 10, 12, 0.94); border-radius: 8px; box-shadow: inset 3px 0 0 #f0a020; align-self: center; }
+.rl-lap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.05; flex: 0 1 auto; min-width: 0; }
+.rl-lap b { font-size: clamp(12px, 6.2cqw, 20px); font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-lap span { font-size: 9px; font-weight: 700; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); letter-spacing: 0.04em; }
+.rl-predicted.good b { color: #2ff436; }
+.rl-predicted.bad b { color: #ff2a2a; }
+
+/* -- Delta sectors: rows like the Relative's --------------------------------------- */
+
+.rl-sec-row { grid-template-columns: 48px 20px 1fr auto; }
+.rl-sec-row .rl-pos { font-size: 14px; }
+.rl-sec-row .rl-name { font-variant-numeric: tabular-nums; }
+.rl-sec-row .rl-gap { min-width: 80px; }
+.rl-sec-row { --cls: #9a9a9e; }
+.rl-sec-row.good { --cls: #2ff436; }
+.rl-sec-row.bad { --cls: #ff2a2a; }
+.rl-sec-row.good .rl-gap { color: #2ff436; }
+.rl-sec-row.bad .rl-gap { color: #ff2a2a; }
+.rl-sec-row.live { background: #212124; }
+.rl-sec-row.live .rl-pos { color: var(--yellow); }
+.rl-laps-rows { margin-top: 6px; flex: none; }
+
+/* -- Fuel calculator ---------------------------------------------------------------- */
+
+.rl-fuel-box { padding: 0 0 10px; gap: 10px; box-shadow: inset 0 7px 0 #d00; border-radius: 0; border: 0; background: #111113; }
+.rl-fuel-title { text-align: center; font-size: 15px; font-weight: 700; text-transform: uppercase; padding-top: 16px; flex: none; color: #fff; }
+.rl-fuel-top { display: flex; gap: 12px; align-items: stretch; flex: none; padding: 0 10px; }
+.rl-status { display: flex; border: 2px solid var(--st); flex: none; --st: #10b81e; }
+.rl-status.short { --st: #db0303; }
+.rl-status > b { background: var(--st); color: #fff; padding: 4px 12px; font-size: 17px; font-weight: 800; display: flex; align-items: center; text-transform: uppercase; }
+.rl-status > span { padding: 4px 14px; font-size: 22px; font-weight: 800; color: #fff; display: flex; align-items: center; }
+.rl-level { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rl-level-bar { position: relative; height: 18px; background: #1b1b1d; border: 3px solid #2c2c2f; }
+.rl-level-bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
+.rl-level-scale { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff; }
+.rl-level-scale b { font-size: 16px; }
+.rl-fuel-table { display: flex; flex-direction: column; flex: none; }
+.rl-frow { display: grid; grid-template-columns: 64px 1fr 1fr 1fr; align-items: center; padding: 3px 10px; }
+.rl-frow > span { font-size: 18px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.rl-frow > .rl-rh { font-size: 14px; text-transform: uppercase; }
+.rl-fhead > span { font-size: 14px; text-transform: uppercase; }
+/* RaceLab marks the row the strategy uses — here, the worst case. */
+.rl-frow.hl { background: #262628; }
+.rl-until { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin: 0 10px; border: 2px solid #2ff436; border-radius: 4px; flex: none; }
+.rl-until > span:first-child { font-size: 14px; font-weight: 700; text-transform: uppercase; color: #fff; flex: 1; }
+/* The seven-segment readout. */
+.rl-until > b { font-family: "DSEG7 Classic", var(--num-font); font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.04em; }
+.rl-until > i { font-style: normal; font-size: 15px; font-weight: 800; color: #ff2a2a; min-width: 60px; text-align: right; }
+.rl-until > i.good { color: #2ff436; }
+
+/* -- Weather: stacked cards ---------------------------------------------------------- */
+
+.rl-weather { gap: 10px; padding: 10px; background: #111113; border: 1.5px solid #2c2c2f; border-radius: 18px; align-self: flex-start; width: 100%; height: auto !important; }
+.rl-wx-card {
+  display: flex; flex-direction: column; gap: 4px; padding: 10px 16px 12px; flex: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 45%), #141416;
+  border: 1.5px solid #333336; border-radius: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.rl-wx-card > span { font-size: 14px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.9); }
+.rl-wx-card > b { display: flex; align-items: center; gap: 16px; font-size: 40px; font-weight: 400; color: #fff; }
+.rl-wx-card > b x-icon { color: rgba(255, 255, 255, 0.7); transform: scale(2); transform-origin: left center; margin-right: 22px; }
+.rl-wx-air > b x-icon { color: #fbbf24; }
+.rl-wx-wind { align-items: center; }
+.rl-wx-wind > span { align-self: flex-start; }
+.rl-compass { position: relative; width: min(100%, 170px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #19191b, #0b0b0d); border: 1.5px solid #333336; margin: 4px 0; }
+.rl-compass > span { position: absolute; font-size: 18px; color: rgba(255, 255, 255, 0.4); transform: translate(-50%, -50%); }
+.rl-compass svg { position: absolute; inset: 16%; width: 68%; height: 68%; }
+.rl-wind-speed { font-size: 32px !important; }
+.rl-wind-speed small { font-size: 16px; letter-spacing: 0.06em; }
+
+/* -- Minimap: a striped disc --------------------------------------------------------- */
+
+.rl-minimap x-minimap { border-radius: 50%; background: repeating-linear-gradient(135deg, #1c1c1e 0 4px, #161618 4px 8px); box-shadow: inset 0 0 0 2px #2a2a2c; }
+
+/* -- Tyres ------------------------------------------------------------------------- */
 
 .rl-tyres .rl-box { gap: 8px; padding: 8px 10px 10px; }
 .rl-box-title { text-align: center; font-size: 14px; font-weight: 700; text-transform: uppercase; color: #fff; flex: none; }
 .rl-tyre-grid { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-height: 0; }
 .rl-tyre { display: flex; flex-direction: column; gap: 4px; padding: 6px; background: #19191b; border-radius: 8px; border: 1.5px solid #2a2a2c; }
 .rl-tyre-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: rgba(255, 255, 255, 0.6); }
-.rl-tyre-body {
-  flex: 1; min-height: 44px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
-  font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
-}
+.rl-tyre-body { flex: 1; min-height: 44px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
 .rl-tyre-foot { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; color: #fff; }
 .rl-tyre-foot span:last-child { color: rgba(255, 255, 255, 0.6); }

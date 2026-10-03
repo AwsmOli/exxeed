@@ -19,7 +19,7 @@ const unit = (v) => Math.max(0, Math.min(1, v ?? 0));
 /** Throttle and brake against time — the last few seconds, newest at the right. */
 const TIMELINE_S = 5;
 
-function drawTimeline(canvas, timeline, seconds = TIMELINE_S) {
+function drawTimeline(canvas, timeline, seconds = TIMELINE_S, look = {}) {
   const c = fit(canvas);
   if (c === null) return;
   const { ctx, w, h, r } = c;
@@ -42,8 +42,11 @@ function drawTimeline(canvas, timeline, seconds = TIMELINE_S) {
   const pts = timeline.filter((p) => now - p.t <= seconds * 1000);
   const x = (t) => w - ((now - t) / (seconds * 1000)) * w;
   const y = (v) => bottom - v * (bottom - top);
-  areaLine(ctx, pts.map((p) => [x(p.t), y(p.throttle)]), top, bottom, COLORS.throttle, 0.3, 2.2 * r);
-  areaLine(ctx, pts.map((p) => [x(p.t), y(p.brake)]), top, bottom, COLORS.brake, 0.3, 2.2 * r);
+  const width = (look.width ?? 2.2) * r;
+  const fill = look.fill ?? 0.3;
+  const opts = { smooth: look.smooth === true, ...(look.glow !== undefined ? { glow: look.glow * r } : {}) };
+  areaLine(ctx, pts.map((p) => [x(p.t), y(p.throttle)]), top, bottom, COLORS.throttle, fill, width, opts);
+  areaLine(ctx, pts.map((p) => [x(p.t), y(p.brake)]), top, bottom, COLORS.brake, fill, width, opts);
 }
 
 /** Degrees the wheel icon turns. The frame is radians at the wheel. */
@@ -119,7 +122,7 @@ export const inputs = templated({ template: INPUTS, model: inputsModel });
 // The shift lights' colours, outer to inner, are COLORS.shift (util.js): the
 // theme's own ramp, and its glow.
 
-function drawDial(canvas, f) {
+function drawDial(canvas, f, look = {}) {
   const c = fit(canvas);
   if (c === null) return;
   const { ctx, w, h, r } = c;
@@ -127,10 +130,10 @@ function drawDial(canvas, f) {
   const cx = w / 2;
   const cy = h / 2;
   const R = Math.min(w, h) / 2 - 2 * r;
-  const ring = 7 * r;
+  const ring = (look.ring ?? 7) * r;
 
   ctx.lineWidth = ring;
-  ctx.strokeStyle = alpha(COLORS.ink, 0.08);
+  ctx.strokeStyle = look.track ?? alpha(COLORS.ink, 0.08);
   ctx.beginPath();
   ctx.arc(cx, cy, R - ring / 2, 0, Math.PI * 2);
   ctx.stroke();
@@ -143,16 +146,21 @@ function drawDial(canvas, f) {
     ctx.arc(cx, cy, R - ring / 2, -Math.PI / 2, -Math.PI / 2 + a, a < 0);
     ctx.stroke();
   }
-  // The tick at the wheel's top-dead-centre.
+  // The wheel's top-dead-centre: a tick, or a block riding the ring.
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate(a);
-  ctx.strokeStyle = COLORS.ink;
-  ctx.lineWidth = 2 * r;
-  ctx.beginPath();
-  ctx.moveTo(0, -R);
-  ctx.lineTo(0, -R + ring + 2 * r);
-  ctx.stroke();
+  if (look.marker === "block") {
+    ctx.fillStyle = "#e6e6e6";
+    ctx.fillRect(-ring * 0.45, -R + ring * 0.1, ring * 0.9, ring * 0.8);
+  } else {
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 2 * r;
+    ctx.beginPath();
+    ctx.moveTo(0, -R);
+    ctx.lineTo(0, -R + ring + 2 * r);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -473,15 +481,43 @@ registerBlock(
   "x-timeline",
   {
     summary: "Throttle and brake against time, newest at the right.",
-    attributes: { seconds: "how much time it spans; 5 by default" },
+    attributes: {
+      seconds: "how much time it spans; 5 by default",
+      "line-width": "the lines' width in pixels; 2.2 by default",
+      fill: "0–1: how strongly the area under each line is shaded; 0.3 by default, 0 for none",
+      glow: "pixels of glow round the lines; none by default",
+      smooth: "draw smooth curves through the samples instead of steps",
+    },
   },
-  (el) => ({ paint: (s) => drawTimeline(canvasIn(el), s.timeline, numberAttr(el, "seconds", TIMELINE_S)) }),
+  (el) => ({
+    paint: (s) =>
+      drawTimeline(canvasIn(el), s.timeline, numberAttr(el, "seconds", TIMELINE_S), {
+        width: numberAttr(el, "line-width", 2.2),
+        fill: numberAttr(el, "fill", 0.3),
+        ...(el.hasAttribute("glow") ? { glow: numberAttr(el, "glow", 0) } : {}),
+        smooth: el.hasAttribute("smooth"),
+      }),
+  }),
 );
 
 registerBlock(
   "x-wheel-dial",
-  { summary: "A ring showing how far the wheel is turned, with a tick at its top.", attributes: {} },
-  (el) => ({ paint: (s) => drawDial(canvasIn(el), s.frame) }),
+  {
+    summary: "A ring showing how far the wheel is turned, with a tick at its top.",
+    attributes: {
+      ring: "the ring's thickness in pixels; 7 by default",
+      marker: "tick (default) | block — a square riding the ring, as RaceLab's",
+      track: "the ring's colour, as a CSS colour",
+    },
+  },
+  (el) => ({
+    paint: (s) =>
+      drawDial(canvasIn(el), s.frame, {
+        ring: numberAttr(el, "ring", 7),
+        marker: el.getAttribute("marker") ?? "tick",
+        ...(el.hasAttribute("track") ? { track: el.getAttribute("track") } : {}),
+      }),
+  }),
 );
 
 // ---------------------------------------------------------------------------

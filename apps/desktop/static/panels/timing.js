@@ -5,7 +5,7 @@
 // and subtracted, which is exact on the pct grid (§4.3) and needs no timing of
 // its own.
 
-import { canvasIn, registerBlock } from "./blocks.js";
+import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
 import { alpha, COLORS, deltaTrend, fit, kph, pctDelta, sample } from "./util.js";
 
@@ -59,7 +59,7 @@ function deltaModel(s, local) {
  * The dial style: a ring that fills clockwise when ahead and anticlockwise
  * when behind, in the delta's trend colour.
  */
-function drawDeltaDial(canvas, data) {
+function drawDeltaDial(canvas, data, look = {}) {
   if (data === null || data.deltaS === null) return;
   const c = fit(canvas);
   if (c === null) return;
@@ -68,7 +68,7 @@ function drawDeltaDial(canvas, data) {
   const R = Math.min(w, h) / 2 - 7 * r;
   const top = -Math.PI / 2;
   ctx.lineCap = "round";
-  ctx.lineWidth = 5 * r;
+  ctx.lineWidth = (look.ring ?? 5) * r;
   ctx.strokeStyle = alpha(COLORS.ink, 0.12);
   ctx.beginPath();
   ctx.arc(w / 2, h / 2, R, 0, Math.PI * 2);
@@ -76,7 +76,7 @@ function drawDeltaDial(canvas, data) {
   const sweep = data.fraction * Math.PI * 1.9;
   ctx.strokeStyle = data.colour;
   ctx.shadowColor = data.colour;
-  ctx.shadowBlur = COLORS.glow * 1.5 * r;
+  ctx.shadowBlur = (look.glow ?? COLORS.glow * 1.5) * r;
   ctx.beginPath();
   ctx.arc(w / 2, h / 2, R, top, data.ahead ? top + sweep : top - sweep, !data.ahead);
   ctx.stroke();
@@ -85,11 +85,18 @@ function drawDeltaDial(canvas, data) {
 
 registerBlock(
   "x-delta-dial",
-  { summary: "The delta as a ring filling clockwise when ahead, anticlockwise when behind. Needs the Delta model.", attributes: {} },
+  {
+    summary: "The delta as a ring filling clockwise when ahead, anticlockwise when behind. Needs the Delta model.",
+    attributes: { glow: "pixels of glow round the ring", ring: "the ring's thickness in pixels; 5 by default" },
+  },
   (el) => ({
     paint(s, data) {
       // Hidden unless the dial style is chosen: no drawing for nothing.
-      if (el.offsetParent !== null) drawDeltaDial(canvasIn(el), data);
+      if (el.offsetParent === null) return;
+      drawDeltaDial(canvasIn(el), data, {
+        ...(el.hasAttribute("glow") ? { glow: numberAttr(el, "glow", 0) } : {}),
+        ...(el.hasAttribute("ring") ? { ring: numberAttr(el, "ring", 5) } : {}),
+      });
     },
   }),
 );

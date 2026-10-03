@@ -69,6 +69,8 @@ function raceBasics(s) {
   return {
     empty: race === null ? NO_RACE(s) : null,
     session: race === null ? "" : sessionLetter(race),
+    /** "Race", "Qualify", "Practice": the sim's own word for the session. */
+    sessionName: race?.sessionType ?? "",
     lap: race?.lap ?? null,
     lapsTotal: race?.lapsTotal ?? null,
     lapsLine: race === null ? "" : lapsLine(race),

@@ -20,8 +20,8 @@
       </div>
     </div>
     <div class="rl-fuel-table" data-part="usage">
-      <span></span><span class="rl-th">Usage</span><span class="rl-th">Laps</span><span class="rl-th">Ends</span>
-      <x-group data-each="usage"><span class="rl-rh">{{ label }}</span><span>{{ perLap }}</span><span>{{ laps }}</span><span>{{ ends }}</span></x-group>
+      <div class="rl-frow rl-fhead"><span></span><span>Usage</span><span>Laps</span><span>Ends</span></div>
+      <div data-each="usage" class="rl-frow" data-class="hl: $last"><span class="rl-rh">{{ label }}</span><span>{{ perLap }}</span><span>{{ laps }}</span><span>{{ ends }}</span></div>
     </div>
     <div class="rl-until" data-part="predicted"><span>Time until empty</span><b>{{ timeLeftS | clock }}</b><i></i></div>
     <div class="rl-until" data-part="finish"><span>Laps until empty</span><b>{{ lapsLeft }}</b><i data-class="good: spare">{{ toFinishL }} L to finish</i></div>
