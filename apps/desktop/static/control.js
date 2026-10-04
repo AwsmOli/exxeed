@@ -644,6 +644,10 @@ const profileEditor = createProfileEditor({
   labels: PANEL_LABELS,
   order: PANEL_ORDER,
   send: sendOverlayCommand,
+  // The theme picker shows the edited profile's theme.
+  changed: () => {
+    if (lastOverlayView !== null) renderThemePicker(lastOverlayView);
+  },
 });
 
 /** Set by "New profile": the next profile to appear is opened in the editor. */

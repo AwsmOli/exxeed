@@ -24,9 +24,10 @@ const SNAP_PX = 8;
 
 /**
  * `groups`: [name, panelIds][] for the list; `labels`: panel id → name;
- * `order`: every panel id in list order; `send`: an overlay profile command.
+ * `order`: every panel id in list order; `send`: an overlay profile command;
+ * `changed`: called when the editor opens a profile or closes.
  */
-export function createProfileEditor({ groups, labels, order, send }) {
+export function createProfileEditor({ groups, labels, order, send, changed = () => {} }) {
   const api = window.exxeed;
   let profileId = null;
   let view = null;
@@ -94,6 +95,7 @@ export function createProfileEditor({ groups, labels, order, send }) {
     el("ov-editor").hidden = false;
     void api?.overlayEditor?.({ op: "open", open: true });
     renderChrome();
+    changed();
     void refresh();
   }
 
@@ -109,6 +111,7 @@ export function createProfileEditor({ groups, labels, order, send }) {
     el("ov-home").hidden = false;
     el("ov-editor").hidden = true;
     void api?.overlayEditor?.({ op: "open", open: false });
+    changed();
   }
 
   /** The profile list changed: redraw what depends on it, then re-read the layout. */
