@@ -374,6 +374,7 @@
       .pack-sub { color: #6e7681; font-size: 11px; }
       .pack-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
       .chip { font-size: 10.5px; color: #d29922; border: 1px solid rgba(210,153,34,0.45); border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
+      .chip.warn { color: #f0883e; border-color: rgba(240,136,62,0.6); background: rgba(240,136,62,0.1); }
       select.policy {
         background: #0d1117; color: #8b949e; border: 1px solid #30363d; border-radius: 6px;
         padding: 4px 6px; font: 11.5px/1 inherit;
@@ -386,66 +387,103 @@
       .v-log { color: #8b949e; overflow-wrap: anywhere; }
       p.empty-note, li.empty-note { color: #6e7681; font-size: 11.5px; margin: 0; }
 
-      /* Overlays */
-      ul#ov-profiles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-      li.ov-profile {
-        border: 1px solid #30363d; border-radius: 8px; padding: 9px 11px;
+      /* Overlays: the profile list */
+      ul#ov-profiles { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
+      li.ov-card {
+        border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+        background: #0f141a;
       }
-      li.ov-profile.active { border-color: #58a6ff; }
-      .ov-row { display: flex; align-items: center; gap: 10px; }
-      .ov-active-dot {
-        width: 9px; height: 9px; border-radius: 50%; flex: none;
-        border: 1px solid #6e7681; background: transparent; cursor: pointer; padding: 0;
-        appearance: none;
-      }
-      li.ov-profile.active .ov-active-dot { background: #58a6ff; border-color: #58a6ff; }
-      .ov-name {
-        flex: 1; min-width: 0; overflow-wrap: anywhere;
-        border-radius: 4px; padding: 1px 3px; margin: -1px -3px;
-      }
-      .ov-name[contenteditable="true"] {
-        background: #161b22; outline: 1px solid #58a6ff; cursor: text;
-      }
-      .ov-actions { display: flex; gap: 6px; flex: none; }
-      .ov-panels { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 0 19px; }
-      .ov-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-      .ov-group-name {
-        width: 58px; flex: none; color: #6e7681; font-size: 10.5px;
-        text-transform: uppercase; letter-spacing: 0.06em;
-      }
-      .ov-panels label {
-        display: flex; align-items: center; gap: 5px;
-        color: #8b949e; font-size: 11.5px; cursor: pointer;
-      }
-      .ov-panels input { accent-color: #58a6ff; }
-      /* An overlay's checkbox and, beside it, the gear for what it shows. */
-      .ov-panel { display: inline-flex; align-items: center; gap: 2px; }
-      .ov-gear {
-        border: 0; background: transparent; color: #6e7681; padding: 0 3px; font-size: 12px; line-height: 1; cursor: pointer;
-      }
-      .ov-gear:hover, .ov-gear.open { color: #e6edf3; }
-      .ov-gear.changed { color: #58a6ff; }
-      .ov-options {
-        margin: 10px 0 2px 19px; padding: 10px 12px; border: 1px solid #30363d; border-radius: 8px; background: #0d1117;
-        font-size: 12px;
-      }
-      .ov-options-title { color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-      .ov-options-style { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-      .ov-options-style select {
-        background: #161b22; color: #e6edf3; font: inherit; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 3px 8px;
-      }
-      .ov-options-parts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
-      .ov-options-parts label { display: inline-flex; align-items: center; gap: 5px; }
-      .ov-options-parts input { accent-color: #58a6ff; }
-
+      li.ov-card.active { border-color: #58a6ff; }
+      .ov-card-head { display: flex; align-items: center; gap: 8px; }
+      .ov-card-name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ov-card-meta { color: #6e7681; font-size: 11.5px; }
+      .ov-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+      .ov-chip { font-size: 10.5px; color: #58a6ff; border: 1px solid rgba(88,166,255,0.45); border-radius: 10px; padding: 1px 7px; white-space: nowrap; }
       .ov-hint { color: #6e7681; font-size: 11.5px; margin-top: 2px; }
       .ov-option { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; }
       .ov-option input { accent-color: #58a6ff; }
-      .ov-theme { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 12px; }
-      .ov-theme select {
-        background: #161b22; color: #e6edf3; font: inherit; border: 1px solid rgba(255,255,255,0.14);
-        border-radius: 6px; padding: 4px 8px;
+
+      /* Overlays: the profile editor — overlays on the left, the screen in
+         the middle, the chosen overlay's options (or the profile's) on the right. */
+      body.ov-editing main { overflow: hidden; padding: 0; }
+      body.ov-editing #view-overlays.active { display: flex; height: 100%; }
+      #ov-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+      .ove-bar {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding: 8px 12px; border-bottom: 1px solid #21262d; font-size: 12px;
       }
+      .ove-bar .spacer { flex: 1; }
+      .ove-name {
+        background: transparent; color: #e6edf3; font: 600 14px/1.2 inherit; border: 1px solid transparent;
+        border-radius: 6px; padding: 4px 6px; width: 220px;
+      }
+      .ove-name:hover, .ove-name:focus { border-color: #30363d; background: #0d1117; outline: none; }
+      .ove-res { display: inline-flex; align-items: center; gap: 4px; color: #8b949e; }
+      .ove-res input {
+        width: 64px; background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px;
+        padding: 4px 6px; font: 12px/1.2 inherit; text-align: right;
+      }
+      .ove-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 230px 1fr 270px; }
+      .ove-list, .ove-inspect { overflow-y: auto; min-height: 0; padding: 10px 0; background: #0b0f14; }
+      .ove-list { border-right: 1px solid #21262d; }
+      .ove-inspect { border-left: 1px solid #21262d; padding: 12px 14px; font-size: 12px; }
+      .ove-group { color: #6e7681; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px 14px 4px; }
+      .ove-item {
+        display: flex; align-items: center; gap: 9px; padding: 5px 14px; cursor: pointer; color: #8b949e; font-size: 12.5px;
+      }
+      .ove-item:hover { background: #121820; color: #c9d1d9; }
+      .ove-item.on { color: #e6edf3; }
+      .ove-item.selected { background: rgba(88,166,255,0.12); color: #e6edf3; box-shadow: inset 2px 0 #58a6ff; }
+      .ove-item .label { flex: 1; min-width: 0; }
+      .ove-item .changed { width: 6px; height: 6px; border-radius: 50%; background: #58a6ff; flex: none; }
+      /* An on/off slider: a checkbox drawn as a switch. */
+      .switch { appearance: none; margin: 0; flex: none; width: 28px; height: 16px; border-radius: 8px; background: #30363d; position: relative; cursor: pointer; transition: background 0.15s; }
+      .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #8b949e; transition: transform 0.15s, background 0.15s; }
+      .switch:checked { background: #1f6feb; }
+      .switch:checked::after { transform: translateX(12px); background: #fff; }
+      .ove-stage-wrap {
+        position: relative; min-width: 0; min-height: 0; overflow: hidden; display: grid; place-items: center;
+        background: repeating-conic-gradient(#0c1015 0 25%, #0e131a 0 50%) 0 0 / 24px 24px;
+      }
+      .ove-stage {
+        position: relative; overflow: hidden; border-radius: 4px;
+        background: linear-gradient(160deg, #1a2330, #0d1117 60%) center / 100% 100% no-repeat;
+        box-shadow: 0 0 0 1px #30363d, 0 12px 40px rgba(0,0,0,0.5);
+      }
+      .ove-stage .res-label { position: absolute; right: 8px; bottom: 6px; color: rgba(255,255,255,0.35); font-size: 11px; pointer-events: none; }
+      .ove-stage .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #6e7681; font-size: 12px; text-align: center; padding: 20px; pointer-events: none; }
+      .ove-panel { position: absolute; cursor: move; outline: 1px dashed transparent; }
+      .ove-panel iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: transparent; }
+      .ove-panel:hover { outline-color: rgba(255,255,255,0.35); }
+      .ove-panel.selected { outline: 2px solid #58a6ff; outline-offset: 1px; z-index: 2; }
+      .ove-panel .handle {
+        position: absolute; right: -5px; bottom: -5px; width: 11px; height: 11px; border-radius: 2px;
+        background: #58a6ff; border: 1px solid #0d1117; cursor: nwse-resize; display: none; z-index: 3;
+      }
+      .ove-panel.selected .handle { display: block; }
+      .ove-panel .tag {
+        position: absolute; left: 0; top: -18px; font-size: 10.5px; line-height: 16px; padding: 0 6px; border-radius: 3px;
+        background: #58a6ff; color: #0d1117; font-weight: 600; white-space: nowrap; display: none;
+      }
+      .ove-panel.selected .tag { display: block; }
+      .ove-guide { position: absolute; background: #f778ba; pointer-events: none; z-index: 4; }
+      .ove-h { color: #8b949e; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 6px; }
+      .ove-h:first-child { margin-top: 0; }
+      .ove-title { font: 600 14px/1.3 inherit; color: #e6edf3; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+      .ove-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+      .ove-row > span:first-child { width: 58px; color: #8b949e; flex: none; }
+      .ove-inspect select, .ove-inspect input[type=number] {
+        background: #0d1117; color: #e6edf3; font: inherit; border: 1px solid #30363d; border-radius: 6px; padding: 4px 6px;
+      }
+      .ove-inspect input[type=number] { width: 70px; }
+      .ove-xy { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 6px; align-items: center; }
+      .ove-xy span { color: #8b949e; }
+      .ove-xy input { width: 100% !important; box-sizing: border-box; }
+      .ove-parts { display: flex; flex-direction: column; gap: 6px; }
+      .ove-parts label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+      .ove-muted { color: #6e7681; font-size: 11.5px; }
+      .ov-theme { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+      .ov-theme select { flex: 1; min-width: 0; }
       .ov-theme-desc { color: #6e7681; font-size: 11.5px; margin-top: 6px; }
       .ov-theme-problems { margin: 6px 0 0; padding-left: 18px; color: #d29922; font-size: 11.5px; }
 
@@ -514,31 +552,67 @@
 
       <main>
         <section class="view active" id="view-overlays">
-          <div class="section-head">
-            <span>Overlay profiles</span>
-            <button class="ghost" id="ov-new" type="button">New profile</button>
+          <div id="ov-home">
+            <div class="section-head">
+              <span>Overlay profiles</span>
+              <button class="ghost" id="ov-new" type="button">New profile</button>
+            </div>
+            <ul id="ov-profiles"></ul>
+            <div class="ov-hint">
+              A profile is a set of overlays, where they sit, and the theme they wear.
+              Edit one to switch overlays on and off, lay them out on your screen and choose what each shows.
+            </div>
+            <label class="ov-option">
+              <input type="checkbox" id="ov-hide-unfocused" />
+              Hide overlays and mute callouts when iRacing isn't the window in front
+            </label>
           </div>
-          <ul id="ov-profiles"></ul>
-          <div class="ov-hint">
-            Double-click a name to rename it. Edit shows that profile's overlays so
-            you can drag them into place; Save locks them back down.
+
+          <div id="ov-editor" hidden>
+            <div class="ove-bar">
+              <button class="ghost" id="ove-back" type="button" title="Back to the profiles">← Profiles</button>
+              <input class="ove-name" id="ove-name" type="text" spellcheck="false" title="The profile's name" />
+              <span class="ov-chip" id="ove-active">In use</span>
+              <button class="ghost" id="ove-use" type="button" title="Open this profile's overlays instead of the current one's">Use this profile</button>
+              <span class="spacer"></span>
+              <label class="ove-res" title="The resolution you drive at. Overlays keep their place on your screen; this only sets the editor's scale.">
+                Screen <input id="ove-w" type="number" min="320" max="16384" /> × <input id="ove-h" type="number" min="320" max="16384" />
+              </label>
+              <button class="ghost" id="ove-res-reset" type="button" title="Your display's own resolution">Reset</button>
+              <button class="ghost" id="ove-shot" type="button" title="A screenshot from the sim behind the layout, to see it in your car">Screenshot…</button>
+              <button class="ghost" id="ove-shot-clear" type="button" hidden>Remove screenshot</button>
+              <input id="ove-shot-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              <button class="ghost" id="ove-arrange" type="button" title="Show this profile's overlays on your screen, to drag them there instead">Show on screen</button>
+            </div>
+            <div class="ove-body">
+              <aside class="ove-list" id="ove-list"></aside>
+              <div class="ove-stage-wrap" id="ove-stage-wrap"><div class="ove-stage" id="ove-stage"></div></div>
+              <aside class="ove-inspect">
+                <div id="ove-panel-opts" hidden></div>
+                <div id="ove-profile-opts">
+                  <div class="ove-h">Theme</div>
+                  <div class="ov-theme">
+                    <select id="ov-theme" title="The theme this profile's overlays wear"></select>
+                  </div>
+                  <div class="ov-theme" style="margin-top: 6px">
+                    <button class="ghost" id="ov-theme-new" type="button" title="Copy this theme into a new file of your own, for this profile">New…</button>
+                    <button class="ghost" id="ov-theme-edit" type="button" title="Edit this theme. Saving restyles the overlays straight away." hidden>Edit</button>
+                    <button class="ghost" id="ov-theme-delete" type="button" hidden>Delete</button>
+                    <button class="ghost" id="ov-theme-publish" type="button" title="Share this theme in Content, for others to install" hidden>Publish…</button>
+                    <button class="ghost" id="ov-theme-folder" type="button" title="Open the folder your theme files are in">Folder</button>
+                    <button class="ghost" id="ov-theme-more" type="button" title="Themes other drivers have shared">Find more…</button>
+                  </div>
+                  <div class="ov-theme-desc" id="ov-theme-desc"></div>
+                  <ul class="ov-theme-problems" id="ov-theme-problems" hidden></ul>
+                  <div class="ove-h">Layout</div>
+                  <p class="ove-muted">
+                    Switch overlays on and off on the left. Drag one on the screen to move it, its corner to size it;
+                    edges snap to the screen and to each other. Click one to choose what it shows.
+                  </p>
+                </div>
+              </aside>
+            </div>
           </div>
-          <div class="ov-theme">
-            <label for="ov-theme">Theme</label>
-            <select id="ov-theme"></select>
-            <button class="ghost" id="ov-theme-new" type="button" title="Copy the theme in use into a new file of your own and open it for editing">New…</button>
-            <button class="ghost" id="ov-theme-edit" type="button" title="Open this theme's file. Saving it restyles the overlays straight away." hidden>Edit</button>
-            <button class="ghost" id="ov-theme-delete" type="button" hidden>Delete</button>
-            <button class="ghost" id="ov-theme-publish" type="button" title="Share this theme in Content, for others to install" hidden>Publish…</button>
-            <button class="ghost" id="ov-theme-folder" type="button" title="Open the folder your theme files are in">Folder</button>
-            <button class="ghost" id="ov-theme-more" type="button" title="Themes other drivers have shared">Find more…</button>
-          </div>
-          <div class="ov-theme-desc" id="ov-theme-desc"></div>
-          <ul class="ov-theme-problems" id="ov-theme-problems" hidden></ul>
-          <label class="ov-option">
-            <input type="checkbox" id="ov-hide-unfocused" />
-            Hide overlays and mute callouts when iRacing isn't the window in front
-          </label>
         </section>
 
         <section class="view" id="view-packs">

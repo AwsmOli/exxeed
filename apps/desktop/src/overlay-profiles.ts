@@ -10,7 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { app } from "electron";
@@ -68,6 +68,9 @@ function load(defaultPanels: readonly PanelId[]): ProfilesFile {
         ? (p["panels"] as PanelId[])
         : defaultPanels,
       settings: readSettings(p["settings"]),
+      ...(typeof p["theme"] === "string" && p["theme"] !== "" ? { theme: p["theme"] } : {}),
+      ...readScreen(p["screen"]),
+      ...(p["hasBackground"] === true ? { hasBackground: true } : {}),
     }));
 
   if (profiles.length === 0) return fallback;
@@ -79,6 +82,18 @@ function load(defaultPanels: readonly PanelId[]): ProfilesFile {
 
   return { activeProfileId, profiles };
 }
+
+/** A sane resolution, or nothing. */
+function readScreen(raw: unknown): { screen?: { width: number; height: number } } {
+  if (typeof raw !== "object" || raw === null) return {};
+  const { width, height } = raw as { width?: unknown; height?: unknown };
+  const ok = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 320 && n <= 16384;
+  return ok(width) && ok(height) ? { screen: { width: Math.round(width), height: Math.round(height) } } : {};
+}
+
+/** Where a profile's editor screenshot is kept. One per profile, always a PNG/JPEG/WebP. */
+export const backgroundPath = (profileId: string): string =>
+  join(app.getPath("userData"), "overlay-backgrounds", `${profileId.replace(/[^a-z0-9-]/gi, "_")}.img`);
 
 /** A profile's per-overlay settings from disk, with anything unknown dropped. */
 function readSettings(raw: unknown): Partial<Record<PanelId, PanelSettings>> {
@@ -132,6 +147,8 @@ export class OverlayProfileStore {
       // already shows — the common case is "one more arrangement like this one".
       panels: [...this.active.panels],
       settings: { ...this.active.settings },
+      ...(this.active.theme !== undefined ? { theme: this.active.theme } : {}),
+      ...(this.active.screen !== undefined ? { screen: this.active.screen } : {}),
     };
     this.#profiles = [...this.#profiles, record];
     this.#persist();
@@ -155,6 +172,37 @@ export class OverlayProfileStore {
     this.#profiles = this.#profiles.filter((p) => p.id !== id);
     if (this.#activeId === id) this.#activeId = this.#profiles[0]!.id;
     this.#persist();
+    rmSync(backgroundPath(id), { force: true });
+  }
+
+  /** Change a profile's own fields: its theme, its resolution. */
+  #update(id: string, change: (p: OverlayProfile) => OverlayProfile): void {
+    this.#profiles = this.#profiles.map((p) => (p.id === id ? change(p) : p));
+    this.#persist();
+  }
+
+  setTheme(id: string, theme: string): void {
+    this.#update(id, (p) => ({ ...p, theme }));
+  }
+
+  setScreen(id: string, width: number, height: number): void {
+    const { screen } = readScreen({ width, height });
+    if (screen !== undefined) this.#update(id, (p) => ({ ...p, screen }));
+  }
+
+  /** The editor's backdrop: image bytes to keep, or null to drop it. */
+  setBackground(id: string, image: Buffer | null): void {
+    if (!this.#profiles.some((p) => p.id === id)) return;
+    const path = backgroundPath(id);
+    if (image === null) rmSync(path, { force: true });
+    else {
+      mkdirSync(join(path, ".."), { recursive: true });
+      writeFileSync(path, image);
+    }
+    this.#update(id, (p) => {
+      const { hasBackground: _gone, ...rest } = p;
+      return image === null ? rest : { ...rest, hasBackground: true };
+    });
   }
 
   setActive(id: string): void {

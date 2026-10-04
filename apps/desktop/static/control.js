@@ -1,6 +1,8 @@
 // The control window's renderer. It decides nothing (§7) — it sends commands and
 // draws whatever main says the state is.
 
+import { createProfileEditor } from "./profile-editor.js";
+
 const el = (id) => document.getElementById(id);
 
 const PHASES = {
@@ -123,6 +125,27 @@ function packRow(s, pack) {
   const actions = make("div", { className: "pack-actions" });
   row.append(actions);
   li.append(row);
+
+  // Audio that is missing or out of date in this voice: the pack would be
+  // silent, or say the old words, until it is rendered.
+  const audio = pack.audio;
+  if (audio?.rendering) {
+    actions.append(make("span", { className: "chip", textContent: "Rendering…" }));
+  } else if (audio !== null && audio.stale > 0) {
+    const whole = audio.stale >= pack.noteCount;
+    actions.append(
+      make("span", {
+        className: "chip warn",
+        textContent: whole ? "⚠ Not rendered" : `⚠ ${audio.stale} callout${audio.stale === 1 ? "" : "s"} not rendered`,
+        title: whole
+          ? "This pack has no audio in your voice yet — it will be silent in a session"
+          : "These callouts changed since the audio was made — they will be silent or say the old words",
+      }),
+      button("Render now", "Make the audio for this pack in your voice", (e) =>
+        void act({ op: "render", noteSetId: pack.id }, e.currentTarget),
+      ),
+    );
+  }
 
   if (c?.origin === "installed") {
     const behind = c.latestVersion !== null && c.version !== null && c.latestVersion > c.version;
@@ -612,60 +635,107 @@ const PANEL_LABELS = {
 
 const sendOverlayCommand = (command) => window.exxeed?.sendOverlayProfileCommand(command);
 
-/** Double-click to rename, inline — the same pattern as the note editor's pills. */
-function makeNameEditable(span, profile) {
-  span.addEventListener("dblclick", () => {
-    span.contentEditable = "true";
-    span.spellcheck = false;
-    const range = document.createRange();
-    range.selectNodeContents(span);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-  });
-
-  const commit = () => {
-    span.contentEditable = "false";
-    const name = span.textContent.trim();
-    if (name === "" || name === profile.name) {
-      span.textContent = profile.name;
-      return;
-    }
-    sendOverlayCommand({ kind: "rename", id: profile.id, name });
-  };
-  const cancel = () => {
-    span.contentEditable = "false";
-    span.textContent = profile.name;
-  };
-
-  span.addEventListener("blur", commit);
-  span.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      span.blur();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      cancel();
-      span.blur();
-    }
-  });
-}
-
-/** Which overlay's options are open, if any: `{ profileId, panel }`. Survives re-renders. */
-let openPanelOptions = null;
-
 /** The last Overlays view, for the theme editor's list of open overlays. */
 let lastOverlayView = null;
 
+/** The profile editor (profile-editor.js): opened from a profile's card. */
+const profileEditor = createProfileEditor({
+  groups: PANEL_GROUPS,
+  labels: PANEL_LABELS,
+  order: PANEL_ORDER,
+  send: sendOverlayCommand,
+});
+
+/** Set by "New profile": the next profile to appear is opened in the editor. */
+let openNextNewProfile = false;
+
+/** The profile whose theme the picker shows: the one being edited, else the one in use. */
+const themedProfile = (view) =>
+  view.profiles.find((p) => p.id === (profileEditor.profileId ?? view.activeProfileId)) ?? null;
+
 function renderOverlayProfiles(view) {
+  const before = lastOverlayView;
   lastOverlayView = view;
   const list = el("ov-profiles");
   if (!list) return;
 
   el("ov-hide-unfocused").checked = view.hideWhenSimUnfocused;
+  renderThemePicker(view);
 
-  // The theme every overlay wears. Rebuilt only when the list changes, so an
-  // open dropdown is not replaced under the pointer.
+  const themeName = (profile) =>
+    view.themes.find((t) => t.id === (profile.theme ?? view.themeId))?.name ?? profile.theme ?? "";
+
+  list.replaceChildren(
+    ...view.profiles.map((profile) => {
+      const isActive = profile.id === view.activeProfileId;
+      const li = document.createElement("li");
+      li.className = `ov-card${isActive ? " active" : ""}`;
+
+      const head = document.createElement("div");
+      head.className = "ov-card-head";
+      const name = document.createElement("span");
+      name.className = "ov-card-name";
+      name.textContent = profile.name;
+      name.title = profile.name;
+      head.append(name);
+      if (isActive) {
+        const chip = document.createElement("span");
+        chip.className = "ov-chip";
+        chip.textContent = "In use";
+        head.append(chip);
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "ov-card-meta";
+      const count = profile.panels.length;
+      meta.textContent = [
+        `${count} overlay${count === 1 ? "" : "s"}`,
+        themeName(profile),
+        profile.screen ? `${profile.screen.width}×${profile.screen.height}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      const actions = document.createElement("div");
+      actions.className = "ov-card-actions";
+      const button = (text, title, onClick, className = "ghost") => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = className;
+        b.textContent = text;
+        b.title = title;
+        b.addEventListener("click", onClick);
+        return b;
+      };
+      actions.append(button("Edit", "Choose and lay out this profile's overlays", () => profileEditor.open(profile.id), "ghost primary"));
+      if (!isActive) {
+        actions.append(button("Use", "Open this profile's overlays instead", () => sendOverlayCommand({ kind: "setActive", id: profile.id })));
+      }
+      const del = button("Delete", "Delete this profile", () => {
+        if (window.confirm(`Delete the overlay profile "${profile.name}"?`)) sendOverlayCommand({ kind: "delete", id: profile.id });
+      });
+      del.disabled = view.profiles.length <= 1;
+      actions.append(del);
+
+      li.append(head, meta, actions);
+      return li;
+    }),
+  );
+
+  // A profile just made with "New profile": straight into the editor with it.
+  if (openNextNewProfile && before !== null) {
+    const added = view.profiles.find((p) => !before.profiles.some((q) => q.id === p.id));
+    if (added !== undefined) {
+      openNextNewProfile = false;
+      profileEditor.open(added.id);
+    }
+  }
+  profileEditor.render(view);
+}
+
+/** The theme picker in the editor: the profile's theme, and what can be done with it. */
+function renderThemePicker(view) {
+  // Rebuilt only when the list changes, so an open dropdown is not replaced under the pointer.
   const themes = view.themes ?? [];
   const select = el("ov-theme");
   const signature = themes.map((t) => `${t.id}:${t.name}`).join("|");
@@ -691,10 +761,11 @@ function renderOverlayProfiles(view) {
       select.replaceChildren(group("Built in", builtIn), group("Yours", mine.map(option)));
     }
   }
-  select.value = view.themeId;
-  const current = themes.find((t) => t.id === view.themeId);
+  const themeId = themedProfile(view)?.theme ?? view.themeId;
+  select.value = themeId;
+  const current = themes.find((t) => t.id === themeId);
   el("ov-theme-desc").textContent = current?.custom
-    ? `${current.description} Edit opens its file; saving it restyles the overlays straight away.`.trim()
+    ? `${current.description} Edit opens its files; saving restyles the overlays straight away.`.trim()
     : (current?.description ?? "");
   el("ov-theme-edit").hidden = current?.custom !== true;
   el("ov-theme-delete").hidden = current?.custom !== true;
@@ -710,178 +781,6 @@ function renderOverlayProfiles(view) {
       return li;
     }),
   );
-
-  const panelIds = view.debugEnabled ? PANEL_ORDER : PANEL_ORDER.filter((p) => p !== "telemetry");
-
-  list.replaceChildren(
-    ...view.profiles.map((profile) => {
-      const isActive = profile.id === view.activeProfileId;
-      const isEditingThis = isActive && view.editing;
-
-      const li = document.createElement("li");
-      li.className = `ov-profile${isActive ? " active" : ""}`;
-
-      const row = document.createElement("div");
-      row.className = "ov-row";
-
-      const dot = document.createElement("button");
-      dot.type = "button";
-      dot.className = "ov-active-dot";
-      dot.title = isActive ? "Active — this profile's overlays are open" : "Make this profile active";
-      dot.addEventListener("click", () => {
-        if (!isActive) sendOverlayCommand({ kind: "setActive", id: profile.id });
-      });
-
-      const name = document.createElement("span");
-      name.className = "ov-name";
-      name.textContent = profile.name;
-      makeNameEditable(name, profile);
-
-      const actions = document.createElement("div");
-      actions.className = "ov-actions";
-
-      // Edit and Save are the same button: click to start arranging this
-      // profile's overlays, click again — now reading "Save" — to lock them
-      // back down. One button doing both means there is nothing extra to
-      // dismiss once you are done dragging.
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = isEditingThis ? "ghost primary" : "ghost";
-      editBtn.textContent = isEditingThis ? "Save" : "Edit";
-      editBtn.addEventListener("click", () => {
-        sendOverlayCommand(
-          isEditingThis ? { kind: "stopEditing" } : { kind: "edit", id: profile.id },
-        );
-      });
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "ghost";
-      deleteBtn.textContent = "Delete";
-      deleteBtn.disabled = view.profiles.length <= 1;
-      deleteBtn.addEventListener("click", () => {
-        if (window.confirm(`Delete the overlay profile "${profile.name}"?`)) {
-          sendOverlayCommand({ kind: "delete", id: profile.id });
-        }
-      });
-
-      actions.append(editBtn, deleteBtn);
-      row.append(dot, name, actions);
-
-      const panels = document.createElement("div");
-      panels.className = "ov-panels";
-      const groups = new Map();
-      for (const [group, ids] of PANEL_GROUPS) {
-        if (!ids.some((id) => panelIds.includes(id))) continue;
-        const row = document.createElement("div");
-        row.className = "ov-group";
-        const heading = document.createElement("span");
-        heading.className = "ov-group-name";
-        heading.textContent = group;
-        row.append(heading);
-        panels.append(row);
-        for (const id of ids) groups.set(id, row);
-      }
-      for (const id of panelIds) {
-        const label = document.createElement("label");
-        const box = document.createElement("input");
-        box.type = "checkbox";
-        box.checked = profile.panels.includes(id);
-        box.addEventListener("change", () => {
-          // PANEL_ORDER, not panelIds: this build might not show a checkbox for
-          // every panel (telemetry is debug-only), and a profile carrying one
-          // from a debug build must not lose it just because someone toggled an
-          // unrelated panel from a non-debug window.
-          const chosen = PANEL_ORDER.filter((p) =>
-            p === id ? box.checked : profile.panels.includes(p),
-          );
-          // Refuse to leave nothing: an empty profile opens no windows at all,
-          // with no way back inside the app.
-          if (chosen.length === 0) {
-            box.checked = true;
-            return;
-          }
-          sendOverlayCommand({ kind: "setPanels", id: profile.id, panels: chosen });
-        });
-        label.append(box, document.createTextNode(PANEL_LABELS[id] ?? id));
-
-        // What this overlay shows and how it is built: a gear beside its
-        // checkbox, when it has anything to choose.
-        const parts = view.panelParts?.[id] ?? [];
-        const styles = view.panelStyles?.[id] ?? [];
-        const item = document.createElement("span");
-        item.className = "ov-panel";
-        item.append(label);
-        if (parts.length > 0 || styles.length > 0) {
-          const settings = profile.settings?.[id] ?? { hidden: [], style: null };
-          const changed = settings.hidden.length > 0 || settings.style !== null;
-          const isOpen = openPanelOptions?.profileId === profile.id && openPanelOptions.panel === id;
-          const gear = document.createElement("button");
-          gear.type = "button";
-          gear.className = `ov-gear${isOpen ? " open" : ""}${changed ? " changed" : ""}`;
-          gear.textContent = "⚙";
-          gear.title = `What ${PANEL_LABELS[id] ?? id} shows`;
-          gear.addEventListener("click", () => {
-            openPanelOptions = isOpen ? null : { profileId: profile.id, panel: id };
-            renderOverlayProfiles(view);
-          });
-          item.append(gear);
-        }
-        (groups.get(id) ?? panels).append(item);
-      }
-
-      li.append(row, panels);
-
-      // The open overlay's options, under the list.
-      if (openPanelOptions?.profileId === profile.id) {
-        const id = openPanelOptions.panel;
-        const parts = view.panelParts?.[id] ?? [];
-        const styles = view.panelStyles?.[id] ?? [];
-        const settings = profile.settings?.[id] ?? { hidden: [], style: null };
-        const box = document.createElement("div");
-        box.className = "ov-options";
-        const title = document.createElement("div");
-        title.className = "ov-options-title";
-        title.textContent = `${PANEL_LABELS[id] ?? id} shows`;
-        box.append(title);
-
-        if (styles.length > 0) {
-          const line = document.createElement("label");
-          line.className = "ov-options-style";
-          const select = document.createElement("select");
-          for (const style of styles) {
-            const o = document.createElement("option");
-            o.value = style.id;
-            o.textContent = style.label;
-            select.append(o);
-          }
-          select.value = settings.style ?? styles[0].id;
-          select.addEventListener("change", () => {
-            sendOverlayCommand({ kind: "setPanelStyle", id: profile.id, panel: id, style: select.value });
-          });
-          line.append(document.createTextNode("Layout"), select);
-          box.append(line);
-        }
-
-        const list = document.createElement("div");
-        list.className = "ov-options-parts";
-        for (const part of parts) {
-          const label = document.createElement("label");
-          const check = document.createElement("input");
-          check.type = "checkbox";
-          check.checked = !settings.hidden.includes(part.id);
-          check.addEventListener("change", () => {
-            sendOverlayCommand({ kind: "setPanelPart", id: profile.id, panel: id, part: part.id, shown: check.checked });
-          });
-          label.append(check, document.createTextNode(part.label));
-          list.append(label);
-        }
-        box.append(list);
-        li.append(box);
-      }
-      return li;
-    }),
-  );
 }
 
 el("ov-hide-unfocused").addEventListener("change", (e) => {
@@ -889,12 +788,12 @@ el("ov-hide-unfocused").addEventListener("change", (e) => {
 });
 
 el("ov-theme").addEventListener("change", (e) => {
-  sendOverlayCommand({ kind: "setTheme", id: e.target.value });
+  sendOverlayCommand({ kind: "setTheme", id: e.target.value, profileId: profileEditor.profileId ?? undefined });
 });
 el("ov-theme-new").addEventListener("click", () => {
   const from = el("ov-theme").selectedOptions[0]?.textContent ?? "theme";
-  // Selected once it exists; Edit then opens it.
-  sendOverlayCommand({ kind: "newTheme", name: `My ${from}` });
+  // Worn by this profile once it exists; Edit then opens it.
+  sendOverlayCommand({ kind: "newTheme", name: `My ${from}`, profileId: profileEditor.profileId ?? undefined });
 });
 
 // -- Editing a theme of your own, in the app ---------------------------------------
@@ -1278,6 +1177,7 @@ el("ov-theme-delete").addEventListener("click", () => {
 });
 
 el("ov-new").addEventListener("click", () => {
+  openNextNewProfile = true;
   sendOverlayCommand({ kind: "create", name: "New profile" });
 });
 

@@ -178,6 +178,46 @@ function defaultPosition(panels: readonly PanelId[], index: number): Bounds {
   return { x, y };
 }
 
+/** A window's place on the desktop, in DIPs, height included. */
+export interface PlacedBounds {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+type DesignOf = (panel: PanelId) => readonly [number, number];
+
+/**
+ * Where each of `panels` sits for a profile: where it was put, else its
+ * default place, sized from its remembered width and its design's shape —
+ * the same rules `OverlayLayout#create` opens a window by.
+ */
+function placesFrom(layout: SavedLayout, panels: readonly PanelId[], designOf: DesignOf): Partial<Record<PanelId, PlacedBounds>> {
+  const out: Partial<Record<PanelId, PlacedBounds>> = {};
+  panels.forEach((panel, index) => {
+    const saved = layout[panel];
+    const position = saved !== undefined && onSomeDisplay(saved.x, saved.y) ? saved : defaultPosition(panels, index);
+    const design = designOf(panel);
+    const width = position.width ?? design[0];
+    out[panel] = { x: position.x, y: position.y, width, height: Math.round((width * design[1]) / design[0]) };
+  });
+  return out;
+}
+
+/** Where a profile that is not open puts its overlays (see `placesFrom`). */
+export function profilePlaces(profileId: string, panels: readonly PanelId[], designOf: DesignOf): Partial<Record<PanelId, PlacedBounds>> {
+  return placesFrom(loadLayout(profileId), panels, designOf);
+}
+
+/** Put one overlay of a profile that is not open somewhere, or (null) back in its default place. */
+export function placeInProfile(profileId: string, panel: PanelId, bounds: PlacedBounds | null): void {
+  const layout = { ...loadLayout(profileId) };
+  if (bounds === null) delete layout[panel];
+  else layout[panel] = { x: Math.round(bounds.x), y: Math.round(bounds.y), width: Math.round(bounds.width), height: Math.round(bounds.height) };
+  saveLayout(profileId, layout);
+}
+
 export class OverlayLayout {
   #profileId: string;
   #layout: SavedLayout;
@@ -486,6 +526,54 @@ export class OverlayLayout {
     const { x, y, width, height } = window.getBounds();
     this.#layout = { ...this.#layout, [panel]: { x, y, width, height } };
     saveLayout(this.#profileId, this.#layout);
+    for (const callback of this.#saved) callback();
+  }
+
+  readonly #saved: (() => void)[] = [];
+
+  /** Called whenever a position is saved — an overlay dragged or sized on screen. */
+  onLayoutSaved(callback: () => void): void {
+    this.#saved.push(callback);
+  }
+
+  /** Where each of `panels` is: open windows where they are, the rest where they would open. */
+  places(panels: readonly PanelId[]): Partial<Record<PanelId, PlacedBounds>> {
+    const out = placesFrom(this.#layout, panels, (p) => this.#designOf(p));
+    for (const panel of panels) {
+      const window = this.#windows.get(panel);
+      if (window !== undefined && !window.isDestroyed()) out[panel] = window.getBounds();
+    }
+    return out;
+  }
+
+  /**
+   * Put an overlay somewhere, from the profile editor: the open window moves
+   * there and the place is saved; a closed one opens there next time. Null
+   * forgets the place, back to the default.
+   */
+  place(panel: PanelId, bounds: PlacedBounds | null): void {
+    const window = this.#windows.get(panel);
+    if (bounds === null) {
+      const { [panel]: _gone, ...rest } = this.#layout;
+      this.#layout = rest;
+      saveLayout(this.#profileId, this.#layout);
+      if (window !== undefined && !window.isDestroyed()) {
+        const panels = this.panels;
+        const home = defaultPosition(panels, Math.max(0, panels.indexOf(panel)));
+        const design = this.#designOf(panel);
+        window.setBounds({ x: home.x, y: home.y, width: design[0], height: design[1] });
+      }
+      return;
+    }
+    const design = this.#designOf(panel);
+    const width = Math.max(40, Math.round(bounds.width));
+    const target = { x: Math.round(bounds.x), y: Math.round(bounds.y), width, height: Math.round((width * design[1]) / design[0]) };
+    this.#layout = { ...this.#layout, [panel]: target };
+    saveLayout(this.#profileId, this.#layout);
+    if (window !== undefined && !window.isDestroyed()) {
+      window.setBounds(target);
+      this.mirrorFrom(panel);
+    }
   }
 
   /**

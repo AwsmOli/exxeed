@@ -263,6 +263,43 @@ async function downloadMine(deps: LibraryDeps, itemId: string): Promise<string> 
   }
 }
 
+/** Packs being rendered right now, for the list to say so. */
+const rendering = new Set<string>();
+export const isRendering = (noteSetId: string): boolean => rendering.has(noteSetId);
+/** Renders one at a time: Piper is slow enough that two at once only makes both late. */
+let renderQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Render a pack's audio in this machine's voice — a pack whose install could
+ * not render (no Piper yet, offline for the voice download), or whose
+ * callouts changed since. Clips whose words are unchanged are kept.
+ */
+async function render(deps: LibraryDeps, noteSetId: string): Promise<string> {
+  if (rendering.has(noteSetId)) return "already rendering";
+  rendering.add(noteSetId);
+  deps.changed();
+  const run = renderQueue.then(async () => {
+    const settings = deps.getSettings();
+    deps.busy(`Rendering ${noteSetId}…`);
+    try {
+      const result = await renderImported(settings, deps.resolveDataDir(settings), noteSetId, (stage, received, total) => {
+        if (stage === "render") deps.busy(`Rendering ${noteSetId}: ${received} of ${total} clips`);
+        else deps.busy(`${stage === "piper" ? "Installing Piper" : "Downloading a voice"} (first time only)…`);
+      }, true);
+      if (!result.ok) throw new Error(`could not render: ${result.message}`);
+      return result.clips === 0
+        ? "already up to date"
+        : `rendered ${result.clips} clip${result.clips === 1 ? "" : "s"}${result.reused > 0 ? `, kept ${result.reused}` : ""}`;
+    } finally {
+      rendering.delete(noteSetId);
+      deps.busy(null);
+      deps.changed();
+    }
+  });
+  renderQueue = run.catch(() => {});
+  return run;
+}
+
 let checking = false;
 
 /**
@@ -344,6 +381,8 @@ export function installLibrary(deps: LibraryDeps): void {
           return { ok: true, value: await downloadMine(deps, request.itemId) };
         case "checkUpdates":
           return { ok: true, value: await checkUpdates(deps) };
+        case "render":
+          return { ok: true, value: await render(deps, request.noteSetId) };
       }
     } catch (err) {
       deps.busy(null);

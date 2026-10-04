@@ -31,6 +31,8 @@ const OVERLAY_PROFILE_COMMAND_CHANNEL = "exxeed:overlay-profile-command";
 const THEME_CHANNEL = "exxeed:theme";
 const THEME_GET_CHANNEL = "exxeed:theme-get";
 const THEME_CONTENT_CHANNEL = "exxeed:theme-content";
+const OVERLAY_EDITOR_CHANNEL = "exxeed:overlay-editor";
+const OVERLAY_LAYOUT_CHANGED_CHANNEL = "exxeed:overlay-layout-changed";
 const PANEL_SETTINGS_CHANNEL = "exxeed:panel-settings";
 const PANEL_SETTINGS_GET_CHANNEL = "exxeed:panel-settings-get";
 const SETTINGS_GET_CHANNEL = "exxeed:settings-get";
@@ -73,6 +75,11 @@ contextBridge.exposeInMainWorld("exxeed", {
   sendOverlayProfileCommand: (command: unknown): void => {
     ipcRenderer.send(OVERLAY_PROFILE_COMMAND_CHANNEL, command);
   },
+
+  /** The profile editor: a profile's screen and places, a theme to preview, the editor opening and closing. */
+  overlayEditor: (request: unknown): Promise<unknown> => ipcRenderer.invoke(OVERLAY_EDITOR_CHANNEL, request),
+  /** An overlay was dragged or sized on screen: `{ profileId }`. */
+  onOverlayLayoutChanged: (cb: (payload: unknown) => void) => subscribe(OVERLAY_LAYOUT_CHANGED_CHANNEL, cb),
 
   /** Themes in Content: browse, install, publish. One channel with an `op`, like `content`. */
   themeContent: (request: unknown): Promise<unknown> => ipcRenderer.invoke(THEME_CONTENT_CHANNEL, request),
