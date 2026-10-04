@@ -186,6 +186,11 @@ x-timeline, x-wheel-dial, x-trace, x-speed-trace, x-delta-dial, x-corner-chart, 
 }
 x-sweep { display: contents; }
 .panel > x-map, .panel > x-minimap, .panel > x-radar { flex: 1 1 auto; }
+/* The radar is faint, and gone while no car is near (panels/race.js marks the
+   panel idle). Shown whole while the overlays are being arranged (edit mode). */
+.panel.radar { opacity: var(--radar-opacity, 0.45); transition: opacity 0.4s ease; }
+body.overlay:not(.editing) .panel.radar.idle { opacity: 0; }
+body.overlay.editing .panel.radar { opacity: 1; }
 x-icon { display: inline-flex; align-items: center; }
 
 .card {
@@ -399,6 +404,10 @@ canvas.fill { display: block; width: 100%; height: 100%; }
 .pedals-panel .pedal.brake .pill-v > i { background: linear-gradient(0deg, var(--brake), color-mix(in srgb, var(--brake) 78%, white)); }
 .pedals-panel .pedal.throttle .pill-v > i { background: linear-gradient(0deg, var(--throttle), color-mix(in srgb, var(--throttle) 70%, white)); }
 .speedo .ffb .pill-h > i { background: color-mix(in srgb, var(--text) 75%, transparent); }
+/* Force feedback at the wheel's maximum is clipping: the bar blinks red,
+   whatever colour the theme gives it. */
+[data-part="ffb"].clip i { background: var(--danger, #ff1744) !important; animation: ffb-clip 0.24s steps(1, end) infinite; }
+@keyframes ffb-clip { 50% { opacity: 0.25; } }
 .chart-card { padding: 4px 8px 2px 0; }
 .panel.delta { justify-content: flex-start; }
 .sectors-card { padding: 0; }

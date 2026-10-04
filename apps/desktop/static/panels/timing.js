@@ -7,7 +7,7 @@
 
 import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { alpha, COLORS, deltaTrend, fit, kph, pctDelta, sample } from "./util.js";
+import { alpha, COLORS, deltaTint, deltaTrend, fit, kph, liveTone, pctDelta, sample } from "./util.js";
 
 /** Gaining is good, losing is bad; under 5 ms is neither. */
 const tone = (d) => ({
@@ -38,7 +38,9 @@ function deltaModel(s, local) {
   return {
     empty: false,
     deltaS: d,
-    ...tone(d),
+    ...liveTone(d),
+    /** The number's colour: white near ±0, fading to green or red with the size of the gap. */
+    tint: deltaTint(d),
     ahead,
     /** The laps beside a delta: the reference, the lap this one is heading for, best and last. */
     refLapS: refS,
@@ -104,10 +106,10 @@ registerBlock(
 const DELTA = `
 <div class="panel delta" data-class="is-empty: empty">
   <div class="delta-track"><i style="left:{{ fillLeft }}%;width:{{ fillWidth }}%;border-radius:{{ fillRadius }};background:{{ colour }}"></i></div>
-  <div class="delta-readout n" data-part="number" data-class="good: good; bad: bad">{{ deltaS | signed:2 }}</div>
+  <div class="delta-readout n" data-part="number" style="color:{{ tint }}">{{ deltaS | signed:2 }}</div>
   <div class="delta-dial">
     <x-delta-dial></x-delta-dial>
-    <div class="delta-dial-mid" data-part="number"><span class="cap">Delta</span><b class="n" data-class="good: good; bad: bad">{{ deltaS | signed:3 }}</b></div>
+    <div class="delta-dial-mid" data-part="number"><span class="cap">Delta</span><b class="n" style="color:{{ tint }}">{{ deltaS | signed:3 }}</b></div>
   </div>
   <div class="empty">no delta yet — waiting for a timed lap against a reference</div>
 </div>`;

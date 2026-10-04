@@ -182,10 +182,13 @@ export function refreshColors() {
  * saturated, so the bar only ever showed white, full green or full red.
  */
 const TREND_FULL = 0.12;
-/** Below this the gap is holding: white. Small, so the bar is rarely white. */
-const TREND_DEAD = 0.001;
+/**
+ * Below this the gap is holding: white. Wide enough that the noise in a delta
+ * that is barely moving cannot swing the colour between green and red.
+ */
+const TREND_DEAD = 0.008;
 /** How quickly the trend follows the delta, so it does not flicker. */
-const TREND_SMOOTH_S = 1.2;
+const TREND_SMOOTH_S = 2;
 
 /**
  * The colour of a delta by where it is GOING, as the sim's own bar does it:
@@ -215,14 +218,42 @@ export function deltaTrend() {
     last = d;
     at = now;
     const speed = Math.max(0, Math.abs(rate) - TREND_DEAD);
-    // Eased, so a slow gain is already a visible tint and the colour keeps
-    // deepening all the way up to a fast one, rather than snapping to full.
-    // A steep start: even a slow gain is clearly tinted.
-    const t = Math.min(1, speed / TREND_FULL) ** 0.45;
+    // Eased in gently from white: around a steady gap the colour is a faint
+    // tint either way, so a trend that flips sign there fades rather than
+    // blinks, and it deepens smoothly towards a fast gain or loss.
+    const t = smoothstep(speed / TREND_FULL);
     // Negative rate: the delta is falling, which is time gained.
     return mix(COLORS.text, rate < 0 ? COLORS.green : COLORS.red, t);
   };
 }
+
+/** 0 to 1 along an S-curve: flat at both ends, so a colour eases in and out. */
+export function smoothstep(x) {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+}
+
+/** A delta this far from zero is the full colour; nearer, a tint of it. */
+const TINT_FULL_S = 0.3;
+
+/**
+ * The colour of a delta by its size: white at zero, fading through tints to
+ * green when ahead and red when behind. Gradual, so a delta hovering around
+ * ±0 stays white instead of blinking between green and red.
+ */
+export function deltaTint(d) {
+  if (typeof d !== "number") return COLORS.text;
+  return mix(COLORS.text, d < 0 ? COLORS.green : COLORS.red, smoothstep(Math.abs(d) / TINT_FULL_S));
+}
+
+/**
+ * Good or bad for a live delta, for templates that colour by class: only
+ * clear of ±0, so the class does not flick on and off around it.
+ */
+export const liveTone = (d) => ({
+  good: typeof d === "number" && d <= -0.05,
+  bad: typeof d === "number" && d >= 0.05,
+});
 
 /**
  * The colour to draw a class in: the theme's, if it sets class colours,
