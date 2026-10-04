@@ -18,7 +18,7 @@
 //
 // Output goes to apps/desktop/release/<target>/.
 
-import { execFileSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -57,9 +57,13 @@ for (const [name, range] of Object.entries(NATIVE)) {
 
 const step = (text) => process.stdout.write(`\n— ${text}\n`);
 
+// Through a shell, as one command line: pnpm and npm are .cmd shims on Windows,
+// which Node only starts that way. Nothing here has spaces or shell characters.
+const run = (command, cwd) => execSync(command, { cwd, stdio: "inherit" });
+
 // 1a. Compile, as `pnpm build` does (vendored browser libraries, then tsc).
 step("compiling");
-execFileSync("pnpm", ["run", "build"], { cwd: desktop, stdio: "inherit" });
+run("pnpm run build", desktop);
 
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(join(stage, "dist"), { recursive: true });
@@ -113,10 +117,7 @@ writeFileSync(
 // scripts would otherwise try to compile for the machine doing the build.
 step(`installing native modules for ${target === "win" ? "Windows x64" : "macOS"}`);
 const platform = target === "win" ? ["--os=win32", "--cpu=x64"] : [`--os=darwin`, `--cpu=${process.arch}`];
-execFileSync("npm", ["install", "--omit=dev", "--no-package-lock", "--no-audit", "--no-fund", "--ignore-scripts", ...platform], {
-  cwd: stage,
-  stdio: "inherit",
-});
+run(["npm install --omit=dev --no-package-lock --no-audit --no-fund --ignore-scripts", ...platform].join(" "), stage);
 
 // Every native module must be there for the target: a Windows build without
 // irsdk-node would install and run, and never see the sim.

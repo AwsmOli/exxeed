@@ -201,6 +201,7 @@ async function mapFor(dataDir: string, key: TrackKey | null): Promise<TrackMap |
     const detail = issue === undefined ? String(err) : `${issue.path.join(".")}: ${issue.message}`;
     throw new Error(
       `the track map for track ${key.trackId}/${key.configId} v${version} could not be read (${detail}) — re-cut it from a recording`,
+      { cause: err },
     );
   }
 }

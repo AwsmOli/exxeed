@@ -1,9 +1,9 @@
 // The theme editor's text area, as VS Code's own editor (Monaco).
 //
 // Loaded the first time a theme is edited: Monaco is a few megabytes, and most
-// sessions never open it. It comes as a prebuilt AMD bundle (scripts/vendor.mjs
-// copies it into ./vendor/monaco), which needs no bundler — a loader script
-// defines `require`, and the editor arrives through it.
+// sessions never open it. scripts/vendor.mjs bundles its ES module build into
+// ./vendor/monaco — the editor with JSON, CSS and HTML as one module, its
+// stylesheet, and a worker per language — so it needs no bundler here.
 //
 // What it adds over a plain text box: the theme schema drives autocomplete of
 // setting names, a description on hover and a red underline under a bad
@@ -11,24 +11,43 @@
 // the building blocks, the template attributes and the {{ … | filters }}
 // complete with their descriptions.
 
-const BASE = new URL("./vendor/monaco/vs", import.meta.url).href;
+const BASE = new URL("./vendor/monaco/", import.meta.url).href;
+
+/** Each worker Monaco asks for, by its label, to the file bundled for it. */
+const WORKERS = {
+  json: "json.worker.js",
+  css: "css.worker.js",
+  scss: "css.worker.js",
+  less: "css.worker.js",
+  html: "html.worker.js",
+  handlebars: "html.worker.js",
+  razor: "html.worker.js",
+};
 
 let loading = null;
 
 function loadMonaco() {
-  loading ??= new Promise((resolve, reject) => {
-    // The JSON language runs in a worker. Pointed straight at the worker file:
-    // the page's CSP has no room for the data: URL Monaco would otherwise make.
-    window.MonacoEnvironment = { getWorkerUrl: () => `${BASE}/base/worker/workerMain.js` };
-    const script = document.createElement("script");
-    script.src = `${BASE}/loader.js`;
-    script.onerror = () => reject(new Error("the editor could not be loaded"));
-    script.onload = () => {
-      window.require.config({ paths: { vs: BASE } });
-      window.require(["vs/editor/editor.main"], () => resolve(window.monaco), reject);
+  loading ??= (async () => {
+    // Pointed straight at the worker files: the page's CSP has no room for the
+    // data: URL Monaco would otherwise make.
+    window.MonacoEnvironment = {
+      getWorker: (_id, label) => new window.Worker(`${BASE}${WORKERS[label] ?? "editor.worker.js"}`, { type: "module", name: label }),
     };
-    document.head.append(script);
-  });
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = `${BASE}monaco.css`;
+    document.head.append(css);
+    let monaco;
+    try {
+      monaco = await import(`${BASE}monaco.mjs`);
+    } catch (err) {
+      throw new Error("the editor could not be loaded", { cause: err });
+    }
+    // The language services moved from monaco.languages.json to monaco.json
+    // in the ES module build; the code below reads them where they used to be.
+    for (const lang of ["json", "css", "html"]) monaco.languages[lang] ??= monaco[lang];
+    return monaco;
+  })();
   return loading;
 }
 

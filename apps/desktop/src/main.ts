@@ -1040,9 +1040,9 @@ function chosenPanels(): PanelId[] {
  * to look in.
  */
 function forwardRendererConsole(window: BrowserWindow): void {
-  window.webContents.on("console-message", (_event, level, message, line, source) => {
-    if (level < 2) return; // warnings and errors only
-    const where = source === "" ? "" : ` (${source.split("/").pop() ?? source}:${String(line)})`;
+  window.webContents.on("console-message", ({ level, message, lineNumber, sourceId }) => {
+    if (level !== "warning" && level !== "error") return;
+    const where = sourceId === "" ? "" : ` (${sourceId.split("/").pop() ?? sourceId}:${String(lineNumber)})`;
     process.stderr.write(`renderer: ${message}${where}\n`);
   });
 }

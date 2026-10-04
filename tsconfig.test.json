@@ -13,7 +13,6 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "@exxeed/core": ["./packages/core/src/index.ts"],
       "@exxeed/telemetry": ["./packages/telemetry/src/index.ts"],

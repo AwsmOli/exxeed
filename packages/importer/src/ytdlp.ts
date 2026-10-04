@@ -237,7 +237,7 @@ export async function fetchTranscript(yt: YtDlp, videoId: string): Promise<Trans
     ) as typeof info;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(/429|reloaded|not a bot/i.test(message) ? RATE_LIMITED : message);
+    throw new Error(/429|reloaded|not a bot/i.test(message) ? RATE_LIMITED : message, { cause: err });
   }
 
   const choice = chooseCaptions(info.subtitles ?? {}, info.automatic_captions ?? {});
