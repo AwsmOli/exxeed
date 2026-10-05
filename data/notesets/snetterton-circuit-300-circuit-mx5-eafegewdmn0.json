@@ -1,0 +1,211 @@
+{
+  "id": "snetterton-circuit-300-circuit-mx5-eafegewdmn0",
+  "trackKey": {
+    "sim": "iracing",
+    "trackId": 297,
+    "configId": "300-circuit"
+  },
+  "lengthM": 4735.35,
+  "carClass": "mx5",
+  "source": {
+    "type": "youtube",
+    "videoId": "EAFEgEwDmN0",
+    "url": "https://www.youtube.com/watch?v=EAFEgEwDmN0",
+    "title": "iRacing MX5 Snetterton Guide 2:06.7 Mazda MX5 Snetterton 300 Track Guide",
+    "channel": "Sambo iRacing"
+  },
+  "status": "draft",
+  "createdAt": "2026-10-05T21:49:38.819Z",
+  "notes": [
+    {
+      "id": "20twh0",
+      "pct": 0.07125000000000004,
+      "text": "Light brake just past midway between the 200 and 100 boards, third gear, right tyres over the kerb, straight to full throttle, exit wide.",
+      "textShort": "Light brake, third",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.85,
+      "sourceTs": "2:46",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/20twh0.wav",
+        "durationMs": 10112
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/20twh0_short.wav",
+        "durationMs": 1265
+      },
+      "dirty": false
+    },
+    {
+      "id": "qz1ing",
+      "pct": 0.16025,
+      "text": "Brake hard midway between the 200 and 100 boards, first gear early, stay wide of the sausage kerb, late apex over the rumble strip, exit wide.",
+      "textShort": "Brake hard, first",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.85,
+      "sourceTs": "3:16",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/qz1ing.wav",
+        "durationMs": 10089
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/qz1ing_short.wav",
+        "durationMs": 1289
+      },
+      "dirty": false
+    },
+    {
+      "id": "4e80xz",
+      "pct": 0.2217500000000001,
+      "text": "Turn in flat, small lift and a brush of brake as the turn-left sign passes, throttle before the apex, left tyres on the kerb, use all the exit.",
+      "textShort": "Lift at the sign",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.7,
+      "sourceTs": "3:51",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/4e80xz.wav",
+        "durationMs": 9973
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/4e80xz_short.wav",
+        "durationMs": 1045
+      },
+      "dirty": false
+    },
+    {
+      "id": "ullmne",
+      "pct": 0.34125000000000005,
+      "text": "Brake midway between the 200 and 100 boards, first gear, left tyres right over the kerb to the grass, exit wide.",
+      "textShort": "Between boards, first",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.85,
+      "sourceTs": "4:28",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/ullmne.wav",
+        "durationMs": 7976
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/ullmne_short.wav",
+        "durationMs": 1602
+      },
+      "dirty": false
+    },
+    {
+      "id": "b6b9k2",
+      "pct": 0.40674999999999994,
+      "text": "Don't over-brake. Turn in past the Hamilton sign with a touch of brake, full throttle before the bollards, exit wide.",
+      "textShort": "Touch of brake",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.8,
+      "sourceTs": "4:55",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/b6b9k2.wav",
+        "durationMs": 7198
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/b6b9k2_short.wav",
+        "durationMs": 906
+      },
+      "dirty": false
+    },
+    {
+      "id": "jky7fv",
+      "pct": 0.4597500000000001,
+      "text": "Brake at the turn-left marker, down to first, cut the kerb hard, exit wide.",
+      "textShort": "Marker, first",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.7,
+      "sourceTs": "5:16",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/jky7fv.wav",
+        "durationMs": 4969
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/jky7fv_short.wav",
+        "durationMs": 1115
+      },
+      "dirty": false
+    },
+    {
+      "id": "wo8d3u",
+      "pct": 0.50325,
+      "text": "Turn in at the Williams sign, light brake, second gear, early full throttle, right tyres to the grass, exit wide.",
+      "textShort": "Williams sign, second",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.75,
+      "sourceTs": "5:35",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/wo8d3u.wav",
+        "durationMs": 8231
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/wo8d3u_short.wav",
+        "durationMs": 1730
+      },
+      "dirty": false
+    },
+    {
+      "id": "br3rze",
+      "pct": 0.69425,
+      "text": "Brake at the 100 board before the bridge, second gear, no throttle until you are tight to the right-hand sausage kerb, then flat.",
+      "textShort": "100 board, second",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.75,
+      "sourceTs": "6:16",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/br3rze.wav",
+        "durationMs": 8673
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/br3rze_short.wav",
+        "durationMs": 1567
+      },
+      "dirty": false
+    },
+    {
+      "id": "apkn5j",
+      "pct": 0.7582499999999999,
+      "text": "Flat through Bomb Hole, right tyres tight to the grass, wide exit.",
+      "textShort": "Flat, tight right",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.75,
+      "sourceTs": "6:55",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/apkn5j.wav",
+        "durationMs": 4888
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/apkn5j_short.wav",
+        "durationMs": 1149
+      },
+      "dirty": false
+    },
+    {
+      "id": "i2pehq",
+      "pct": 0.8187500000000001,
+      "text": "Lift when you point at the marshal hut, feather half throttle round the long right, then brake and get tight to the sausage kerb, full throttle to the line.",
+      "textShort": "Lift at the hut",
+      "priority": 1,
+      "leadAdjustS": 0,
+      "confidence": 0.7,
+      "sourceTs": "7:07",
+      "audio": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/i2pehq.wav",
+        "durationMs": 9137
+      },
+      "audioShort": {
+        "file": "snetterton-circuit-300-circuit-mx5-eafegewdmn0/en_test/i2pehq_short.wav",
+        "durationMs": 929
+      },
+      "dirty": false
+    }
+  ]
+}
