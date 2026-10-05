@@ -101,6 +101,7 @@ import { checkUpdatesNow, installLibrary, isRendering, knownItem, remoteMinePack
 import { installContentIpc } from "./content.js";
 import { installLapImport } from "./lap-import.js";
 import { installImporterIpc, openImporter } from "./importer.js";
+import { installVideoTracesIpc, openTracer } from "./video-traces.js";
 import {
   installSettingsIpc,
   openPreferences,
@@ -1954,8 +1955,10 @@ void app.whenReady().then(() => {
       if (settings().get().noteSetId === noteSetId) settings().update({ noteSetId: null });
     },
   });
+  installVideoTracesIpc({ getSettings: () => settings().get(), resolveDataDir, changed: () => void refreshPacks() });
   installImporterIpc({
     getSettings: () => settings().get(),
+    openTracer: (video) => openTracer(PRELOAD, video),
     resolveDataDir,
     identity: () => liveIdentity,
     openImported: (noteSetId) => {

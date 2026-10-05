@@ -247,6 +247,7 @@ const chooseVideo = (video) => {
   el("video-title").textContent = video.title;
   el("video-meta").textContent = [video.channel, video.durationS ? fmtTime(video.durationS * 1000) : null].filter(Boolean).join(" · ");
   el("open-yt").disabled = false;
+  el("open-tracer").disabled = false;
 
   playerReady = false;
   const frame = make("iframe", {
@@ -605,6 +606,7 @@ const init = async () => {
   el("transcript-btn").addEventListener("click", () => void getTranscript());
   el("transcript-filter").addEventListener("input", renderTranscript);
   el("open-yt").addEventListener("click", () => state.video && void call({ op: "openVideo", videoId: state.video.id, atMs: 0 }));
+  el("open-tracer").addEventListener("click", () => state.video && void call({ op: "openTracer", videoId: state.video.id, title: state.video.title ?? state.video.id }));
   el("convert-btn").addEventListener("click", () => void convert());
   el("copy-btn").addEventListener("click", () => void copyPrompt());
   el("paste-btn").addEventListener("click", () => void usePasted());

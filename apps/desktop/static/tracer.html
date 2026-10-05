@@ -1,0 +1,113 @@
+<!doctype html>
+<!--
+  Traces from a guide video — experimental (src/video-traces.ts).
+
+  Draw a box round the throttle bar, the brake bar and something that changes
+  only at the start/finish line; read the video; pick the lap; build a
+  reference lap with the video's inputs, look at it, save it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; media-src 'self' file:" />
+    <title>Exxeed — Traces From Video (experimental)</title>
+    <style>
+      :root { color-scheme: dark; --bg: #101215; --panel: #14171c; --raised: #1b1f26; --line: rgba(255, 255, 255, 0.08); --text: #e6e9ee; --muted: #8a93a0; --accent: #58a6ff; --good: #3fb950; --bad: #f85149; --warn: #f0883e; }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      html, body { height: 100%; }
+      body { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; background: var(--bg); color: var(--text); font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      main { display: flex; flex-direction: column; min-width: 0; padding: 14px; gap: 10px; overflow: auto; }
+      aside { border-left: 1px solid var(--line); background: var(--panel); padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
+      h1 { font-size: 15px; margin: 0; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 6px; }
+      .muted { color: var(--muted); }
+      .small { font-size: 12px; }
+      .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      button { background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+      button:disabled { opacity: 0.45; cursor: default; }
+      button.primary { background: #1f6feb; border-color: #1f6feb; }
+      button.on { outline: 2px solid var(--accent); }
+      select, input { background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
+      input[type="number"] { width: 92px; }
+      .stage { position: relative; align-self: flex-start; width: 100%; max-width: 100%; }
+      .stage video { display: block; width: 100%; height: auto; background: #000; border-radius: 6px; }
+      .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+      .status { min-height: 18px; }
+      .status.bad { color: var(--bad); }
+      .status.good { color: var(--good); }
+      .box-chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+      ul.crossings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+      ul.crossings li { display: flex; gap: 6px; align-items: center; }
+      ul.crossings li span { flex: 1; font-variant-numeric: tabular-nums; }
+      progress { width: 100%; }
+      #chart { width: 100%; height: 170px; background: var(--raised); border-radius: 6px; }
+      .note { color: var(--muted); font-size: 12px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="row">
+        <h1 id="title">Traces from video</h1>
+        <span class="muted small">experimental</span>
+      </div>
+      <div class="status small" id="status"></div>
+      <div class="stage" id="stage" hidden>
+        <video id="video" muted playsinline preload="auto"></video>
+        <canvas id="boxes"></canvas>
+      </div>
+      <div class="row" id="transport" hidden>
+        <button type="button" id="play">Play</button>
+        <button type="button" data-step="-1">−1 s</button>
+        <button type="button" data-frame="-1">−1 frame</button>
+        <button type="button" data-frame="1">+1 frame</button>
+        <button type="button" data-step="1">+1 s</button>
+        <span class="muted small" id="time">0:00.000</span>
+      </div>
+    </main>
+    <aside>
+      <section>
+        <h2>1. Boxes</h2>
+        <p class="note">Pause on a frame where the overlay shows, choose a box, and drag over the video.</p>
+        <div class="row" style="margin-top: 6px">
+          <button type="button" data-box="throttle"><span class="box-chip" style="background: #3fb950"></span>Throttle bar</button>
+          <button type="button" data-box="brake"><span class="box-chip" style="background: #f85149"></span>Brake bar</button>
+          <button type="button" data-box="line"><span class="box-chip" style="background: #58a6ff"></span>Changes at the line</button>
+        </div>
+        <p class="note" style="margin-top: 6px">For the last box, pick something that changes only when the car crosses the line — the lap number, or the last-lap time.</p>
+      </section>
+      <section>
+        <h2>2. Read the video</h2>
+        <div class="row"><button type="button" class="primary" id="read" disabled>Read from here</button><button type="button" id="stop" hidden>Stop</button></div>
+        <progress id="progress" value="0" max="1" hidden></progress>
+        <div class="status small" id="read-status"></div>
+      </section>
+      <section>
+        <h2>3. The lap</h2>
+        <ul class="crossings" id="crossings"></ul>
+        <div class="row" style="margin-top: 6px">
+          <label class="small">Starts <input type="number" step="0.001" id="start" /></label>
+          <button type="button" id="start-here" title="The video's current time">Now</button>
+        </div>
+        <div class="row" style="margin-top: 4px">
+          <label class="small">Ends <input type="number" step="0.001" id="end" /></label>
+          <button type="button" id="end-here" title="The video's current time">Now</button>
+        </div>
+        <div class="row" style="margin-top: 4px">
+          <label class="small">Lap time <input type="text" id="laptime" placeholder="1:21.310" style="width: 92px" /></label>
+          <span class="note">if the video shows it — sets the end exactly</span>
+        </div>
+      </section>
+      <section>
+        <h2>4. Build</h2>
+        <label class="small">Track and car <select id="target"></select></label>
+        <p class="note">Speed, gear and timing come from that reference lap, stretched to the video's lap time; throttle and brake from the video.</p>
+        <div class="row" style="margin-top: 6px"><button type="button" class="primary" id="build" disabled>Build</button><button type="button" id="save" disabled>Save as reference</button></div>
+        <div class="status small" id="build-status"></div>
+        <canvas id="chart"></canvas>
+        <p class="note">Faint: the current reference. Bright: from the video.</p>
+      </section>
+    </aside>
+    <script type="module" src="./tracer.js"></script>
+  </body>
+</html>

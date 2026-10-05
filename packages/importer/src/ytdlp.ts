@@ -257,3 +257,30 @@ export async function fetchTranscript(yt: YtDlp, videoId: string): Promise<Trans
   if (lines.length === 0) throw new Error("the captions are empty");
   return { lines, kind: choice.kind, language: choice.language };
 }
+
+/**
+ * Download a video to `path` as an MP4 that Chromium plays on its own (H.264,
+ * no audio needed, 720p or less): video only, so yt-dlp has nothing to merge
+ * and needs no ffmpeg. Kept where it is put, so a second look at the same
+ * guide does not download it again.
+ */
+export async function downloadVideo(yt: YtDlp, videoId: string, path: string): Promise<string> {
+  if (await isFile(path)) return path;
+  await mkdir(join(path, ".."), { recursive: true });
+  const partial = `${path}.partial`;
+  await run(
+    yt,
+    [
+      "--no-playlist",
+      "-f",
+      "bv*[vcodec^=avc1][height<=720][ext=mp4]/b[vcodec^=avc1][height<=720][ext=mp4]/b[ext=mp4]",
+      "-o",
+      partial,
+      "--no-part",
+      `https://www.youtube.com/watch?v=${videoId}`,
+    ],
+    15 * 60_000,
+  );
+  await rename(partial, path);
+  return path;
+}

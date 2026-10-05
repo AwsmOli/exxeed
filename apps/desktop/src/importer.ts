@@ -87,6 +87,8 @@ const slug = (value: string): string =>
 
 export interface ImporterDeps {
   readonly getSettings: () => Settings;
+  /** Open the experimental tracer on a guide video. */
+  readonly openTracer: (video: { id: string; title: string }) => void;
   readonly resolveDataDir: (settings: Settings) => string;
   /** What the sim reports right now, or null when no session is running. */
   readonly identity: () => SessionIdentity | null;
@@ -448,7 +450,8 @@ type Request =
   | { op: "import"; request: ImportRequest }
   | { op: "saved" }
   | { op: "placeSaved"; file: string }
-  | { op: "openVideo"; videoId: string; atMs: number };
+  | { op: "openVideo"; videoId: string; atMs: number }
+  | { op: "openTracer"; videoId: string; title: string };
 
 async function validTurns(deps: ImporterDeps, track: TrackRequest): Promise<number[] | null> {
   const dataDir = deps.resolveDataDir(deps.getSettings());
@@ -579,6 +582,11 @@ async function handle(deps: ImporterDeps, request: Request, sender: Electron.Web
     case "placeSaved":
       return placeSaved(deps, request.file, send);
 
+    case "openTracer": {
+      if (!/^[A-Za-z0-9_-]{11}$/.test(request.videoId)) throw new Error("not a video id");
+      deps.openTracer({ id: request.videoId, title: request.title });
+      return null;
+    }
     case "openVideo": {
       if (!/^[A-Za-z0-9_-]{11}$/.test(request.videoId)) throw new Error("not a video id");
       const t = Math.max(0, Math.floor(request.atMs / 1000));

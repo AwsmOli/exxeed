@@ -78,3 +78,6 @@ apps/desktop/static/vendor/
 
 # Packaged builds (apps/desktop/scripts/package.mjs)
 apps/desktop/release/
+
+# Guide videos downloaded by the experimental tracer.
+data/video-cache/

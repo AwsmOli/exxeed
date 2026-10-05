@@ -32,3 +32,4 @@ export * from "./scheduler.js";
 export * from "./engine.js";
 export * from "./delta.js";
 export * from "./lapfile.js";
+export * from "./video-traces.js";
