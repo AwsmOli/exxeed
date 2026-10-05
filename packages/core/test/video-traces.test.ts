@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { barFill, calibratePedals, findCrossings, pedalFills, referenceFromVideo, type Metres, type ReferenceLap } from "../src/index.js";
+import {
+  barFill,
+  calibratePedals,
+  cleanSpeeds,
+  clusterGlyphs,
+  findCrossings,
+  GLYPH_DIMS,
+  pedalFills,
+  readNumbers,
+  referenceFromVideo,
+  referenceFromVideoSpeed,
+  type Metres,
+  type ReferenceLap,
+} from "../src/index.js";
 
 describe("barFill", () => {
   it("is the lit run from the empty end", () => {
@@ -154,5 +167,70 @@ describe("pedal bars from one loose box", () => {
     expect(fills[78]!.throttle).toBeCloseTo(0.4, 1);
     // The sleeve: lit, but not from the bar's bottom.
     expect(fills[85]!.brake).toBe(0);
+  });
+});
+
+describe("reading the overlay's speed", () => {
+  const glyph = (seed: number, noise = 0) =>
+    Array.from({ length: GLYPH_DIMS }, (_, i) => Math.max(0, Math.min(1, ((i * (seed + 3)) % 7 > 3 ? 1 : 0) + (noise ? (((i * 13 + noise) % 5) - 2) * 0.03 : 0))));
+
+  it("groups the same digit drawn again and again, apart from the others", () => {
+    const vectors: number[] = [];
+    for (let k = 0; k < 30; k++) vectors.push(...glyph(1, k), ...glyph(2, k), ...glyph(5, k));
+    const c = clusterGlyphs(vectors);
+    expect(c.centroids).toHaveLength(3);
+    expect(c.counts).toEqual([30, 30, 30]);
+    expect(c.ids[0]).not.toBe(c.ids[1]);
+    expect(c.ids[0]).toBe(c.ids[3]);
+  });
+
+  it("reads each frame's number from its named digits, and gives up on an unnamed one", () => {
+    // Frame 0: glyphs of groups 1, 2, 0 → "1","5","5"; frame 1: group 3 is unnamed.
+    const n = readNumbers(2, [0, 0, 0, 1, 1], [1, 2, 0, 1, 3], ["5", "1", "5", null]);
+    expect(n).toEqual([155, null]);
+  });
+
+  it("drops a misread far from its neighbours and fills short gaps", () => {
+    const times = Array.from({ length: 12 }, (_, i) => i / 10);
+    const v = [100, 101, 102, 103, 999, 105, null, null, 108, 109, 110, 111];
+    const out = cleanSpeeds(times, v);
+    expect(out[4]).toBeCloseTo(104);
+    expect(out[6]).toBeCloseTo(106);
+  });
+
+  it("places the lap by how far the car went, not by the time", () => {
+    // 1,000 m: 500 m at 72 km/h (25 s), then 500 m at 36 km/h (50 s). Braking 24–26 s in.
+    const grid = 100;
+    const base = {
+      trackKey: { sim: "iracing", trackId: 1, configId: "1" },
+      carId: "mx5-mx52016",
+      lapTimeS: 90,
+      gridSize: grid,
+      channels: {
+        speedMps: Array.from({ length: grid }, () => 15),
+        throttle: Array.from({ length: grid }, () => 1),
+        brake: Array.from({ length: grid }, () => 0),
+        gear: Array.from({ length: grid }, () => 3),
+        steerRad: Array.from({ length: grid }, () => 0),
+        elapsedS: Array.from({ length: grid }, (_, i) => i * 0.9),
+      },
+      derivedForMapVersion: 1,
+      perCorner: {},
+      brakeChannelInferred: false,
+    } as ReferenceLap;
+    const samples = Array.from({ length: 751 }, (_, i) => {
+      const t = i / 10;
+      const braking = t >= 24 && t < 26;
+      return { t, speedKph: t < 25 ? 72 : 36, throttle: braking ? 0 : 1, brake: braking ? 1 : 0 };
+    });
+    const lap = referenceFromVideoSpeed({ base, samples, lapStartS: 0, lapEndS: 75, lengthM: 1000 as Metres, corners: [] });
+    // Halfway round is 25 s in — a third of the time, not half.
+    expect(lap.channels.elapsedS[50]).toBeCloseTo(25, 0);
+    expect(lap.channels.speedMps[25]).toBeCloseTo(20, 0);
+    expect(lap.channels.speedMps[75]).toBeCloseTo(10, 0);
+    // The braking sits at the halfway mark, where the car was when it braked.
+    expect(lap.channels.brake[49]).toBe(1);
+    expect(lap.channels.brake[46]).toBe(0);
+    expect(lap.lapTimeS).toBe(75);
   });
 });

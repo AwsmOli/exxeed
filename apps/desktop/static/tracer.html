@@ -43,6 +43,11 @@
       progress { width: 100%; }
       #chart { width: 100%; height: 170px; background: var(--raised); border-radius: 6px; }
       .note { color: var(--muted); font-size: 12px; margin: 0; }
+      .digits { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+      .digit { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px; background: var(--raised); border-radius: 6px; }
+      .digit canvas { width: 32px; height: 48px; image-rendering: pixelated; background: #000; border-radius: 3px; }
+      .digit input { width: 36px; text-align: center; padding: 2px; }
+      .digit span { font-size: 10px; color: var(--muted); }
     </style>
   </head>
   <body>
@@ -72,18 +77,31 @@
         <div class="row" style="margin-top: 6px">
           <button type="button" data-box="pedals"><span class="box-chip" style="background: linear-gradient(90deg, #f85149 50%, #3fb950 50%)"></span>Pedal bars</button>
           <button type="button" data-box="line"><span class="box-chip" style="background: #58a6ff"></span>Changes at the line</button>
+          <button type="button" data-box="speed"><span class="box-chip" style="background: #d2a8ff"></span>Speed number</button>
         </div>
         <p class="note" style="margin-top: 6px">
           <b>Pedal bars:</b> one box round the throttle and brake bars together — loosely, with room to spare above and below.
           The bars are found by colour (green throttle, red brake), and 0% and 100% from how far the throttle bar reaches over the whole video.
         </p>
         <p class="note" style="margin-top: 6px"><b>Changes at the line:</b> something that changes only when the car crosses the line — the lap number, or the last-lap time.</p>
+        <p class="note" style="margin-top: 6px">
+          <b>Speed number:</b> a box round just the speed's digits, with a little room. It places the lap by how far the car went,
+          so the inputs land exactly where the video's driver used them. Without it, another lap's timing is borrowed.
+          <label class="small" style="margin-left: 4px"><select id="units"><option value="kph">km/h</option><option value="mph">mph</option></select></label>
+        </p>
       </section>
       <section>
         <h2>2. Read the video</h2>
         <div class="row"><button type="button" class="primary" id="read" disabled>Read from here</button><button type="button" id="stop" hidden>Stop</button></div>
         <progress id="progress" value="0" max="1" hidden></progress>
         <div class="status small" id="read-status"></div>
+      </section>
+      <section id="digits-section" hidden>
+        <h2>Speed digits</h2>
+        <p class="note">The shapes found in the speed box, most common first. Type the digit each one is; leave a box empty for anything that is not a digit.</p>
+        <div class="digits" id="digits"></div>
+        <div class="row" style="margin-top: 6px"><button type="button" class="primary" id="read-speeds">Read speeds</button></div>
+        <div class="status small" id="digits-status"></div>
       </section>
       <section>
         <h2>3. The lap</h2>
@@ -104,11 +122,11 @@
       <section>
         <h2>4. Build</h2>
         <label class="small">Track and car <select id="target"></select></label>
-        <p class="note">Speed, gear and timing come from that reference lap, stretched to the video's lap time; throttle and brake from the video.</p>
+        <p class="note">With the speed read, everything but the gear comes from the video. Without it, speed and timing are that reference lap’s, stretched to the video’s lap time.</p>
         <div class="row" style="margin-top: 6px"><button type="button" class="primary" id="build" disabled>Build</button><button type="button" id="save" disabled>Save as reference</button></div>
         <div class="status small" id="build-status"></div>
         <canvas id="chart"></canvas>
-        <p class="note">Faint: the current reference. Bright: from the video.</p>
+        <p class="note">Faint: the current reference. Bright: from the video. Purple: speed.</p>
       </section>
     </aside>
     <script type="module" src="./tracer.js"></script>

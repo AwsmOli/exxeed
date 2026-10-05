@@ -305,3 +305,214 @@ export function referenceFromVideo(o: VideoReferenceOptions): ReferenceLap {
   for (const c of o.corners) perCorner[String(c.index)] = perCornerMetrics(lap, c, o.lengthM);
   return { ...base, lapTimeS, channels, perCorner, brakeChannelInferred: false };
 }
+
+// ---------------------------------------------------------------------------
+// Reading the overlay's speed, so the lap is placed from the video alone.
+//
+// The renderer cuts each digit out of the speed box, frame by frame, and
+// shrinks it to a small grid of how lit each cell is (GLYPH_CELLS values,
+// plus its width over height). The same font in the same place makes the
+// same shapes, so clustering them leaves about ten groups; the person names
+// each once, and every frame's number follows.
+// ---------------------------------------------------------------------------
+
+/** A glyph's grid: 10 columns × 14 rows, then its aspect. */
+export const GLYPH_W = 10;
+export const GLYPH_H = 14;
+export const GLYPH_DIMS = GLYPH_W * GLYPH_H + 1;
+
+export interface GlyphClusters {
+  /** Per glyph, the cluster it belongs to. */
+  readonly ids: Int32Array;
+  readonly centroids: number[][];
+  readonly counts: number[];
+}
+
+const glyphDistance = (a: ArrayLike<number>, ao: number, b: readonly number[]): number => {
+  let sum = 0;
+  for (let i = 0; i < GLYPH_DIMS; i++) sum += Math.abs(a[ao + i]! - b[i]!);
+  return sum / GLYPH_DIMS;
+};
+
+/**
+ * Group glyphs that look alike: each joins the nearest group within
+ * `threshold` (mean difference per cell, 0–1), or starts one. A group's
+ * shape is the running mean of its members. Groups are numbered by size,
+ * largest first.
+ */
+export function clusterGlyphs(vectors: ArrayLike<number>, threshold = 0.1): GlyphClusters {
+  const n = Math.floor(vectors.length / GLYPH_DIMS);
+  const centroids: number[][] = [];
+  const counts: number[] = [];
+  const raw = new Int32Array(n);
+  for (let g = 0; g < n; g++) {
+    const o = g * GLYPH_DIMS;
+    let best = -1;
+    let bestD = Infinity;
+    for (let c = 0; c < centroids.length; c++) {
+      const d = glyphDistance(vectors, o, centroids[c]!);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    if (best < 0 || bestD > threshold) {
+      centroids.push(Array.from({ length: GLYPH_DIMS }, (_, i) => vectors[o + i]!));
+      counts.push(1);
+      raw[g] = centroids.length - 1;
+      continue;
+    }
+    const k = ++counts[best]!;
+    const c = centroids[best]!;
+    for (let i = 0; i < GLYPH_DIMS; i++) c[i]! += (vectors[o + i]! - c[i]!) / k;
+    raw[g] = best;
+  }
+  const order = counts.map((_, i) => i).sort((a, b) => counts[b]! - counts[a]!);
+  const rank = new Int32Array(order.length);
+  order.forEach((c, r) => (rank[c] = r));
+  return {
+    ids: raw.map((c) => rank[c]!),
+    centroids: order.map((c) => centroids[c]!),
+    counts: order.map((c) => counts[c]!),
+  };
+}
+
+/**
+ * Each frame's number, from its glyphs left to right and what each group was
+ * named: "0"–"9" for a digit, "" for something to skip (a unit, a smudge).
+ * Null for a frame with no digits, or with a glyph from a group not named.
+ */
+export function readNumbers(
+  frames: number,
+  glyphFrame: ArrayLike<number>,
+  ids: ArrayLike<number>,
+  labels: readonly (string | null)[],
+): (number | null)[] {
+  const text = Array.from({ length: frames }, () => "");
+  const bad = new Uint8Array(frames);
+  for (let g = 0; g < ids.length; g++) {
+    const f = glyphFrame[g]!;
+    const label = labels[ids[g]!] ?? null;
+    if (label === null) bad[f] = 1;
+    else text[f] += label;
+  }
+  return text.map((t, f) => (bad[f] === 1 || !/^\d+$/.test(t) ? null : Number(t)));
+}
+
+/**
+ * Speeds with misreads taken out and short gaps filled: a reading far from
+ * its neighbours' middle value is dropped (a digit caught changing, a car
+ * passing behind a see-through overlay), then gaps of up to `maxGapS` are
+ * bridged linearly.
+ */
+export function cleanSpeeds(times: ArrayLike<number>, values: readonly (number | null)[], maxJump = 25, maxGapS = 1): (number | null)[] {
+  const n = values.length;
+  const out: (number | null)[] = [...values];
+  const window = 5;
+  for (let i = 0; i < n; i++) {
+    const v = values[i];
+    if (v === null || v === undefined) continue;
+    const near: number[] = [];
+    for (let j = Math.max(0, i - window); j <= Math.min(n - 1, i + window); j++) {
+      const w = values[j];
+      if (j !== i && w !== null && w !== undefined) near.push(w);
+    }
+    if (near.length < 3) continue;
+    near.sort((a, b) => a - b);
+    if (Math.abs(v - near[Math.floor(near.length / 2)]!) > maxJump) out[i] = null;
+  }
+  let last = -1;
+  for (let i = 0; i < n; i++) {
+    if (out[i] === null) continue;
+    if (last >= 0 && i - last > 1 && times[i]! - times[last]! <= maxGapS) {
+      const a = out[last]!;
+      const b = out[i]!;
+      for (let j = last + 1; j < i; j++) out[j] = a + ((b - a) * (times[j]! - times[last]!)) / (times[i]! - times[last]!);
+    }
+    last = i;
+  }
+  return out;
+}
+
+export interface VideoLapSample extends VideoInputSample {
+  /** Speed read off the overlay, km/h; null where it could not be. */
+  readonly speedKph: number | null;
+}
+
+/**
+ * A reference lap entirely from the video: where the car is at each moment
+ * comes from its own speed, added up over the lap and scaled to the track's
+ * length, so a point is placed by how far the car had gone — not by another
+ * driver's timing. Speed, throttle and brake are the video's; gear and
+ * steering, which it does not read, come from `base` at the same place.
+ */
+export function referenceFromVideoSpeed(o: Omit<VideoReferenceOptions, "samples"> & { readonly samples: readonly VideoLapSample[] }): ReferenceLap {
+  const { base } = o;
+  const lapTimeS = o.lapEndS - o.lapStartS;
+  if (!(lapTimeS > 0)) throw new Error("the lap must end after it starts");
+  const inLap = o.samples.filter((s) => s.t >= o.lapStartS && s.t <= o.lapEndS && s.speedKph !== null);
+  if (inLap.length < 10) throw new Error("no speed was read over this lap");
+  const covered = inLap.length / o.samples.filter((s) => s.t >= o.lapStartS && s.t <= o.lapEndS).length;
+  if (covered < 0.8) throw new Error(`the speed was read on only ${Math.round(covered * 100)}% of the lap`);
+
+  // Distance by time, from the start line: trapezoids between readings.
+  const ts = [o.lapStartS];
+  const ds = [0];
+  let prevT = o.lapStartS;
+  let prevV = inLap[0]!.speedKph! / 3.6;
+  for (const s of inLap) {
+    const v = s.speedKph! / 3.6;
+    ds.push(ds[ds.length - 1]! + ((prevV + v) / 2) * (s.t - prevT));
+    ts.push(s.t);
+    prevT = s.t;
+    prevV = v;
+  }
+  ds.push(ds[ds.length - 1]! + prevV * (o.lapEndS - prevT));
+  ts.push(o.lapEndS);
+  // The overlay's speed and the track's own length never agree exactly (a
+  // line, a rounding, a units slip): scale so the lap is the track.
+  const scale = o.lengthM / ds[ds.length - 1]!;
+
+  const grid = base.gridSize;
+  const timeAt: number[] = [];
+  let j = 0;
+  for (let i = 0; i < grid; i++) {
+    const d = (i / grid) * ds[ds.length - 1]!;
+    while (j < ds.length - 2 && ds[j + 1]! < d) j++;
+    const span = ds[j + 1]! - ds[j]!;
+    const k = span > 0 ? (d - ds[j]!) / span : 0;
+    timeAt.push(ts[j]! + (ts[j + 1]! - ts[j]!) * k);
+  }
+  const speedAt = (t: number): number => {
+    let lo = 0;
+    let hi = inLap.length - 1;
+    if (t <= inLap[0]!.t) return inLap[0]!.speedKph!;
+    if (t >= inLap[hi]!.t) return inLap[hi]!.speedKph!;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (inLap[mid]!.t <= t) lo = mid;
+      else hi = mid;
+    }
+    const a = inLap[lo]!;
+    const b = inLap[hi]!;
+    return a.speedKph! + ((b.speedKph! - a.speedKph!) * (t - a.t)) / (b.t - a.t);
+  };
+  const throttle: number[] = [];
+  const brake: number[] = [];
+  for (const t of timeAt) {
+    const at = inputsAt(o.samples, t);
+    throttle.push(Math.max(0, Math.min(1, at.throttle)));
+    brake.push(Math.max(0, Math.min(1, at.brake)));
+  }
+  const channels = {
+    ...base.channels,
+    speedMps: timeAt.map((t) => (speedAt(t) / 3.6) * scale),
+    throttle,
+    brake,
+    elapsedS: timeAt.map((t) => t - o.lapStartS),
+  };
+  const lap: ResampledLap = { gridSize: grid, lengthM: o.lengthM, ...channels, lapTimeS: lapTimeS as Seconds };
+  const perCorner: ReferenceLap["perCorner"] = {};
+  for (const c of o.corners) perCorner[String(c.index)] = perCornerMetrics(lap, c, o.lengthM);
+  return { ...base, lapTimeS, channels, perCorner, brakeChannelInferred: false };
+}

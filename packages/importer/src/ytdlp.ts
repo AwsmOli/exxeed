@@ -260,7 +260,8 @@ export async function fetchTranscript(yt: YtDlp, videoId: string): Promise<Trans
 
 /**
  * Download a video to `path` as an MP4 that Chromium plays on its own (H.264,
- * no audio needed, 720p or less): video only, so yt-dlp has nothing to merge
+ * no audio needed, 1080p or less — an overlay's digits are a handful of
+ * pixels tall at 720p, too few to tell an 8 from a 9): video only, so yt-dlp has nothing to merge
  * and needs no ffmpeg. Kept where it is put, so a second look at the same
  * guide does not download it again.
  */
@@ -273,7 +274,7 @@ export async function downloadVideo(yt: YtDlp, videoId: string, path: string): P
     [
       "--no-playlist",
       "-f",
-      "bv*[vcodec^=avc1][height<=720][ext=mp4]/b[vcodec^=avc1][height<=720][ext=mp4]/b[ext=mp4]",
+      "bv*[vcodec^=avc1][height<=1080][ext=mp4]/b[vcodec^=avc1][height<=1080][ext=mp4]/b[ext=mp4]",
       "-o",
       partial,
       "--no-part",

@@ -18,12 +18,19 @@ const setStatus = (id, text, tone = "") => {
   el(id).className = `status small${tone ? ` ${tone}` : ""}`;
 };
 
-const COLOURS = { pedals: "#e3b341", line: "#58a6ff" };
-const LABELS = { pedals: "pedal bars", line: "line" };
+const COLOURS = { pedals: "#e3b341", line: "#58a6ff", speed: "#d2a8ff" };
+const LABELS = { pedals: "pedal bars", line: "line", speed: "speed" };
+/** A digit's grid (core GLYPH_W × GLYPH_H, then its aspect). */
+const GW = 10;
+const GH = 14;
 
 const state = {
   /** Boxes in the video's own pixels: { x, y, w, h }. */
-  boxes: { pedals: null, line: null },
+  boxes: { pedals: null, line: null, speed: null },
+  /** Where the lap was marked, by a crossing or by hand; a typed lap time works from these. */
+  marks: { start: null, end: null },
+  /** The speed box's digits: their grids, which frame each is from, and the groups found. */
+  glyphs: null,
   /** Where the bars were found in the pedal box, and each frame's fills (from main). */
   calibration: null,
   samples: [],
@@ -200,6 +207,89 @@ function pedalRuns(grab, out) {
   for (let x = 0; x < box.w; x++) out.push(...run(x, isGreen), ...run(x, isRed));
 }
 
+/**
+ * The speed box's digits, left to right: lit pixels (bright — digits are
+ * drawn light on a dark overlay) split into glyphs at empty columns, each
+ * copied onto a GW × GH grid of how lit each cell is, with its width over height last. Specks and anything much
+ * shorter than the tallest glyph (a decimal point, a unit) are left out.
+ */
+function speedGlyphs(grab, vectors) {
+  const { box, g } = grab;
+  g.drawImage(video, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+  const d = g.getImageData(0, 0, box.w, box.h).data;
+  // `lit` finds the glyphs; `grey` is what is kept of them — at this size an
+  // 8 and a 9 differ by a pixel or two of half-lit edge.
+  const lit = new Uint8Array(box.w * box.h);
+  const grey = new Float32Array(box.w * box.h);
+  for (let i = 0; i < lit.length; i++) {
+    const l = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11;
+    lit[i] = l > 150 ? 1 : 0;
+    grey[i] = Math.max(0, Math.min(1, (l - 70) / 150));
+  }
+  // Only the tallest band of lit rows is the number: the foot of a label
+  // above it, or the top of whatever is below, is cut off at the empty row between.
+  let band = [0, -1];
+  for (let y = 0; y < box.h; ) {
+    let any = false;
+    for (let x = 0; x < box.w && !any; x++) any = lit[y * box.w + x] === 1;
+    if (!any) {
+      y++;
+      continue;
+    }
+    const y0 = y;
+    for (any = true; y < box.h && any; ) {
+      y++;
+      any = false;
+      for (let x = 0; y < box.h && x < box.w && !any; x++) any = lit[y * box.w + x] === 1;
+    }
+    if (y - y0 > band[1] - band[0] + 1) band = [y0, y - 1];
+  }
+  for (let y = 0; y < box.h; y++) if (y < band[0] || y > band[1]) lit.fill(0, y * box.w, (y + 1) * box.w);
+  const colLit = (x) => {
+    for (let y = 0; y < box.h; y++) if (lit[y * box.w + x]) return true;
+    return false;
+  };
+  const spans = [];
+  for (let x = 0; x < box.w; ) {
+    if (!colLit(x)) {
+      x++;
+      continue;
+    }
+    const x0 = x;
+    while (x < box.w && colLit(x)) x++;
+    let y0 = box.h;
+    let y1 = -1;
+    for (let y = 0; y < box.h; y++) for (let xx = x0; xx < x; xx++) if (lit[y * box.w + xx]) { y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    spans.push({ x0, x1: x - 1, y0, y1 });
+  }
+  const tallest = Math.max(0, ...spans.map((s) => s.y1 - s.y0 + 1));
+  const k = Math.max(1, tallest / GH);
+  let count = 0;
+  for (const s of spans) {
+    const w = s.x1 - s.x0 + 1;
+    const h = s.y1 - s.y0 + 1;
+    if (h < tallest * 0.6 || w * h < 6) continue;
+    // Pixel for pixel from the glyph's top-left corner (shrunk only when the
+    // number is taller than the grid, and then all glyphs alike): stretching
+    // each glyph to fit blurs the pixel or two that tell an 8 from a 9.
+    for (let gy = 0; gy < GH; gy++) {
+      for (let gx = 0; gx < GW; gx++) {
+        const ax = s.x0 + Math.floor(gx * k);
+        const bx = Math.min(s.x1 + 1, s.x0 + Math.max(Math.floor((gx + 1) * k), Math.floor(gx * k) + 1));
+        const ay = s.y0 + Math.floor(gy * k);
+        const by = Math.min(s.y1 + 1, s.y0 + Math.max(Math.floor((gy + 1) * k), Math.floor(gy * k) + 1));
+        let on = 0;
+        let all = 0;
+        for (let y = ay; y < by; y++) for (let x = ax; x < bx; x++) { on += grey[y * box.w + x]; all++; }
+        vectors.push(all === 0 ? 0 : on / all);
+      }
+    }
+    vectors.push(Math.min(1, w / h));
+    count++;
+  }
+  return count;
+}
+
 /** The line box, small and grey, to compare with the frame before. */
 function lineSnapshot(grab) {
   const { box, g } = grab;
@@ -225,7 +315,11 @@ async function read() {
   state.changes = [];
   const times = [];
   const runs = [];
-  const grabs = { pedals: grabber(pedals), line: line ? grabber(line) : null };
+  const speed = state.boxes.speed;
+  const grabs = { pedals: grabber(pedals), line: line ? grabber(line) : null, speed: speed ? grabber(speed) : null };
+  const glyphVectors = [];
+  const glyphFrame = [];
+  state.glyphs = null;
   let previous = null;
   let lastT = -1;
   el("progress").hidden = false;
@@ -246,6 +340,10 @@ async function read() {
         lastT = t;
         times.push(t);
         pedalRuns(grabs.pedals, runs);
+        if (grabs.speed !== null) {
+          const n = speedGlyphs(grabs.speed, glyphVectors);
+          for (let i = 0; i < n; i++) glyphFrame.push(times.length - 1);
+        }
         if (grabs.line !== null) {
           const snap = lineSnapshot(grabs.line);
           if (previous !== null) state.changes.push({ t, diff: meanDiff(snap, previous) });
@@ -288,8 +386,63 @@ async function read() {
     found.length === 2 ? "good" : "bad",
   );
   await showCrossings();
+  if (grabs.speed !== null) await showDigits(Float64Array.from(times), Float32Array.from(glyphVectors), Int32Array.from(glyphFrame));
   updateButtons();
 }
+
+/** The speed box's digit shapes, grouped, for the person to name. */
+async function showDigits(times, vectors, glyphFrame) {
+  el("digits-section").hidden = false;
+  if (glyphFrame.length === 0) {
+    setStatus("digits-status", "No digits found in the speed box: draw it round the speed's digits only, and read again.", "bad");
+    return;
+  }
+  const c = await call({ op: "clusterGlyphs", vectors });
+  state.glyphs = { times, glyphFrame, vectors, ids: c.ids, groups: c.centroids.length };
+  el("digits").replaceChildren(
+    ...c.centroids.map((centroid, i) => {
+      const tile = Object.assign(document.createElement("div"), { className: "digit" });
+      const canvas = document.createElement("canvas");
+      canvas.width = GW;
+      canvas.height = GH;
+      const g = canvas.getContext("2d");
+      const img = g.createImageData(GW, GH);
+      for (let k = 0; k < GW * GH; k++) {
+        const v = Math.round(centroid[k] * 255);
+        img.data.set([v, v, v, 255], k * 4);
+      }
+      g.putImageData(img, 0, 0);
+      const input = Object.assign(document.createElement("input"), { type: "text", maxLength: 1, inputMode: "numeric" });
+      input.dataset.group = String(i);
+      tile.append(canvas, input, Object.assign(document.createElement("span"), { textContent: `×${c.counts[i]}` }));
+      return tile;
+    }),
+  );
+  setStatus("digits-status", `${c.centroids.length} shapes. Name the digits, then Read speeds.`);
+}
+
+el("read-speeds").addEventListener("click", async () => {
+  const gl = state.glyphs;
+  if (gl === null) return;
+  const labels = Array.from({ length: Math.max(gl.groups, 1 + Math.max(0, ...gl.ids)) }, () => null);
+  for (const input of el("digits").querySelectorAll("input")) {
+    const v = input.value.trim();
+    labels[Number(input.dataset.group)] = /^\d$/.test(v) ? v : "";
+  }
+  try {
+    const speeds = await call({ op: "readSpeeds", times: gl.times, glyphFrame: gl.glyphFrame, ids: gl.ids, labels, mph: el("units").value === "mph" });
+    const byTime = new Map();
+    gl.times.forEach((t, i) => byTime.set(t, speeds[i]));
+    state.samples = state.samples.map((s) => ({ ...s, speedKph: byTime.get(s.t) ?? null }));
+    const read = speeds.filter((v) => v !== null).length;
+    // Short of all of them is usual: the overlay is not on screen the whole video. Build checks the lap itself.
+    setStatus("digits-status", `Speed read on ${Math.round((read / speeds.length) * 100)}% of frames.`, read / speeds.length > 0.5 ? "good" : "bad");
+    applyLapTime();
+  } catch (err) {
+    setStatus("digits-status", err.message, "bad");
+  }
+  updateButtons();
+});
 
 el("read").addEventListener("click", () => void read().catch((err) => setStatus("read-status", err.message, "bad")));
 el("stop").addEventListener("click", () => {
@@ -361,15 +514,35 @@ function guessLap() {
 
 function setLap(which, t) {
   el(which).value = t.toFixed(3);
-  if (which === "start") applyLapTime();
+  state.marks[which] = t;
+  applyLapTime();
   updateButtons();
+}
+
+/** How far the car went between two moments by the speed read off the overlay, metres; null without it. */
+function stretchM(s, e) {
+  let d = 0;
+  let prev = null;
+  let read = 0;
+  let all = 0;
+  for (const x of state.samples) {
+    if (x.t < s || x.t > e) continue;
+    all++;
+    if (x.speedKph === null || x.speedKph === undefined) continue;
+    read++;
+    if (prev !== null) d += ((prev.speedKph + x.speedKph) / 7.2) * (x.t - prev.t);
+    prev = x;
+  }
+  return all > 0 && read / all >= 0.8 ? d : null;
 }
 el("start-here").addEventListener("click", () => setLap("start", video.currentTime));
 el("end-here").addEventListener("click", () => setLap("end", video.currentTime));
-el("start").addEventListener("input", () => {
-  applyLapTime();
-  updateButtons();
-});
+for (const which of ["start", "end"]) {
+  el(which).addEventListener("input", () => {
+    state.marks[which] = el(which).value === "" ? null : Number(el(which).value);
+    updateButtons();
+  });
+}
 /** "1:21.310" or "81.31" → seconds, or null. */
 const parseLapTime = (text) => {
   const m = /^\s*(?:(\d+):)?(\d+(?:\.\d+)?)\s*$/.exec(text);
@@ -377,20 +550,31 @@ const parseLapTime = (text) => {
 };
 /**
  * A lap time typed from the video's own overlay is exact; the line box's
- * change can trail the line by a fraction of a second. With one, the end is
- * the start plus it.
+ * change can trail the line, or be something else altogether (the overlay
+ * fading in). With one, the lap is that long from the start mark, or that
+ * long up to the end mark — whichever stretch the car's own speed says is
+ * nearer one lap of the track. Without the speed, from the start.
  */
 function applyLapTime() {
   const lap = parseLapTime(el("laptime").value);
-  const start = Number(el("start").value);
-  if (lap === null || !(lap > 0) || el("start").value === "") return;
-  el("end").value = (start + lap).toFixed(3);
+  const { start, end } = state.marks;
+  if (lap === null || !(lap > 0) || (start === null && end === null)) return;
+  const options = [];
+  if (start !== null) options.push({ s: start, e: start + lap });
+  if (end !== null) options.push({ s: end - lap, e: end });
+  const lengthM = el("target").value === "" ? null : JSON.parse(el("target").value).lengthM;
+  let best = options[0];
+  if (options.length > 1 && lengthM) {
+    const off = options.map((o) => stretchM(o.s, o.e)).map((d) => (d === null ? Infinity : Math.abs(d - lengthM)));
+    if (off[1] < off[0]) best = options[1];
+  }
+  el("start").value = best.s.toFixed(3);
+  el("end").value = best.e.toFixed(3);
 }
 el("laptime").addEventListener("input", () => {
   applyLapTime();
   updateButtons();
 });
-el("end").addEventListener("input", updateButtons);
 
 // ---------------------------------------------------------------------------
 // Build and save
@@ -408,7 +592,7 @@ function updateButtons() {
   const covered = lap !== null && state.samples.length > 0 && state.samples[0].t <= lap.s + 0.5 && state.samples.at(-1).t >= lap.e - 0.5;
   el("build").disabled = !covered || el("target").value === "";
   el("build").title = lap !== null && !covered ? "Read the video over the whole lap first" : "";
-  el("save").disabled = state.built === null;
+  el("save").disabled = state.built === null || state.built.doubt === true;
 }
 el("target").addEventListener("change", () => {
   guessLap();
@@ -421,9 +605,9 @@ el("build").addEventListener("click", async () => {
   setStatus("build-status", "Building…");
   try {
     // Only the lap's frames, and a little either side.
-    const samples = state.samples.filter((f) => f.t >= lap.s - 1 && f.t <= lap.e + 1);
+    const samples = state.samples.filter((f) => f.t >= lap.s - 1 && f.t <= lap.e + 1).map((f) => ({ speedKph: null, ...f }));
     state.built = await call({ op: "build", trackKey: target.trackKey, carId: target.carId, lapStartS: lap.s, lapEndS: lap.e, samples });
-    setStatus("build-status", state.built.summary, "good");
+    setStatus("build-status", state.built.summary, state.built.doubt ? "bad" : "good");
     drawChart(state.built);
   } catch (err) {
     state.built = null;
@@ -477,6 +661,10 @@ function drawChart(b) {
   line(b.base.brake, "rgba(248, 81, 73, 0.35)", 1);
   line(b.video.throttle, "#3fb950", 1.6);
   line(b.video.brake, "#f85149", 1.6);
+  // Speed, scaled to the faster of the two laps.
+  const top = Math.max(...b.speed.base, ...b.speed.video, 1);
+  line(b.speed.base.map((v) => v / top), "rgba(210, 168, 255, 0.35)", 1);
+  if (b.bySpeed) line(b.speed.video.map((v) => v / top), "#d2a8ff", 1.6);
 }
 
 // ---------------------------------------------------------------------------
@@ -494,7 +682,7 @@ async function start() {
   select.replaceChildren(new Option(targets.length === 0 ? "No reference laps yet — import one first" : "Choose…", ""));
   for (const t of targets) {
     for (const car of t.cars) {
-      select.append(new Option(`${t.label} — ${car.carId} (${fmt(car.lapTimeS)})`, JSON.stringify({ trackKey: t.trackKey, carId: car.carId, lapTimeS: car.lapTimeS })));
+      select.append(new Option(`${t.label} — ${car.carId} (${fmt(car.lapTimeS)})`, JSON.stringify({ trackKey: t.trackKey, carId: car.carId, lapTimeS: car.lapTimeS, lengthM: t.lengthM })));
     }
   }
   setStatus("status", "Downloading the video… (once; it is kept for next time)");
