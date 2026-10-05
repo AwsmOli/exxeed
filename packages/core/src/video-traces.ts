@@ -52,6 +52,153 @@ export function barFill(profile: readonly number[]): number {
   return end / n;
 }
 
+/**
+ * The pedal bars, read from one box drawn loosely round both.
+ *
+ * Per frame and per column of the box, the renderer records the lit run
+ * from the bottom of the box up, once for green (throttle) and once for red
+ * (brake): the row where it starts and the row where it ends, rows counted
+ * from the top, −1 for none. Laid out as frames × columns × 4:
+ * [green bottom, green top, red bottom, red top].
+ */
+export interface PedalFrames {
+  readonly width: number;
+  readonly height: number;
+  /** Seconds into the video, one per frame. */
+  readonly times: ArrayLike<number>;
+  readonly runs: ArrayLike<number>;
+}
+
+export interface BarPlace {
+  /** First and last column of the bar, in the box. */
+  readonly x0: number;
+  readonly x1: number;
+}
+
+export interface PedalCalibration {
+  readonly throttle: BarPlace | null;
+  readonly brake: BarPlace | null;
+  /** The bars' empty and full rows, in the box (0 at the top). */
+  readonly bottom: number;
+  readonly top: number;
+}
+
+const at = (f: PedalFrames, frame: number, column: number, k: number): number =>
+  f.runs[(frame * f.width + column) * 4 + k]!;
+
+const percentile = (values: number[], p: number): number => {
+  if (values.length === 0) return NaN;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(p * (sorted.length - 1))))]!;
+};
+
+/**
+ * The columns of the box where a bar of this colour is: those lit in a long
+ * run often. A bar is full or nearly so for long stretches; a trace line
+ * scrolling through the box makes a long upright run in a column only for
+ * the moment it passes. Returns the best column's neighbours that are about
+ * as busy, as a span.
+ */
+function findBar(
+  f: PedalFrames,
+  k: number,
+  minRun: number,
+  limits: { from: number; to: number; bottom: number; slack: number } | null = null,
+): BarPlace | null {
+  const frames = f.times.length;
+  const busy = new Array<number>(f.width).fill(0);
+  const from = limits?.from ?? 0;
+  const to = limits?.to ?? f.width - 1;
+  for (let i = 0; i < frames; i++) {
+    for (let x = from; x <= to; x++) {
+      const bot = at(f, i, x, k);
+      const top = at(f, i, x, k + 1);
+      if (bot < 0 || bot - top + 1 < minRun) continue;
+      // A bar fills from its bottom: a run that starts elsewhere is not it.
+      if (limits !== null && Math.abs(bot - limits.bottom) > limits.slack) continue;
+      busy[x]!++;
+    }
+  }
+  let best = from;
+  for (let x = from + 1; x <= to; x++) if (busy[x]! > busy[best]!) best = x;
+  if (busy[best]! < Math.max(3, frames * 0.01)) return null;
+  const enough = busy[best]! * 0.5;
+  let x0 = best;
+  let x1 = best;
+  while (x0 > from && busy[x0 - 1]! >= enough) x0--;
+  while (x1 < to && busy[x1 + 1]! >= enough) x1++;
+  return { x0, x1 };
+}
+
+/**
+ * Where the bars are and what full is, from the whole video. The throttle
+ * bar is full again and again over a lap, so its usual bottom is 0% and the
+ * highest it reaches — all but a stray frame or two — is 100%. The brake
+ * bar sits beside it at the same height, so it uses the same rows.
+ */
+export function calibratePedals(f: PedalFrames): PedalCalibration {
+  const throttle = findBar(f, 0, Math.max(4, f.height * 0.3));
+  const bottoms: number[] = [];
+  const tops: number[] = [];
+  if (throttle !== null) {
+    for (let i = 0; i < f.times.length; i++) {
+      for (let x = throttle.x0; x <= throttle.x1; x++) {
+        const bot = at(f, i, x, 0);
+        if (bot < 0) continue;
+        bottoms.push(bot);
+        tops.push(at(f, i, x, 1));
+      }
+    }
+  }
+  let bottom = Math.round(percentile(bottoms, 0.5));
+  let top = Math.round(percentile(tops, 0.02));
+  // The brake bar sits beside the throttle bar, filling from the same row:
+  // look for it only in the columns either side, and only at runs that
+  // start there. Red elsewhere in the box — a glove, a sleeve, a kerb seen
+  // through the overlay — is not it.
+  let brake: BarPlace | null;
+  if (throttle !== null && Number.isFinite(bottom)) {
+    const w = throttle.x1 - throttle.x0 + 1;
+    const slack = Math.max(2, Math.round((bottom - top + 1) * 0.12));
+    const near = { bottom, slack };
+    const left = findBar(f, 2, Math.max(3, f.height * 0.1), { from: Math.max(0, throttle.x0 - 4 * w), to: Math.max(0, throttle.x0 - 1), ...near });
+    const right = findBar(f, 2, Math.max(3, f.height * 0.1), { from: Math.min(f.width - 1, throttle.x1 + 1), to: Math.min(f.width - 1, throttle.x1 + 4 * w), ...near });
+    brake = left ?? right;
+  } else {
+    brake = findBar(f, 2, Math.max(3, f.height * 0.15));
+  }
+  if (!Number.isFinite(bottom)) bottom = f.height - 1;
+  if (!Number.isFinite(top)) top = 0;
+  return { throttle, brake, bottom, top };
+}
+
+/**
+ * Each frame's throttle and brake, 0–1, from the calibration: the median
+ * over the bar's columns of how far its run reaches from the bar's bottom
+ * towards full. A run that does not start at the bar's bottom is not the bar
+ * filling — the scene through a see-through overlay, a trace line — and
+ * counts as empty.
+ */
+export function pedalFills(f: PedalFrames, cal: PedalCalibration): VideoInputSample[] {
+  const full = Math.max(1, cal.bottom - cal.top + 1);
+  const slack = Math.max(2, Math.round(full * 0.12));
+  const fillOf = (i: number, bar: BarPlace | null, k: number): number => {
+    if (bar === null) return 0;
+    const values: number[] = [];
+    for (let x = bar.x0; x <= bar.x1; x++) {
+      const bot = at(f, i, x, k);
+      const top = at(f, i, x, k + 1);
+      values.push(bot < 0 || bot < cal.bottom - slack ? 0 : Math.max(0, Math.min(1, (cal.bottom - top + 1) / full)));
+    }
+    return percentile(values, 0.5);
+  };
+  const out: VideoInputSample[] = [];
+  for (let i = 0; i < f.times.length; i++) {
+    out.push({ t: f.times[i]!, throttle: fillOf(i, cal.throttle, 0), brake: fillOf(i, cal.brake, 2) });
+  }
+  return out;
+}
+
 export interface FrameChange {
   /** Seconds into the video. */
   readonly t: number;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { barFill, findCrossings, referenceFromVideo, type Metres, type ReferenceLap } from "../src/index.js";
+import { barFill, calibratePedals, findCrossings, pedalFills, referenceFromVideo, type Metres, type ReferenceLap } from "../src/index.js";
 
 describe("barFill", () => {
   it("is the lit run from the empty end", () => {
@@ -89,5 +89,70 @@ describe("referenceFromVideo", () => {
 
   it("refuses a lap that ends before it starts", () => {
     expect(() => referenceFromVideo({ base, samples, lapStartS: 50, lapEndS: 10, lengthM: 4000 as Metres, corners: [] })).toThrow();
+  });
+});
+
+describe("pedal bars from one loose box", () => {
+  // A 30×60 box: brake bar in columns 10–14, throttle in 18–22, both from
+  // row 54 (empty) up to row 10 (full); a trace line passes through 2–5.
+  const W = 30;
+  const H = 60;
+  const BOTTOM = 54;
+  const TOP = 10;
+  const FULL = BOTTOM - TOP + 1;
+  const frame = (throttle: number, brake: number, extras: { col: number; k: number; bot: number; top: number }[] = []) => {
+    const runs = new Array<number>(W * 4).fill(-1);
+    const bar = (x0: number, x1: number, k: number, v: number) => {
+      if (v <= 0) return;
+      for (let x = x0; x <= x1; x++) {
+        runs[x * 4 + k] = BOTTOM;
+        runs[x * 4 + k + 1] = BOTTOM - Math.round(v * FULL) + 1;
+      }
+    };
+    bar(18, 22, 0, throttle);
+    bar(10, 14, 2, brake);
+    for (const e of extras) {
+      runs[e.col * 4 + e.k] = e.bot;
+      runs[e.col * 4 + e.k + 1] = e.top;
+    }
+    return runs;
+  };
+  const build = (list: number[][]) => ({ width: W, height: H, times: list.map((_, i) => i / 30), runs: list.flat() });
+
+  // A lap: mostly full throttle, some braking, a trace line flashing by, and
+  // the scene (a red sleeve) behind the brake bar's top half now and then.
+  const frames: number[][] = [];
+  for (let i = 0; i < 600; i++) {
+    const phase = i % 100;
+    const braking = phase >= 60 && phase < 75;
+    const extras = [];
+    if (i % 37 === 0) extras.push({ col: 3, k: 0, bot: 58, top: 2 });
+    if (phase >= 80 && phase < 90) extras.push(...[10, 11, 12, 13, 14].map((col) => ({ col, k: 2, bot: 30, top: 12 })));
+    // A red sleeve in the right of the box most of the lap, from the box's own bottom.
+    if (phase < 70) extras.push(...[25, 26, 27, 28, 29].map((col) => ({ col, k: 2, bot: 59, top: 20 })));
+    frames.push(frame(braking ? 0 : phase < 60 ? 1 : 0.4, braking ? 0.7 : 0, extras));
+  }
+  const f = build(frames);
+
+  it("finds each bar by its colour, not a trace line passing through or a red sleeve that is there more often than the braking", () => {
+    const cal = calibratePedals(f);
+    expect(cal.throttle).toEqual({ x0: 18, x1: 22 });
+    expect(cal.brake).toEqual({ x0: 10, x1: 14 });
+  });
+
+  it("takes empty and full from where the throttle bar sits and reaches", () => {
+    const cal = calibratePedals(f);
+    expect(cal.bottom).toBe(BOTTOM);
+    expect(cal.top).toBe(TOP);
+  });
+
+  it("reads the fills on that scale, and not the scene behind the bar", () => {
+    const fills = pedalFills(f, calibratePedals(f));
+    expect(fills[10]!.throttle).toBeCloseTo(1, 1);
+    expect(fills[65]!.brake).toBeCloseTo(0.7, 1);
+    expect(fills[65]!.throttle).toBe(0);
+    expect(fills[78]!.throttle).toBeCloseTo(0.4, 1);
+    // The sleeve: lit, but not from the bar's bottom.
+    expect(fills[85]!.brake).toBe(0);
   });
 });

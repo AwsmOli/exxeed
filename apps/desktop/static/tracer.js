@@ -18,15 +18,17 @@ const setStatus = (id, text, tone = "") => {
   el(id).className = `status small${tone ? ` ${tone}` : ""}`;
 };
 
-const COLOURS = { throttle: "#3fb950", brake: "#f85149", line: "#58a6ff" };
-const LABELS = { throttle: "throttle", brake: "brake", line: "line" };
+const COLOURS = { pedals: "#e3b341", line: "#58a6ff" };
+const LABELS = { pedals: "pedal bars", line: "line" };
 
 const state = {
   /** Boxes in the video's own pixels: { x, y, w, h }. */
-  boxes: { throttle: null, brake: null, line: null },
+  boxes: { pedals: null, line: null },
+  /** Where the bars were found in the pedal box, and each frame's fills (from main). */
+  calibration: null,
+  samples: [],
   drawing: null,
   drag: null,
-  frames: [],
   changes: [],
   reading: false,
   /** Seconds at which the line box changed suddenly. */
@@ -34,6 +36,9 @@ const state = {
   built: null,
   fps: 30,
 };
+
+// For a look in the developer tools: what was read and found.
+window.tracer = state;
 
 const video = el("video");
 const overlay = el("boxes");
@@ -101,6 +106,19 @@ function drawBoxes() {
     g.font = `${11 * devicePixelRatio}px system-ui`;
     g.fillText(LABELS[name], b.x * sx, b.y * sy - 4 * devicePixelRatio);
   }
+  // What the read found: each bar, and the rows it counts as empty and full.
+  const cal = state.calibration;
+  const box = state.boxes.pedals;
+  if (cal !== null && box !== null) {
+    const y = (row) => (box.y + row) * sy;
+    for (const [bar, colour] of [[cal.throttle, "#3fb950"], [cal.brake, "#f85149"]]) {
+      if (bar === null) continue;
+      g.strokeStyle = colour;
+      g.setLineDash([3 * devicePixelRatio, 2 * devicePixelRatio]);
+      g.strokeRect((box.x + bar.x0) * sx, y(cal.top), (bar.x1 - bar.x0 + 1) * sx, y(cal.bottom + 1) - y(cal.top));
+      g.setLineDash([]);
+    }
+  }
 }
 window.addEventListener("resize", drawBoxes);
 
@@ -149,41 +167,37 @@ function grabber(box) {
   return { box, g: c.getContext("2d", { willReadFrequently: true }) };
 }
 
-/**
- * Lit: a bright, strongly coloured pixel (a green or red bar's fill) or a
- * near-white one (a white bar). Overlays are often see-through, so the scene
- * — a red glove, a green verge — shows dimmed behind an empty bar; it is
- * neither bright nor saturated enough to pass.
- */
-const isLit = (r, g, b) => {
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  return (max > 170 && (max - min) / max > 0.6) || min > 215;
-};
+/** The fill colours: throttle bright green, brake bright red. The scene seen through a see-through overlay is too dim to pass. */
+const isGreen = (r, g, b) => g > 150 && g - r > 70 && g - b > 50;
+const isRed = (r, g, b) => r > 150 && r - g > 80 && r - b > 70;
 
 /**
- * How lit each line across the bar is, from its empty end to its full end:
- * rows bottom to top for an upright bar, columns left to right for a lying one.
+ * Per column of the pedal box, the lit run from the bottom up, for green and
+ * for red: the row it starts on and the row it reaches (0 at the top), −1
+ * for none. A row or two of video noise inside a run does not end it.
+ * Appended to `out` as [green bottom, green top, red bottom, red top].
  */
-function barProfile(grab) {
+function pedalRuns(grab, out) {
   const { box, g } = grab;
   g.drawImage(video, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
   const d = g.getImageData(0, 0, box.w, box.h).data;
-  const upright = box.h >= box.w;
-  const lines = upright ? box.h : box.w;
-  const across = upright ? box.w : box.h;
-  const out = new Array(lines);
-  for (let i = 0; i < lines; i++) {
-    let lit = 0;
-    for (let j = 0; j < across; j++) {
-      const x = upright ? j : i;
-      const y = upright ? box.h - 1 - i : j;
+  const run = (x, test) => {
+    let bot = -1;
+    let top = -1;
+    let gap = 0;
+    for (let y = box.h - 1; y >= 0; y--) {
       const k = (y * box.w + x) * 4;
-      if (isLit(d[k], d[k + 1], d[k + 2])) lit++;
+      if (test(d[k], d[k + 1], d[k + 2])) {
+        if (bot < 0) bot = y;
+        top = y;
+        gap = 0;
+      } else if (bot >= 0 && ++gap > 2) {
+        break;
+      }
     }
-    out[i] = Math.round((lit / across) * 100) / 100;
-  }
-  return out;
+    return [bot, top];
+  };
+  for (let x = 0; x < box.w; x++) out.push(...run(x, isGreen), ...run(x, isRed));
 }
 
 /** The line box, small and grey, to compare with the frame before. */
@@ -204,11 +218,14 @@ const meanDiff = (a, b) => {
 
 async function read() {
   if (state.reading) return;
-  const { throttle, brake, line } = state.boxes;
+  const { pedals, line } = state.boxes;
   state.reading = true;
-  state.frames = [];
+  state.calibration = null;
+  state.samples = [];
   state.changes = [];
-  const grabs = { throttle: grabber(throttle), brake: grabber(brake), line: line ? grabber(line) : null };
+  const times = [];
+  const runs = [];
+  const grabs = { pedals: grabber(pedals), line: line ? grabber(line) : null };
   let previous = null;
   let lastT = -1;
   el("progress").hidden = false;
@@ -227,7 +244,8 @@ async function read() {
       if (t > lastT) {
         if (lastT >= 0 && t - lastT > 0) state.fps = Math.max(state.fps, Math.min(120, Math.round(1 / (t - lastT))));
         lastT = t;
-        state.frames.push({ t, throttle: barProfile(grabs.throttle), brake: barProfile(grabs.brake) });
+        times.push(t);
+        pedalRuns(grabs.pedals, runs);
         if (grabs.line !== null) {
           const snap = lineSnapshot(grabs.line);
           if (previous !== null) state.changes.push({ t, diff: meanDiff(snap, previous) });
@@ -249,7 +267,26 @@ async function read() {
   state.reading = false;
   el("stop").hidden = true;
   el("progress").hidden = true;
-  setStatus("read-status", `Read ${state.frames.length} frames, ${fmt(state.frames[0]?.t ?? 0)} to ${fmt(lastT)}.`, "good");
+  // Where the bars are and what full is, from the whole read; then each frame's fills.
+  const result = await call({
+    op: "calibrate",
+    width: pedals.w,
+    height: pedals.h,
+    times: Float64Array.from(times),
+    runs: Int16Array.from(runs),
+  });
+  state.calibration = result.calibration;
+  state.samples = result.samples;
+  drawBoxes();
+  const found = [result.calibration.throttle && "throttle", result.calibration.brake && "brake"].filter(Boolean);
+  setStatus(
+    "read-status",
+    `Read ${times.length} frames, ${fmt(times[0] ?? 0)} to ${fmt(lastT)}. ` +
+      (found.length === 2
+        ? "Found both bars — dashed on the video."
+        : `Found ${found.length === 0 ? "neither bar" : `only the ${found[0]} bar`}: draw the box round both, and read a stretch with some braking.`),
+    found.length === 2 ? "good" : "bad",
+  );
   await showCrossings();
   updateButtons();
 }
@@ -366,9 +403,9 @@ function lapTimes() {
 }
 
 function updateButtons() {
-  el("read").disabled = state.reading || video.readyState < 1 || state.boxes.throttle === null || state.boxes.brake === null;
+  el("read").disabled = state.reading || video.readyState < 1 || state.boxes.pedals === null;
   const lap = lapTimes();
-  const covered = lap !== null && state.frames.length > 0 && state.frames[0].t <= lap.s + 0.5 && state.frames.at(-1).t >= lap.e - 0.5;
+  const covered = lap !== null && state.samples.length > 0 && state.samples[0].t <= lap.s + 0.5 && state.samples.at(-1).t >= lap.e - 0.5;
   el("build").disabled = !covered || el("target").value === "";
   el("build").title = lap !== null && !covered ? "Read the video over the whole lap first" : "";
   el("save").disabled = state.built === null;
@@ -383,9 +420,9 @@ el("build").addEventListener("click", async () => {
   const target = JSON.parse(el("target").value);
   setStatus("build-status", "Building…");
   try {
-    // Only the frames of the lap, and a little either side.
-    const frames = state.frames.filter((f) => f.t >= lap.s - 1 && f.t <= lap.e + 1);
-    state.built = await call({ op: "build", trackKey: target.trackKey, carId: target.carId, lapStartS: lap.s, lapEndS: lap.e, frames });
+    // Only the lap's frames, and a little either side.
+    const samples = state.samples.filter((f) => f.t >= lap.s - 1 && f.t <= lap.e + 1);
+    state.built = await call({ op: "build", trackKey: target.trackKey, carId: target.carId, lapStartS: lap.s, lapEndS: lap.e, samples });
     setStatus("build-status", state.built.summary, "good");
     drawChart(state.built);
   } catch (err) {

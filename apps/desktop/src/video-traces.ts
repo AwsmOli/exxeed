@@ -9,12 +9,23 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import { barFill, findCrossings, referenceFromVideo, trackKeyId, type Metres, type ReferenceLap, type TrackKey } from "@exxeed/core";
+import {
+  calibratePedals,
+  findCrossings,
+  pedalFills,
+  referenceFromVideo,
+  trackKeyId,
+  type Metres,
+  type ReferenceLap,
+  type TrackKey,
+  type VideoInputSample,
+} from "@exxeed/core";
 import { downloadVideo, resolveYtDlpSetup } from "@exxeed/importer";
 import type { Settings } from "@exxeed/overlays";
 import { localRepositories } from "@exxeed/repo";
@@ -27,6 +38,8 @@ export const VIDEO_TRACES_CHANNEL = "exxeed:video-traces";
 const PAGE = fileURLToPath(new URL("../static/tracer.html", import.meta.url));
 const TOOLS_DIR = dataPath("tools");
 const VIDEO_DIR = dataPath("video-cache");
+/** Reference laps replaced by one from a video, kept to restore. */
+const BACKUP_DIR = dataPath("reflaps-replaced");
 
 export interface VideoTracesDeps {
   readonly getSettings: () => Settings;
@@ -42,18 +55,14 @@ interface Target {
   readonly cars: readonly { readonly carId: string; readonly lapTimeS: number }[];
 }
 
-/** One frame's measurement: how lit each line of each bar is, empty end first. */
-interface FrameMeasure {
-  readonly t: number;
-  readonly throttle: readonly number[];
-  readonly brake: readonly number[];
-}
 
 type Request =
   | { op: "context" }
   | { op: "download" }
   | { op: "crossings"; changes: readonly { t: number; diff: number }[] }
-  | { op: "build"; trackKey: TrackKey; carId: string; lapStartS: number; lapEndS: number; frames: readonly FrameMeasure[] }
+  /** The whole read of the pedal box (core PedalFrames): where the bars are, and each frame's fills. */
+  | { op: "calibrate"; width: number; height: number; times: Float64Array; runs: Int16Array }
+  | { op: "build"; trackKey: TrackKey; carId: string; lapStartS: number; lapEndS: number; samples: readonly VideoInputSample[] }
   | { op: "save"; token: string };
 
 let video: { id: string; title: string } | null = null;
@@ -88,10 +97,9 @@ async function build(deps: VideoTracesDeps, r: Extract<Request, { op: "build" }>
   const version = await repos.trackMaps.latestVersion(r.trackKey);
   const map = version === null ? null : await repos.trackMaps.get({ ...r.trackKey, mapVersion: version });
   if (map === null) throw new Error("that track has no map");
-  const samples = r.frames.map((f) => ({ t: f.t, throttle: barFill(f.throttle), brake: barFill(f.brake) }));
   const lap = referenceFromVideo({
     base,
-    samples,
+    samples: r.samples,
     lapStartS: r.lapStartS,
     lapEndS: r.lapEndS,
     lengthM: map.lengthM as Metres,
@@ -112,11 +120,22 @@ async function build(deps: VideoTracesDeps, r: Extract<Request, { op: "build" }>
 async function save(deps: VideoTracesDeps, token: string): Promise<string> {
   if (built === null || built.token !== token) throw new Error("build the lap again — that one is no longer here");
   const repos = localRepositories(deps.resolveDataDir(deps.getSettings()));
+  // The lap being replaced is kept, so an experiment can be undone: copy it
+  // back into reflaps/ to restore it.
+  const previous = await repos.referenceLaps.get(built.lap.trackKey, built.lap.carId);
+  let kept = "";
+  if (previous !== null) {
+    const dir = join(BACKUP_DIR, trackKeyId(previous.trackKey).replaceAll("/", "-"));
+    await mkdir(dir, { recursive: true });
+    const file = join(dir, `${previous.carId}-${new Date().toISOString().replaceAll(":", "-")}.json`);
+    await writeFile(file, `${JSON.stringify(previous)}\n`);
+    kept = ` The ${fmtLap(previous.lapTimeS)} lap it replaced is kept in ${file}.`;
+  }
   await repos.referenceLaps.put(built.lap);
   const lap = built.lap;
   built = null;
   deps.changed();
-  return `Saved: the ${fmtLap(lap.lapTimeS)} lap from the video is now the reference for ${lap.carId} on ${trackKeyId(lap.trackKey)}.`;
+  return `Saved: the ${fmtLap(lap.lapTimeS)} lap from the video is now the reference for ${lap.carId} on ${trackKeyId(lap.trackKey)}.${kept}`;
 }
 
 export function installVideoTracesIpc(deps: VideoTracesDeps): void {
@@ -134,6 +153,11 @@ export function installVideoTracesIpc(deps: VideoTracesDeps): void {
         }
         case "crossings":
           return { ok: true, value: findCrossings(request.changes) };
+        case "calibrate": {
+          const frames = { width: request.width, height: request.height, times: request.times, runs: request.runs };
+          const calibration = calibratePedals(frames);
+          return { ok: true, value: { calibration, samples: pedalFills(frames, calibration) } };
+        }
         case "build":
           return { ok: true, value: await build(deps, request) };
         case "save":
