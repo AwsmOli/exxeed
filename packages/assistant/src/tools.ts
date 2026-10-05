@@ -18,18 +18,36 @@ import type { RaceClass, RaceRow, RaceView, RelativeRow } from "@exxeed/overlays
 
 import type { AssistantState } from "./state.js";
 
+/** A picture in a reply — a video frame, say — for a model that can look. */
+export interface ToolImage {
+  readonly mimeType: "image/jpeg" | "image/png";
+  readonly base64: string;
+}
+
 export interface ToolReply {
   readonly summary: string;
   readonly data: Readonly<Record<string, unknown>>;
+  readonly images?: readonly ToolImage[];
 }
 
-export interface AssistantTool<Shape extends z.ZodRawShape = z.ZodRawShape> {
+/**
+ * One tool. `Ctx` is what it works on: the live race (`AssistantState`) for
+ * the questions here, the authoring side of the app for the ones in
+ * authoring.ts.
+ */
+export interface Tool<Ctx, Shape extends z.ZodRawShape = z.ZodRawShape> {
   readonly name: string;
   readonly title: string;
   /** For the model: when to call this, in the driver's words. */
   readonly description: string;
   readonly input: Shape;
-  run(state: AssistantState, args: z.infer<z.ZodObject<Shape>>): ToolReply;
+  run(ctx: Ctx, args: z.infer<z.ZodObject<Shape>>): ToolReply | Promise<ToolReply>;
+}
+
+/** A question about the race. Answered at once, from what the app already holds. */
+export interface AssistantTool<Shape extends z.ZodRawShape = z.ZodRawShape>
+  extends Omit<Tool<AssistantState, Shape>, "run"> {
+  run(ctx: AssistantState, args: z.infer<z.ZodObject<Shape>>): ToolReply;
 }
 
 const tool = <Shape extends z.ZodRawShape>(t: AssistantTool<Shape>): AssistantTool<Shape> => t;

@@ -236,20 +236,63 @@ export function installVideoTracesIpc(deps: VideoTracesDeps): void {
   });
 }
 
-/** Open the tracer on a video, or point the open one at it. */
-export function openTracer(preload: string, chosen: { id: string; title: string }): void {
+/** The video the tracer is on, or null when its window is not open. */
+export const tracerVideo = (): { id: string; title: string } | null =>
+  window !== null && !window.isDestroyed() ? video : null;
+
+/**
+ * Call one of the tracer page's own functions (`window.tracerApi`,
+ * static/tracer.js) — how an assistant works the window a person would.
+ */
+export async function tracerCall<T>(method: string, ...args: readonly unknown[]): Promise<T> {
+  if (window === null || window.isDestroyed()) {
+    throw new Error("the tracer is not open — open it on a video first");
+  }
+  // The page is loaded from disk and the arguments are JSON, so nothing here
+  // is code from anywhere else. A rejection comes back as "Error: <message>"
+  // wrapped in Electron's own preamble; keep the sentence.
+  const source = `(async () => {
+    if (window.tracerApi === undefined) throw new Error("the tracer is still loading");
+    return window.tracerApi[${JSON.stringify(method)}](...${JSON.stringify(args)});
+  })()`;
+  try {
+    return (await window.webContents.executeJavaScript(source, true)) as T;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(message.replace(/^.*?Error: /s, ""), { cause: err });
+  }
+}
+
+/**
+ * Open the tracer on a video, or point the open one at it.
+ *
+ * `hidden` is for an assistant working while the driver is on track: the
+ * window is made and never shown, so nothing appears over the sim and nothing
+ * takes its focus. The page still reads the video — with background throttling
+ * off, a window that was never shown is handed frames like any other (measured
+ * on macOS: as many as a visible one).
+ */
+export function openTracer(
+  preload: string,
+  chosen: { id: string; title: string },
+  options: { readonly hidden?: boolean } = {},
+): void {
+  const hidden = options.hidden === true;
   video = chosen;
   if (window !== null && !window.isDestroyed()) {
     void window.loadFile(PAGE);
-    window.show();
-    window.focus();
+    if (!hidden) {
+      window.show();
+      window.focus();
+    }
     return;
   }
   window = new BrowserWindow({
     ...windowBounds("tracer", { width: 1280, height: 860 }),
+    show: !hidden,
     title: "Exxeed — Traces From Video (experimental)",
     backgroundColor: "#101215",
-    // Reading goes on behind other windows: a hidden page is handed no video frames.
+    // Off, so reading goes on behind other windows, or with no window on screen at all.
     webPreferences: { preload, contextIsolation: true, nodeIntegration: false, sandbox: false, backgroundThrottling: false },
   });
   rememberWindow("tracer", window);

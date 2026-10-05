@@ -850,6 +850,12 @@ export interface Settings {
  */
 export interface AssistantSettings {
   readonly enabled: boolean;
+  /**
+   * Also let it build things: callouts from a track guide, a reference lap
+   * from the guide's video. Separate, and off, because asking about fuel
+   * changes nothing and these write note sets and can replace a lap.
+   */
+  readonly authoring: boolean;
   readonly port: number;
   /** Made the first time the assistant is switched on. Null until then. */
   readonly token: string | null;
@@ -908,7 +914,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overlayTheme: DEFAULT_THEME_ID,
   installationId: null,
   welcomed: false,
-  assistant: { enabled: false, port: DEFAULT_ASSISTANT_PORT, token: null },
+  assistant: { enabled: false, authoring: false, port: DEFAULT_ASSISTANT_PORT, token: null },
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -985,6 +991,7 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
         : DEFAULT_SETTINGS.noteSetByTrack,
     assistant: {
       enabled: storedAssistant.enabled === true,
+      authoring: storedAssistant.authoring === true,
       // Below 1024 needs privileges the app does not have and should not want.
       port: Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : DEFAULT_SETTINGS.assistant.port,
       token:
@@ -1752,11 +1759,14 @@ export const ASSISTANT_CHANNEL = "exxeed:assistant";
 export type AssistantRequest =
   | { readonly kind: "get" }
   | { readonly kind: "setEnabled"; readonly value: boolean }
+  /** Whether it may also build callouts and reference laps. */
+  | { readonly kind: "setAuthoring"; readonly value: boolean }
   /** Replace the token. Every assistant already set up stops working until given the new one. */
   | { readonly kind: "newToken" };
 
 export interface AssistantView {
   readonly enabled: boolean;
+  readonly authoring: boolean;
   /** Listening right now. False with `enabled` true means it failed — see `error`. */
   readonly running: boolean;
   /** Where an assistant connects. Null while off. */

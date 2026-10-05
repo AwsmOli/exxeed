@@ -100,7 +100,7 @@ import { installPublishIpc } from "./publish.js";
 import { checkUpdatesNow, installLibrary, isRendering, knownItem, remoteMinePacks } from "./library.js";
 import { installContentIpc } from "./content.js";
 import { installLapImport } from "./lap-import.js";
-import { installImporterIpc, openImporter } from "./importer.js";
+import { installImporterIpc, openImporter, type ImporterDeps } from "./importer.js";
 import { installVideoTracesIpc, openTracer } from "./video-traces.js";
 import {
   installSettingsIpc,
@@ -111,6 +111,7 @@ import {
 import { debugEnabled, SettingsStore } from "./settings.js";
 import { AssistantState } from "@exxeed/assistant";
 import { AssistantService } from "./assistant.js";
+import { createAuthoringHost } from "./assistant-authoring.js";
 import { carWarnings, loadSession, type LoadedSession } from "./session.js";
 import { RaceViewBuilder } from "./race-view.js";
 import { AutoMapper } from "./auto-map.js";
@@ -199,6 +200,8 @@ let loopToken = 0;
  * is switched on mid-race.
  */
 const assistantState = new AssistantState();
+/** The note set the running session has an engine for, or null — see runTelemetryLoop. */
+let loadedNoteSetId: string | null = null;
 let assistant: AssistantService | null = null;
 
 /**
@@ -757,6 +760,9 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
   } catch (err) {
     process.stderr.write(`could not load note set: ${String(err)}\n`);
   }
+  // What actually loaded, which is not always what was chosen: a set that was
+  // picked and then failed to load is not callouts.
+  loadedNoteSetId = session === null ? null : chosen.id;
 
   for (const warning of session?.warnings ?? []) {
     process.stderr.write(`warning: ${warning}\n`);
@@ -985,6 +991,7 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     // The assistant is the same, with the same caveat as above: a newer loop
     // may already be feeding it.
     if (raceShown && token === loopToken) assistantState.onRace(0, null);
+    if (token === loopToken) loadedNoteSetId = null;
   }
 }
 
@@ -1937,9 +1944,6 @@ void app.whenReady().then(() => {
     settings().updateQuietly({ installationId: randomUUID() });
   }
   installSettingsIpc(settings(), resolveDataDir, RECORDINGS_DIR);
-  assistant = new AssistantService(settings(), assistantState);
-  assistant.installIpc();
-  void assistant.sync();
   onAccountChange((view) => {
     if (view.signedIn) {
       void shareOnSignIn(resolveDataDir(settings().get()), (line) => process.stdout.write(line));
@@ -1977,9 +1981,9 @@ void app.whenReady().then(() => {
     },
   });
   installVideoTracesIpc({ getSettings: () => settings().get(), resolveDataDir, changed: () => void refreshPacks() });
-  installImporterIpc({
+  const importerDeps: ImporterDeps = {
     getSettings: () => settings().get(),
-    openTracer: (video) => openTracer(PRELOAD, video),
+    openTracer: (video, options) => openTracer(PRELOAD, video, options),
     resolveDataDir,
     identity: () => liveIdentity,
     openImported: (noteSetId) => {
@@ -1989,7 +1993,25 @@ void app.whenReady().then(() => {
       void refreshPacks();
       openEditor(PRELOAD);
     },
-  });
+  };
+  installImporterIpc(importerDeps);
+  // The assistant's authoring tools are the importer and the tracer, worked
+  // without a window — so they are given the same dependencies.
+  assistant = new AssistantService(
+    settings(),
+    assistantState,
+    createAuthoringHost({
+      ...importerDeps,
+      sessionLive: () => sessionLive,
+      activeNoteSet: () => (sessionLive ? loadedNoteSetId : null),
+      activate: (noteSetId) => {
+        settings().update({ noteSetId });
+        void refreshPacks();
+      },
+    }),
+  );
+  assistant.installIpc();
+  void assistant.sync();
   registerPreferencesShortcut(PRELOAD);
 
   // The overlays are the product (§7): transparent, frameless, always-on-top,
@@ -2260,10 +2282,12 @@ void app.whenReady().then(() => {
 // Whichever way the app is being shut down — the control window, File > Quit,
 // Alt+F4 — stop the loop first so the recorder stops taking writes it will not
 // get to flush.
-app.on("before-quit", () => {
-  stopSession();
-  void assistant?.close();
-});
+app.on("before-quit", () => stopSession());
+
+// Not on before-quit: that fires for a quit the control window then cancels by
+// hiding to the tray (Cmd+Q on macOS), which would leave the app running with
+// the assistant's server closed for good. will-quit only fires for a real one.
+app.on("will-quit", () => void assistant?.close());
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

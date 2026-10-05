@@ -364,6 +364,19 @@ export function checkUpdatesNow(): void {
   if (installedDeps !== null) void checkUpdates(installedDeps).catch(() => {});
 }
 
+/**
+ * Install someone's pack with no window asking for it (the assistant), and say
+ * which note set it became — what a caller needs to then select it.
+ */
+export async function installSharedPack(itemId: string): Promise<{ noteSetId: string; message: string }> {
+  if (installedDeps === null) throw new Error("the library is not ready yet");
+  const deps = installedDeps;
+  const message = await install(deps, itemId);
+  const noteSetId = await new LocalContentIndex(deps.resolveDataDir(deps.getSettings())).findByItem(itemId);
+  if (noteSetId === null) throw new Error("the pack was installed but could not be found afterwards");
+  return { noteSetId, message };
+}
+
 export function installLibrary(deps: LibraryDeps): void {
   installedDeps = deps;
   ipcMain.handle(LIBRARY_CHANNEL, async (_event, request: LibraryRequest) => {

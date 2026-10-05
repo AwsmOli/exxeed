@@ -87,8 +87,8 @@ const slug = (value: string): string =>
 
 export interface ImporterDeps {
   readonly getSettings: () => Settings;
-  /** Open the experimental tracer on a guide video. */
-  readonly openTracer: (video: { id: string; title: string }) => void;
+  /** Open the experimental tracer on a guide video. `hidden`: made, never shown. */
+  readonly openTracer: (video: { id: string; title: string }, options?: { readonly hidden?: boolean }) => void;
   readonly resolveDataDir: (settings: Settings) => string;
   /** What the sim reports right now, or null when no session is running. */
   readonly identity: () => SessionIdentity | null;
@@ -208,7 +208,7 @@ async function mapFor(dataDir: string, key: TrackKey | null): Promise<TrackMap |
   }
 }
 
-interface TrackRequest {
+export interface TrackRequest {
   /** The sim's track id, when it came from a session. Null from the schedule. */
   readonly trackId: number | null;
   readonly configName: string;
@@ -217,7 +217,7 @@ interface TrackRequest {
   readonly carId: string | null;
 }
 
-interface VideoRequest {
+export interface VideoRequest {
   readonly id: string;
   readonly title: string;
   readonly channel: string;
@@ -436,7 +436,7 @@ async function placeSaved(deps: ImporterDeps, file: string, progress: Progress):
 // IPC
 // ---------------------------------------------------------------------------
 
-type Request =
+export type ImporterRequest =
   | { op: "context" }
   | { op: "saveAccounts"; ai?: { provider: ProviderId; model: string; baseUrl: string; key?: string } }
   | { op: "raceWeek"; refresh: boolean }
@@ -459,10 +459,15 @@ async function validTurns(deps: ImporterDeps, track: TrackRequest): Promise<numb
   return map?.corners.map((c) => c.index) ?? null;
 }
 
-async function handle(deps: ImporterDeps, request: Request, sender: Electron.WebContents): Promise<unknown> {
-  const send: Progress = (payload) => {
-    if (!sender.isDestroyed()) sender.send(IMPORTER_PROGRESS_CHANNEL, payload);
-  };
+/**
+ * One importer request, for a caller with no window to report progress to —
+ * the assistant (assistant-authoring.ts), which does what the window does and
+ * so goes through the same code.
+ */
+export const runImporter = (deps: ImporterDeps, request: ImporterRequest): Promise<unknown> =>
+  handle(deps, request, () => {});
+
+async function handle(deps: ImporterDeps, request: ImporterRequest, send: Progress): Promise<unknown> {
   switch (request.op) {
     case "context": {
       const identity = deps.identity();
@@ -600,9 +605,12 @@ export function installImporterIpc(deps: ImporterDeps): void {
   // Errors come back as a value rather than a rejected invoke: Electron wraps a
   // rejection in "Error invoking remote method…", which is noise in front of
   // the one sentence that says what went wrong.
-  ipcMain.handle(IMPORTER_CHANNEL, async (event, request: Request) => {
+  ipcMain.handle(IMPORTER_CHANNEL, async (event, request: ImporterRequest) => {
+    const send: Progress = (payload) => {
+      if (!event.sender.isDestroyed()) event.sender.send(IMPORTER_PROGRESS_CHANNEL, payload);
+    };
     try {
-      return { ok: true, value: await handle(deps, request, event.sender) };
+      return { ok: true, value: await handle(deps, request, send) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

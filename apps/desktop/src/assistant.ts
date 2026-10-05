@@ -15,7 +15,12 @@ import { randomBytes } from "node:crypto";
 
 import { ipcMain } from "electron";
 
-import { startAssistantServer, type AssistantServer, type AssistantState } from "@exxeed/assistant";
+import {
+  startAssistantServer,
+  type AssistantServer,
+  type AssistantState,
+  type AuthoringHost,
+} from "@exxeed/assistant";
 import {
   ASSISTANT_CHANNEL,
   type AssistantRequest,
@@ -37,16 +42,19 @@ const describe = (error: unknown, port: number): string =>
 export class AssistantService {
   readonly #store: SettingsStore;
   readonly #state: AssistantState;
+  readonly #authoring: AuthoringHost;
   #server: AssistantServer | null = null;
   /** What the running server was started with, to tell a change from a no-op. */
   #servedToken: string | null = null;
+  #servedAuthoring = false;
   #error: string | null = null;
   /** One start or stop at a time: two overlapping would fight over the port. */
   #queue: Promise<void> = Promise.resolve();
 
-  constructor(store: SettingsStore, state: AssistantState) {
+  constructor(store: SettingsStore, state: AssistantState, authoring: AuthoringHost) {
     this.#store = store;
     this.#state = state;
+    this.#authoring = authoring;
   }
 
   #settings(): AssistantSettings {
@@ -57,6 +65,7 @@ export class AssistantService {
     const s = this.#settings();
     return {
       enabled: s.enabled,
+      authoring: s.authoring,
       running: this.#server !== null,
       url: this.#server?.url ?? null,
       token: s.enabled ? s.token : null,
@@ -74,7 +83,11 @@ export class AssistantService {
     const s = this.#settings();
     const wanted = s.enabled && s.token !== null;
 
-    if (this.#server !== null && (!wanted || s.port !== this.#server.port || s.token !== this.#servedToken)) {
+    // Which tools are served is fixed when the server starts, so a change to
+    // any of these is a restart.
+    const changed =
+      s.port !== this.#server?.port || s.token !== this.#servedToken || s.authoring !== this.#servedAuthoring;
+    if (this.#server !== null && (!wanted || changed)) {
       await this.#server.close();
       this.#server = null;
       this.#servedToken = null;
@@ -91,11 +104,15 @@ export class AssistantService {
         state: this.#state,
         token: s.token,
         port: s.port,
-        onCall: (name, ok) => process.stdout.write(`assistant: ${name}${ok ? "" : " (no answer)"}\n`),
+        ...(s.authoring ? { authoring: this.#authoring } : {}),
+        onCall: (name, ok) => process.stdout.write(`assistant: ${name}${ok ? "" : " (refused)"}\n`),
       });
       this.#servedToken = s.token;
+      this.#servedAuthoring = s.authoring;
       this.#error = null;
-      process.stdout.write(`assistant: listening on ${this.#server.url}\n`);
+      process.stdout.write(
+        `assistant: listening on ${this.#server.url}${s.authoring ? ", authoring allowed" : ""}\n`,
+      );
     } catch (error) {
       this.#error = describe(error, s.port);
       process.stderr.write(`assistant: could not start — ${this.#error}\n`);
@@ -110,6 +127,8 @@ export class AssistantService {
         // again does not strand an assistant that was already set up.
         assistant: { ...s, enabled: request.value, token: s.token ?? newToken() },
       });
+    } else if (request.kind === "setAuthoring") {
+      this.#store.updateQuietly({ assistant: { ...s, authoring: request.value } });
     } else if (request.kind === "newToken") {
       this.#store.updateQuietly({ assistant: { ...s, token: newToken() } });
     }

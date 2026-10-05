@@ -44,7 +44,7 @@ import {
 import { accountView, cloudClient } from "./account.js";
 import { toMapView } from "./map-view.js";
 
-interface ContentDeps {
+export interface ContentDeps {
   readonly getSettings: () => Settings;
   readonly resolveDataDir: (settings: Settings) => string;
 }
@@ -96,6 +96,17 @@ async function facets(): Promise<ContentFacets> {
     signedIn: accountView().signedIn,
   };
 }
+
+/**
+ * Published packs for one layout and car class, most starred first — the
+ * Content tab's own listing, for a caller with no window (the assistant).
+ */
+export const sharedPacksFor = (
+  deps: ContentDeps,
+  trackKey: ContentFilters["trackKey"],
+  carClass: string,
+): Promise<ContentRow[]> =>
+  list(deps, { text: "", trackKey, carClass, starred: false, installed: false, sort: "stars" }, 0);
 
 async function list(deps: ContentDeps, filters: ContentFilters, offset: number): Promise<ContentRow[]> {
   const [starred, local] = await Promise.all([starredIds(), localLinks(deps)]);

@@ -44,6 +44,8 @@ const state = {
   crossings: [],
   built: null,
   fps: 30,
+  /** The video this window is on: { id, title }. */
+  video: null,
 };
 
 // For a look in the developer tools: what was read and found.
@@ -308,13 +310,16 @@ const meanDiff = (a, b) => {
   return sum / a.length / 255;
 };
 
-async function read() {
+/** Read from where the video is to its end, or to `untilS`. */
+async function read(untilS = null) {
   if (state.reading) return;
   const { pedals, line } = state.boxes;
   state.reading = true;
   state.calibration = null;
   state.samples = [];
   state.changes = [];
+  state.crossings = [];
+  state.built = null;
   const times = [];
   const runs = [];
   const speed = state.boxes.speed;
@@ -361,6 +366,10 @@ async function read() {
           previous = snap;
         }
         el("progress").value = video.currentTime / video.duration;
+      }
+      if (untilS !== null && t >= untilS) {
+        video.pause();
+        return resolve();
       }
       if (video.ended || video.paused) return resolve();
       video.requestVideoFrameCallback(onFrame);
@@ -416,7 +425,7 @@ async function showDigits(kind, times, vectors, glyphFrame) {
     return;
   }
   const c = await call({ op: "clusterGlyphs", vectors });
-  state[kind.key] = { times, glyphFrame, vectors, ids: c.ids, groups: c.centroids.length };
+  state[kind.key] = { times, glyphFrame, vectors, ids: c.ids, groups: c.centroids.length, centroids: c.centroids, counts: c.counts };
   el(kind.tiles).replaceChildren(
     ...c.centroids.map((centroid, i) => {
       const tile = Object.assign(document.createElement("div"), { className: "digit" });
@@ -450,7 +459,7 @@ function namedGroups(kind) {
   return labels;
 }
 
-el("read-speeds").addEventListener("click", async () => {
+async function readSpeeds() {
   const gl = state.glyphs;
   if (gl === null) return;
   try {
@@ -466,9 +475,10 @@ el("read-speeds").addEventListener("click", async () => {
     setStatus("digits-status", err.message, "bad");
   }
   updateButtons();
-});
+}
+el("read-speeds").addEventListener("click", () => void readSpeeds());
 
-el("read-gears").addEventListener("click", async () => {
+async function readGears() {
   const gl = state.gearGlyphs;
   if (gl === null) return;
   try {
@@ -482,7 +492,8 @@ el("read-gears").addEventListener("click", async () => {
     setStatus("gears-status", err.message, "bad");
   }
   updateButtons();
-});
+}
+el("read-gears").addEventListener("click", () => void readGears());
 
 el("read").addEventListener("click", () => void read().catch((err) => setStatus("read-status", err.message, "bad")));
 el("stop").addEventListener("click", () => {
@@ -639,7 +650,7 @@ el("target").addEventListener("change", () => {
   updateButtons();
 });
 
-el("build").addEventListener("click", async () => {
+async function buildLap() {
   const lap = lapTimes();
   const target = JSON.parse(el("target").value);
   setStatus("build-status", "Building…");
@@ -654,15 +665,21 @@ el("build").addEventListener("click", async () => {
     setStatus("build-status", err.message, "bad");
   }
   updateButtons();
-});
+}
+el("build").addEventListener("click", () => void buildLap());
 
-el("save").addEventListener("click", async () => {
+el("save").addEventListener("click", () => {
   if (state.built === null) return;
   if (el("save").dataset.armed !== "1") {
     el("save").dataset.armed = "1";
     el("save").textContent = "Replace the reference?";
     return;
   }
+  void saveLap();
+});
+
+async function saveLap() {
+  if (state.built === null) return;
   delete el("save").dataset.armed;
   el("save").textContent = "Save as reference";
   try {
@@ -672,7 +689,7 @@ el("save").addEventListener("click", async () => {
     setStatus("build-status", err.message, "bad");
   }
   updateButtons();
-});
+}
 
 /** Throttle and brake by lap position: the current reference faint, the video's bright. */
 function drawChart(b) {
@@ -718,6 +735,7 @@ async function start() {
     setStatus("status", "Open this from the importer, on a guide video.", "bad");
     return;
   }
+  state.video = chosen;
   el("title").textContent = chosen.title;
   const select = el("target");
   select.replaceChildren(new Option(targets.length === 0 ? "No reference laps yet — import one first" : "Choose…", ""));
@@ -734,5 +752,265 @@ async function start() {
     setStatus("status", `The video could not be downloaded: ${err.message}`, "bad");
   }
 }
+
+// ---------------------------------------------------------------------------
+// The same window, worked by an assistant (src/assistant-authoring.ts)
+// ---------------------------------------------------------------------------
+//
+// Everything a person does here with the mouse, as calls: look at a frame,
+// place the boxes, read, name the digits, choose the lap, build. Main calls
+// these over executeJavaScript; they drive the page's own state and functions,
+// so what the assistant did is on screen for a person to check or carry on from.
+
+const text = (id) => el(id).textContent ?? "";
+
+function seek(t) {
+  return new Promise((resolve) => {
+    const to = Math.max(0, Math.min(t, Math.max(0, (video.duration || t) - 0.05)));
+    video.addEventListener("seeked", () => resolve(), { once: true });
+    // A seek that never lands should not hang the caller for ever.
+    setTimeout(resolve, 5000);
+    video.currentTime = to;
+  });
+}
+
+function needVideo() {
+  if (video.readyState < 1) throw new Error(`the video is not loaded yet — ${text("status")}`);
+}
+
+function apiStatus() {
+  const lap = lapTimes();
+  const cal = state.calibration;
+  const first = state.samples[0];
+  const last = state.samples.at(-1);
+  const loaded = video.readyState >= 1;
+  return {
+    video: state.video,
+    ready: loaded,
+    message: text("status"),
+    durationS: loaded ? video.duration : null,
+    width: loaded ? video.videoWidth : null,
+    height: loaded ? video.videoHeight : null,
+    boxes: state.boxes,
+    reading: state.reading,
+    readAtS: state.reading ? video.currentTime : null,
+    readMessage: text("read-status"),
+    read: first === undefined ? null : { fromS: first.t, toS: last.t, frames: state.samples.length },
+    barsFound: { throttle: Boolean(cal?.throttle), brake: Boolean(cal?.brake) },
+    crossings: state.crossings ?? [],
+    lap: { startS: lap?.s ?? state.marks.start, endS: lap?.e ?? state.marks.end },
+    speed: { shapes: state.glyphs?.groups ?? 0, message: text("digits-status") },
+    gear: { shapes: state.gearGlyphs?.groups ?? 0, message: text("gears-status") },
+    built: state.built === null ? null : { summary: state.built.summary, doubt: state.built.doubt === true },
+    buildMessage: text("build-status"),
+  };
+}
+
+/** A ruler step that puts a tick every 60 px or so of picture. */
+const rulerStep = (scale) => [5, 10, 20, 25, 50, 100, 200, 250, 500].find((s) => s * scale >= 60) ?? 1000;
+
+window.tracerApi = {
+  status: apiStatus,
+
+  /** One frame, or part of one enlarged, with a ruler in video pixels and the boxes drawn. */
+  async frame(timeS, crop) {
+    needVideo();
+    if (state.reading) throw new Error("a read is running — wait for it to finish, or stop it");
+    video.pause();
+    await seek(timeS);
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const src = crop === null ? { x: 0, y: 0, w: vw, h: vh } : {
+      x: Math.max(0, Math.min(vw - 4, Math.round(crop.x))),
+      y: Math.max(0, Math.min(vh - 4, Math.round(crop.y))),
+      w: 0,
+      h: 0,
+    };
+    if (crop !== null) {
+      src.w = Math.max(4, Math.min(vw - src.x, Math.round(crop.w)));
+      src.h = Math.max(4, Math.min(vh - src.y, Math.round(crop.h)));
+    }
+    const scale = Math.min(1280 / src.w, 860 / src.h, 10);
+    const left = 46;
+    const top = 20;
+    const w = Math.round(src.w * scale);
+    const h = Math.round(src.h * scale);
+    const c = document.createElement("canvas");
+    c.width = w + left;
+    c.height = h + top;
+    const g = c.getContext("2d");
+    g.fillStyle = "#101215";
+    g.fillRect(0, 0, c.width, c.height);
+    g.imageSmoothingEnabled = scale < 3;
+    g.drawImage(video, src.x, src.y, src.w, src.h, left, top, w, h);
+
+    // The ruler, and faint lines across the picture at each tick.
+    const step = rulerStep(scale);
+    g.font = "11px system-ui";
+    g.fillStyle = "#e6e9ee";
+    g.strokeStyle = "rgba(255,255,255,0.22)";
+    g.lineWidth = 1;
+    g.textBaseline = "middle";
+    for (let x = Math.ceil(src.x / step) * step; x <= src.x + src.w; x += step) {
+      const px = left + (x - src.x) * scale;
+      g.beginPath();
+      g.moveTo(px + 0.5, top - 4);
+      g.lineTo(px + 0.5, top + h);
+      g.stroke();
+      g.textAlign = "center";
+      g.fillText(String(x), Math.max(left + 12, Math.min(c.width - 14, px)), 8);
+    }
+    for (let y = Math.ceil(src.y / step) * step; y <= src.y + src.h; y += step) {
+      const py = top + (y - src.y) * scale;
+      g.beginPath();
+      g.moveTo(left - 4, py + 0.5);
+      g.lineTo(left + w, py + 0.5);
+      g.stroke();
+      g.textAlign = "right";
+      g.fillText(String(y), left - 6, Math.max(top + 6, Math.min(c.height - 6, py)));
+    }
+
+    g.save();
+    g.beginPath();
+    g.rect(left, top, w, h);
+    g.clip();
+    g.textAlign = "left";
+    g.textBaseline = "alphabetic";
+    for (const [name, b] of Object.entries(state.boxes)) {
+      if (b === null) continue;
+      const bx = left + (b.x - src.x) * scale;
+      const by = top + (b.y - src.y) * scale;
+      g.strokeStyle = COLOURS[name];
+      g.lineWidth = 2;
+      g.strokeRect(bx, by, b.w * scale, b.h * scale);
+      g.fillStyle = COLOURS[name];
+      g.font = "bold 12px system-ui";
+      g.fillText(LABELS[name], bx, Math.max(top + 12, by - 4));
+    }
+    g.restore();
+    return { dataUrl: c.toDataURL("image/jpeg", 0.85), timeS: video.currentTime };
+  },
+
+  setBoxes(boxes, unit) {
+    needVideo();
+    if (state.reading) throw new Error("a read is running — wait for it to finish, or stop it");
+    for (const [name, b] of Object.entries(boxes)) {
+      if (!(name in state.boxes)) continue;
+      if (b === null) {
+        state.boxes[name] = null;
+        continue;
+      }
+      const x = Math.round(b.x);
+      const y = Math.round(b.y);
+      const w = Math.round(b.w);
+      const h = Math.round(b.h);
+      if (x + w > video.videoWidth || y + h > video.videoHeight) {
+        throw new Error(`the ${name} box runs off the video, which is ${video.videoWidth}×${video.videoHeight}`);
+      }
+      state.boxes[name] = { x, y, w, h };
+    }
+    if (unit !== null) el("units").value = unit;
+    drawBoxes();
+    updateButtons();
+    return apiStatus();
+  },
+
+  /** Start a read and return: `status().reading` says when it has finished. */
+  async read(fromS, untilS) {
+    needVideo();
+    if (state.reading) throw new Error("a read is already running");
+    if (state.boxes.pedals === null) throw new Error("place the pedals box first");
+    video.pause();
+    await seek(fromS);
+    void read(untilS).catch((err) => {
+      state.reading = false;
+      setStatus("read-status", err.message, "bad");
+    });
+  },
+
+  stopRead() {
+    state.reading = false;
+    video.pause();
+  },
+
+  /** The shapes of a number box as one picture: tiles in a row, each numbered. */
+  shapes(kind) {
+    const gl = state[READS[kind].key];
+    if (gl === null) throw new Error(`nothing read from a ${kind} box yet — place the ${kind} box and read the video`);
+    const k = 10;
+    const gap = 14;
+    const c = document.createElement("canvas");
+    c.width = gap + gl.centroids.length * (GW * k + gap);
+    c.height = GH * k + 34;
+    const g = c.getContext("2d");
+    g.fillStyle = "#101215";
+    g.fillRect(0, 0, c.width, c.height);
+    g.font = "bold 14px system-ui";
+    g.textAlign = "center";
+    gl.centroids.forEach((centroid, i) => {
+      const x0 = gap + i * (GW * k + gap);
+      for (let n = 0; n < GW * GH; n++) {
+        const v = Math.round(centroid[n] * 255);
+        g.fillStyle = `rgb(${v},${v},${v})`;
+        g.fillRect(x0 + (n % GW) * k, 24 + Math.floor(n / GW) * k, k, k);
+      }
+      g.fillStyle = "#58a6ff";
+      g.fillText(String(i), x0 + (GW * k) / 2, 16);
+    });
+    return { dataUrl: c.toDataURL("image/png"), counts: gl.counts };
+  },
+
+  async nameShapes(kind, labels) {
+    const which = READS[kind];
+    if (state[which.key] === null) throw new Error(`nothing read from a ${kind} box yet`);
+    const inputs = [...el(which.tiles).querySelectorAll("input")];
+    inputs.forEach((input, i) => (input.value = labels[i] ?? ""));
+    await (kind === "speed" ? readSpeeds() : readGears());
+    return text(which.status);
+  },
+
+  setLap({ startS, endS, lapTime }) {
+    // A lap built from the old ends is not this lap.
+    state.built = null;
+    setStatus("build-status", "");
+    if (startS !== undefined) setLap("start", startS);
+    if (endS !== undefined) setLap("end", endS);
+    if (lapTime !== undefined) {
+      el("laptime").value = lapTime;
+      applyLapTime();
+    }
+    updateButtons();
+    return apiStatus();
+  },
+
+  async build({ trackId, configId, carId }) {
+    const select = el("target");
+    const option = [...select.options].find((o) => {
+      if (o.value === "") return false;
+      const t = JSON.parse(o.value);
+      return t.trackKey.trackId === trackId && t.trackKey.configId === configId && t.carId === carId;
+    });
+    if (option === undefined) throw new Error("there is no reference lap for that car on that track to build on");
+    // Not a `change` event: that re-guesses the lap, over the one just chosen.
+    select.value = option.value;
+    const lap = lapTimes();
+    if (lap === null) throw new Error("choose the lap first: its start and its end");
+    if (state.samples.length === 0 || state.samples[0].t > lap.s + 0.5 || state.samples.at(-1).t < lap.e - 0.5) {
+      throw new Error("the read does not cover the whole lap — read the video from before its start to after its end");
+    }
+    await buildLap();
+    if (state.built === null) throw new Error(text("build-status"));
+    return { summary: state.built.summary, doubt: state.built.doubt === true };
+  },
+
+  async save() {
+    if (state.built === null) throw new Error("build the lap first");
+    if (state.built.doubt === true) throw new Error("that stretch of video is not one lap of this track — it is not saved");
+    await saveLap();
+    // A save that worked lets go of the lap; one that did not left its reason in the status.
+    if (state.built !== null) throw new Error(text("build-status"));
+    return text("build-status");
+  },
+};
 
 void start();

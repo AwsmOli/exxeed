@@ -9,11 +9,11 @@ import {
 
 describe("withDefaults", () => {
   it("leaves the assistant off unless a file says on, and keeps its token", () => {
-    expect(withDefaults({}).assistant).toEqual({ enabled: false, port: 47810, token: null });
+    expect(withDefaults({}).assistant).toEqual({ enabled: false, authoring: false, port: 47810, token: null });
 
     // A file with only part of the group, as an upgrade or a hand edit leaves it.
     const merged = withDefaults({ assistant: { enabled: true, token: "abc" } as never });
-    expect(merged.assistant).toEqual({ enabled: true, port: 47810, token: "abc" });
+    expect(merged.assistant).toEqual({ enabled: true, authoring: false, port: 47810, token: "abc" });
   });
 
   it("will not take a port the app could not open", () => {

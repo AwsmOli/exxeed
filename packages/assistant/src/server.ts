@@ -24,8 +24,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
+import { AUTHORING_INSTRUCTIONS, AUTHORING_READ_ONLY, AUTHORING_TOOLS, type AuthoringHost } from "./authoring.js";
 import { NoLiveData, type AssistantState } from "./state.js";
-import { TOOLS, type AssistantTool } from "./tools.js";
+import { TOOLS, type AssistantTool, type Tool } from "./tools.js";
 
 export const MCP_PATH = "/mcp";
 
@@ -39,6 +40,11 @@ export interface AssistantServerOptions {
   /** 0 picks a free port — what the tests use. */
   readonly port: number;
   readonly tools?: readonly AssistantTool[];
+  /**
+   * The app's importer and tracer. Given, the authoring tools are served too;
+   * left out, an assistant can ask about the race and change nothing.
+   */
+  readonly authoring?: AuthoringHost;
   /** Called once per tool call, for the log. */
   readonly onCall?: (name: string, ok: boolean) => void;
 }
@@ -49,37 +55,62 @@ export interface AssistantServer {
   close(): Promise<void>;
 }
 
-function buildMcp(options: AssistantServerOptions): McpServer {
-  const mcp = new McpServer({ name: "exxeed", version: "0.1.0" });
+function register<Ctx>(
+  mcp: McpServer,
+  options: AssistantServerOptions,
+  tool: Tool<Ctx>,
+  ctx: Ctx,
+  readOnly: boolean,
+): void {
+  mcp.registerTool(
+    tool.name,
+    {
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.input,
+      annotations: { readOnlyHint: readOnly, openWorldHint: false },
+    },
+    async (args: Record<string, unknown>) => {
+      try {
+        const reply = await tool.run(ctx, args);
+        options.onCall?.(tool.name, true);
+        const data = Object.keys(reply.data).length === 0 ? "" : `\n\n${JSON.stringify(reply.data)}`;
+        return {
+          content: [
+            { type: "text" as const, text: `${reply.summary}${data}` },
+            ...(reply.images ?? []).map((image) => ({
+              type: "image" as const,
+              data: image.base64,
+              mimeType: image.mimeType,
+            })),
+          ],
+        };
+      } catch (error) {
+        options.onCall?.(tool.name, false);
+        // "No live session" is an answer, and the one the driver should hear.
+        // So is the app's own "yt-dlp is not installed". Either way the reason
+        // is said plainly rather than hidden behind a protocol error.
+        const message =
+          error instanceof NoLiveData
+            ? error.message
+            : `Exxeed could not do that: ${error instanceof Error ? error.message : String(error)}`;
+        return { content: [{ type: "text" as const, text: message }], isError: true };
+      }
+    },
+  );
+}
 
-  for (const tool of options.tools ?? TOOLS) {
-    mcp.registerTool(
-      tool.name,
-      {
-        title: tool.title,
-        description: tool.description,
-        inputSchema: tool.input,
-        annotations: { readOnlyHint: true, openWorldHint: false },
-      },
-      (args: Record<string, unknown>) => {
-        try {
-          const reply = tool.run(options.state, args);
-          options.onCall?.(tool.name, true);
-          return {
-            content: [{ type: "text" as const, text: `${reply.summary}\n\n${JSON.stringify(reply.data)}` }],
-          };
-        } catch (error) {
-          options.onCall?.(tool.name, false);
-          // "No live session" is an answer, and the one the driver should hear.
-          // Anything else is a bug here, and is said plainly rather than hidden.
-          const message =
-            error instanceof NoLiveData
-              ? error.message
-              : `Exxeed could not answer: ${error instanceof Error ? error.message : String(error)}`;
-          return { content: [{ type: "text" as const, text: message }], isError: true };
-        }
-      },
-    );
+function buildMcp(options: AssistantServerOptions): McpServer {
+  const mcp = new McpServer(
+    { name: "exxeed", version: "0.1.0" },
+    options.authoring === undefined ? {} : { instructions: AUTHORING_INSTRUCTIONS },
+  );
+
+  for (const tool of options.tools ?? TOOLS) register(mcp, options, tool, options.state, true);
+  if (options.authoring !== undefined) {
+    for (const tool of AUTHORING_TOOLS) {
+      register(mcp, options, tool, options.authoring, AUTHORING_READ_ONLY.has(tool.name));
+    }
   }
 
   return mcp;

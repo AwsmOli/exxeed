@@ -125,8 +125,7 @@
     <h2>Assistant</h2>
     <div class="hint" style="margin-left:0">
       Lets an AI assistant you run on this PC ask Exxeed about the race — fuel,
-      gaps, weather, standings — over MCP. It can read, not change anything.
-      Exxeed never calls a model itself, and nothing leaves this machine unless
+      gaps, weather, standings — over MCP. Exxeed never calls a model itself, and nothing leaves this machine unless
       your assistant sends it.
     </div>
 
@@ -134,6 +133,17 @@
       <label class="name" for="assistantEnabled">Allow</label>
       <input type="checkbox" id="assistantEnabled" />
       <span id="assistantStatus" style="color:#6f7885">Off</span>
+    </div>
+
+    <div class="row">
+      <label class="name" for="assistantAuthoring">Let it build</label>
+      <input type="checkbox" id="assistantAuthoring" />
+    </div>
+    <div class="hint">
+      Off, it can only read. On, it can also do what the importer and the
+      tracer do: find a track guide, write callouts from its transcript and
+      import them as a draft, and read a reference lap off the guide's video —
+      which, saved, replaces the one you have (the old lap is kept).
     </div>
 
     <div id="assistantDetails" hidden>

@@ -240,6 +240,8 @@ let assistant = null;
 function renderAssistant(view) {
   assistant = view;
   $("assistantEnabled").checked = view.enabled;
+  $("assistantAuthoring").checked = view.authoring;
+  $("assistantAuthoring").disabled = !view.enabled;
   const status = $("assistantStatus");
   status.textContent = !view.enabled ? "Off" : view.running ? "Listening" : (view.error ?? "Not listening");
   status.style.color = !view.enabled ? "#6f7885" : view.running ? "#7ee787" : "#d8a06a";
@@ -258,6 +260,10 @@ const copy = (text, fallback) =>
 
 $("assistantEnabled").addEventListener("change", (event) => {
   window.exxeed.assistant({ kind: "setEnabled", value: event.target.checked }).then(renderAssistant);
+});
+
+$("assistantAuthoring").addEventListener("change", (event) => {
+  window.exxeed.assistant({ kind: "setAuthoring", value: event.target.checked }).then(renderAssistant);
 });
 
 $("assistantNewToken").addEventListener("click", () => {
