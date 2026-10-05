@@ -109,6 +109,8 @@ import {
   registerPreferencesShortcut,
 } from "./preferences.js";
 import { debugEnabled, SettingsStore } from "./settings.js";
+import { AssistantState } from "@exxeed/assistant";
+import { AssistantService } from "./assistant.js";
 import { carWarnings, loadSession, type LoadedSession } from "./session.js";
 import { RaceViewBuilder } from "./race-view.js";
 import { AutoMapper } from "./auto-map.js";
@@ -189,6 +191,15 @@ const profileStore = (): OverlayProfileStore => {
  * writing to the same recorder.
  */
 let loopToken = 0;
+
+/**
+ * What an AI assistant can see, over MCP (assistant.ts). Fed the same race view
+ * and status the overlays get, whether or not anything is listening: it is two
+ * assignments, and it means the gap history is already there when the assistant
+ * is switched on mid-race.
+ */
+const assistantState = new AssistantState();
+let assistant: AssistantService | null = null;
 
 /**
  * The data folder: the repo's own `data/` unless one is chosen.
@@ -662,6 +673,7 @@ function broadcastStatus(patch: Partial<SessionStatus>): void {
   };
   currentSurfaces?.broadcast(SESSION_STATUS_CHANNEL, sessionStatus);
   controlWindow?.webContents.send(SESSION_STATUS_CHANNEL, sessionStatus);
+  assistantState.onSession(sessionStatus);
   refreshTrayMenu();
 }
 
@@ -948,10 +960,13 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
               })
             : null);
         if (snapshot !== null) {
-          surfaces.broadcast(RACE_CHANNEL, raceView.build(snapshot));
+          const view = raceView.build(snapshot);
+          surfaces.broadcast(RACE_CHANNEL, view);
+          assistantState.onRace(frame.tMs / 1000, view);
           raceShown = true;
         } else if (raceShown) {
           surfaces.broadcast(RACE_CHANNEL, null);
+          assistantState.onRace(frame.tMs / 1000, null);
           raceShown = false;
         }
       }
@@ -967,6 +982,9 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
     // Leave nothing behind: the last race on screen after the sim has gone
     // reads as a live one.
     if (raceShown && surfaces.alive()) surfaces.broadcast(RACE_CHANNEL, null);
+    // The assistant is the same, with the same caveat as above: a newer loop
+    // may already be feeding it.
+    if (raceShown && token === loopToken) assistantState.onRace(0, null);
   }
 }
 
@@ -1919,6 +1937,9 @@ void app.whenReady().then(() => {
     settings().updateQuietly({ installationId: randomUUID() });
   }
   installSettingsIpc(settings(), resolveDataDir, RECORDINGS_DIR);
+  assistant = new AssistantService(settings(), assistantState);
+  assistant.installIpc();
+  void assistant.sync();
   onAccountChange((view) => {
     if (view.signedIn) {
       void shareOnSignIn(resolveDataDir(settings().get()), (line) => process.stdout.write(line));
@@ -2239,7 +2260,10 @@ void app.whenReady().then(() => {
 // Whichever way the app is being shut down — the control window, File > Quit,
 // Alt+F4 — stop the loop first so the recorder stops taking writes it will not
 // get to flush.
-app.on("before-quit", () => stopSession());
+app.on("before-quit", () => {
+  stopSession();
+  void assistant?.close();
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

@@ -8,6 +8,23 @@ import {
 } from "@exxeed/overlays";
 
 describe("withDefaults", () => {
+  it("leaves the assistant off unless a file says on, and keeps its token", () => {
+    expect(withDefaults({}).assistant).toEqual({ enabled: false, port: 47810, token: null });
+
+    // A file with only part of the group, as an upgrade or a hand edit leaves it.
+    const merged = withDefaults({ assistant: { enabled: true, token: "abc" } as never });
+    expect(merged.assistant).toEqual({ enabled: true, port: 47810, token: "abc" });
+  });
+
+  it("will not take a port the app could not open", () => {
+    const port = (p: unknown): number => withDefaults({ assistant: { port: p } as never }).assistant.port;
+    expect(port(80)).toBe(47810);
+    expect(port(70000)).toBe(47810);
+    expect(port(5000.5)).toBe(47810);
+    expect(port("5000")).toBe(47810);
+    expect(port(5000)).toBe(5000);
+  });
+
   it("fills in everything from nothing", () => {
     expect(withDefaults(null)).toEqual(DEFAULT_SETTINGS);
     expect(withDefaults({})).toEqual(DEFAULT_SETTINGS);

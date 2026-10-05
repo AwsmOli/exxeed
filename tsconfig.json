@@ -15,6 +15,7 @@
     { "path": "./packages/tts" },
     { "path": "./packages/importer" },
     { "path": "./packages/overlays" },
+    { "path": "./packages/assistant" },
     { "path": "./apps/desktop" },
     { "path": "./tools/replay" },
     { "path": "./tools/trackmap" },

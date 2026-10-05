@@ -233,5 +233,55 @@ window.addEventListener("focus", () => {
   window.exxeed.getSettings().then(render);
 });
 
+// The assistant connection. Its own channel rather than a settings patch: a
+// settings change reloads the session, and switching this on should not.
+let assistant = null;
+
+function renderAssistant(view) {
+  assistant = view;
+  $("assistantEnabled").checked = view.enabled;
+  const status = $("assistantStatus");
+  status.textContent = !view.enabled ? "Off" : view.running ? "Listening" : (view.error ?? "Not listening");
+  status.style.color = !view.enabled ? "#6f7885" : view.running ? "#7ee787" : "#d8a06a";
+  $("assistantDetails").hidden = !view.running;
+  $("assistantUrl").value = view.url ?? "";
+  $("assistantToken").value = view.token ?? "";
+}
+
+// The clipboard can refuse (no focus, no permission). Selecting the text leaves
+// one keystroke to do instead of nothing.
+const copy = (text, fallback) =>
+  navigator.clipboard.writeText(text).then(
+    () => flash("Copied"),
+    () => { fallback?.select(); },
+  );
+
+$("assistantEnabled").addEventListener("change", (event) => {
+  window.exxeed.assistant({ kind: "setEnabled", value: event.target.checked }).then(renderAssistant);
+});
+
+$("assistantNewToken").addEventListener("click", () => {
+  window.exxeed.assistant({ kind: "newToken" }).then((view) => {
+    renderAssistant(view);
+    flash("New token made — update your assistant");
+  });
+});
+
+for (const button of document.querySelectorAll("[data-copy]")) {
+  button.addEventListener("click", () => {
+    const field = $(button.dataset.copy);
+    copy(field.value, field);
+  });
+}
+
+$("assistantCopyClaude").addEventListener("click", () => {
+  if (assistant === null || assistant.url === null || assistant.token === null) return;
+  copy(
+    `claude mcp add --transport http exxeed ${assistant.url} --header "Authorization: Bearer ${assistant.token}"`,
+  );
+});
+
+window.exxeed.assistant({ kind: "get" }).then(renderAssistant);
+
 window.exxeed.onSettingsChanged((payload) => render(payload));
 window.exxeed.getSettings().then(render);

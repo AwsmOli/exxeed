@@ -837,8 +837,26 @@ export interface Settings {
   readonly installationId: string | null;
   /** The first-run welcome has been dismissed on this install. */
   readonly welcomed: boolean;
+  readonly assistant: AssistantSettings;
   readonly debug: DebugSettings;
 }
+
+/**
+ * Letting an AI assistant ask the app things — fuel, gaps, weather — over MCP.
+ *
+ * Off until someone turns it on: it opens a port, and a port nobody asked for
+ * is not something an app should have. Loopback only, and every request needs
+ * the token.
+ */
+export interface AssistantSettings {
+  readonly enabled: boolean;
+  readonly port: number;
+  /** Made the first time the assistant is switched on. Null until then. */
+  readonly token: string | null;
+}
+
+/** Unassigned by IANA and not a port anything common squats on. */
+export const DEFAULT_ASSISTANT_PORT = 47810;
 
 export interface DebugSettings {
   /**
@@ -890,6 +908,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overlayTheme: DEFAULT_THEME_ID,
   installationId: null,
   welcomed: false,
+  assistant: { enabled: false, port: DEFAULT_ASSISTANT_PORT, token: null },
   debug: {
     replayPath: null,
     replaySpeed: 1,
@@ -919,6 +938,12 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
 
   const storedDebug =
     typeof s.debug === "object" && s.debug !== null ? s.debug : ({} as Partial<DebugSettings>);
+
+  const storedAssistant =
+    typeof s.assistant === "object" && s.assistant !== null
+      ? s.assistant
+      : ({} as Partial<AssistantSettings>);
+  const port = number(storedAssistant.port, DEFAULT_SETTINGS.assistant.port);
 
   return {
     noteSetId: s.noteSetId ?? DEFAULT_SETTINGS.noteSetId,
@@ -958,6 +983,15 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
             Object.entries(s.noteSetByTrack).filter(([, v]) => typeof v === "string"),
           )
         : DEFAULT_SETTINGS.noteSetByTrack,
+    assistant: {
+      enabled: storedAssistant.enabled === true,
+      // Below 1024 needs privileges the app does not have and should not want.
+      port: Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : DEFAULT_SETTINGS.assistant.port,
+      token:
+        typeof storedAssistant.token === "string" && storedAssistant.token !== ""
+          ? storedAssistant.token
+          : null,
+    },
     debug: {
       replayPath: storedDebug.replayPath ?? DEFAULT_SETTINGS.debug.replayPath,
       replaySpeed: number(storedDebug.replaySpeed, DEFAULT_SETTINGS.debug.replaySpeed),
@@ -1018,6 +1052,7 @@ export function withEnvOverrides(
     overlayTheme: settings.overlayTheme,
     installationId: settings.installationId,
     welcomed: settings.welcomed,
+    assistant: settings.assistant,
     debug: {
       replayPath: get("EXXEED_REPLAY") ?? settings.debug.replayPath,
       replaySpeed: num("EXXEED_SPEED") ?? settings.debug.replaySpeed,
@@ -1710,3 +1745,23 @@ export type ThemeContentRequest =
   | { readonly op: "baseTemplate"; readonly themeId: string; readonly panel: string }
   | { readonly op: "addScreenshot"; readonly themeId: string }
   | { readonly op: "removeScreenshot"; readonly themeId: string; readonly mediaId: string };
+
+/** The assistant connection, for Preferences: one channel with a `kind`. */
+export const ASSISTANT_CHANNEL = "exxeed:assistant";
+
+export type AssistantRequest =
+  | { readonly kind: "get" }
+  | { readonly kind: "setEnabled"; readonly value: boolean }
+  /** Replace the token. Every assistant already set up stops working until given the new one. */
+  | { readonly kind: "newToken" };
+
+export interface AssistantView {
+  readonly enabled: boolean;
+  /** Listening right now. False with `enabled` true means it failed — see `error`. */
+  readonly running: boolean;
+  /** Where an assistant connects. Null while off. */
+  readonly url: string | null;
+  readonly token: string | null;
+  /** Why it is not listening, in words for a person. */
+  readonly error: string | null;
+}

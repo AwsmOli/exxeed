@@ -122,6 +122,45 @@
       main Exxeed window, not here.
     </div>
 
+    <h2>Assistant</h2>
+    <div class="hint" style="margin-left:0">
+      Lets an AI assistant you run on this PC ask Exxeed about the race — fuel,
+      gaps, weather, standings — over MCP. It can read, not change anything.
+      Exxeed never calls a model itself, and nothing leaves this machine unless
+      your assistant sends it.
+    </div>
+
+    <div class="row">
+      <label class="name" for="assistantEnabled">Allow</label>
+      <input type="checkbox" id="assistantEnabled" />
+      <span id="assistantStatus" style="color:#6f7885">Off</span>
+    </div>
+
+    <div id="assistantDetails" hidden>
+      <div class="row">
+        <label class="name" for="assistantUrl">Address</label>
+        <input type="text" id="assistantUrl" readonly />
+        <button type="button" data-copy="assistantUrl">Copy</button>
+      </div>
+      <div class="row">
+        <label class="name" for="assistantToken">Token</label>
+        <input type="text" id="assistantToken" readonly />
+        <button type="button" data-copy="assistantToken">Copy</button>
+        <button type="button" id="assistantNewToken">New token</button>
+      </div>
+      <div class="hint">
+        Add Exxeed to your assistant as an MCP server over HTTP at that address,
+        with the header <span class="path" style="display:inline">Authorization: Bearer &lt;token&gt;</span>.
+        The token is the only thing stopping other programs on this PC asking
+        too, so treat it like a password. <b>New token</b> cuts off every
+        assistant set up with the old one.
+      </div>
+      <div class="row">
+        <label class="name">Claude Code</label>
+        <button type="button" id="assistantCopyClaude">Copy setup command</button>
+      </div>
+    </div>
+
     <section id="debug" hidden>
       <h2>Debug</h2>
       <div class="hint" style="margin-left:0">

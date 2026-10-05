@@ -12,6 +12,7 @@
     "package": "node scripts/package.mjs"
   },
   "dependencies": {
+    "@exxeed/assistant": "workspace:*",
     "@exxeed/core": "workspace:*",
     "@exxeed/importer": "workspace:*",
     "@exxeed/overlays": "workspace:*",

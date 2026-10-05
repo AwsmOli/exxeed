@@ -61,6 +61,7 @@ const CONTENT_CHANNEL = "exxeed:content";
 const LAP_IMPORT_CHANNEL = "exxeed:lap-import";
 const VIDEO_TRACES_CHANNEL = "exxeed:video-traces";
 const ACCOUNT_CHANGED_CHANNEL = "exxeed:account-changed";
+const ASSISTANT_CHANNEL = "exxeed:assistant";
 
 contextBridge.exposeInMainWorld("exxeed", {
   /** The control window: start, stop, autostart, and what the app is doing. */
@@ -99,6 +100,9 @@ contextBridge.exposeInMainWorld("exxeed", {
     ipcRenderer.invoke(SETTINGS_SET_CHANNEL, patch),
   onSettingsChanged: (cb: (payload: unknown) => void) =>
     subscribe(SETTINGS_CHANGED_CHANNEL, cb),
+
+  /** The assistant connection: on or off, where it listens, its token. One channel with a `kind`. */
+  assistant: (request: unknown): Promise<unknown> => ipcRenderer.invoke(ASSISTANT_CHANNEL, request),
 
   /** Pick a recording, check it replays, copy it into the recordings folder. */
   importRecording: (): Promise<unknown> => ipcRenderer.invoke(RECORDING_IMPORT_CHANNEL),

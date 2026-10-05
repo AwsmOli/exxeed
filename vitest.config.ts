@@ -15,6 +15,7 @@ export default defineConfig({
       "@exxeed/repo": pkg("repo"),
       "@exxeed/tts": pkg("tts"),
       "@exxeed/importer": pkg("importer"),
+      "@exxeed/assistant": pkg("assistant"),
     },
   },
   test: {

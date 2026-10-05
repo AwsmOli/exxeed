@@ -1,0 +1,26 @@
+{
+  "name": "@exxeed/assistant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "What an AI assistant can ask the app and tell it to do, served over MCP. No Electron.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@exxeed/overlays": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "zod": "^4.6.5"
+  }
+}

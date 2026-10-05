@@ -13,6 +13,7 @@
     { "path": "../../packages/repo" },
     { "path": "../../packages/tts" },
     { "path": "../../packages/importer" },
-    { "path": "../../packages/overlays" }
+    { "path": "../../packages/overlays" },
+    { "path": "../../packages/assistant" }
   ]
 }
