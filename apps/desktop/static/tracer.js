@@ -18,19 +18,21 @@ const setStatus = (id, text, tone = "") => {
   el(id).className = `status small${tone ? ` ${tone}` : ""}`;
 };
 
-const COLOURS = { pedals: "#e3b341", line: "#58a6ff", speed: "#d2a8ff" };
-const LABELS = { pedals: "pedal bars", line: "line", speed: "speed" };
+const COLOURS = { pedals: "#e3b341", line: "#58a6ff", speed: "#d2a8ff", gear: "#79c0ff" };
+const LABELS = { pedals: "pedal bars", line: "line", speed: "speed", gear: "gear" };
 /** A digit's grid (core GLYPH_W × GLYPH_H, then its aspect). */
 const GW = 10;
 const GH = 14;
 
 const state = {
   /** Boxes in the video's own pixels: { x, y, w, h }. */
-  boxes: { pedals: null, line: null, speed: null },
+  boxes: { pedals: null, line: null, speed: null, gear: null },
   /** Where the lap was marked, by a crossing or by hand; a typed lap time works from these. */
   marks: { start: null, end: null },
   /** The speed box's digits: their grids, which frame each is from, and the groups found. */
   glyphs: null,
+  /** The same for the gear box. */
+  gearGlyphs: null,
   /** Where the bars were found in the pedal box, and each frame's fills (from main). */
   calibration: null,
   samples: [],
@@ -317,9 +319,14 @@ async function read() {
   const runs = [];
   const speed = state.boxes.speed;
   const grabs = { pedals: grabber(pedals), line: line ? grabber(line) : null, speed: speed ? grabber(speed) : null };
+  const gear = state.boxes.gear;
+  const gearGrab = gear ? grabber(gear) : null;
   const glyphVectors = [];
   const glyphFrame = [];
+  const gearVectors = [];
+  const gearFrame = [];
   state.glyphs = null;
+  state.gearGlyphs = null;
   let previous = null;
   let lastT = -1;
   el("progress").hidden = false;
@@ -343,6 +350,10 @@ async function read() {
         if (grabs.speed !== null) {
           const n = speedGlyphs(grabs.speed, glyphVectors);
           for (let i = 0; i < n; i++) glyphFrame.push(times.length - 1);
+        }
+        if (gearGrab !== null) {
+          const n = speedGlyphs(gearGrab, gearVectors);
+          for (let i = 0; i < n; i++) gearFrame.push(times.length - 1);
         }
         if (grabs.line !== null) {
           const snap = lineSnapshot(grabs.line);
@@ -386,20 +397,27 @@ async function read() {
     found.length === 2 ? "good" : "bad",
   );
   await showCrossings();
-  if (grabs.speed !== null) await showDigits(Float64Array.from(times), Float32Array.from(glyphVectors), Int32Array.from(glyphFrame));
+  if (grabs.speed !== null) await showDigits(READS.speed, Float64Array.from(times), Float32Array.from(glyphVectors), Int32Array.from(glyphFrame));
+  if (gearGrab !== null) await showDigits(READS.gear, Float64Array.from(times), Float32Array.from(gearVectors), Int32Array.from(gearFrame));
   updateButtons();
 }
 
-/** The speed box's digit shapes, grouped, for the person to name. */
-async function showDigits(times, vectors, glyphFrame) {
-  el("digits-section").hidden = false;
+/** The two numbers read by shape: where each one's tiles and status go, and what it is called. */
+const READS = {
+  speed: { key: "glyphs", section: "digits-section", tiles: "digits", status: "digits-status", what: "speed", names: "digits", then: "Read speeds" },
+  gear: { key: "gearGlyphs", section: "gears-section", tiles: "gears", status: "gears-status", what: "gear", names: "gears (N for neutral)", then: "Read gears" },
+};
+
+/** A number box's shapes, grouped, for the person to name. */
+async function showDigits(kind, times, vectors, glyphFrame) {
+  el(kind.section).hidden = false;
   if (glyphFrame.length === 0) {
-    setStatus("digits-status", "No digits found in the speed box: draw it round the speed's digits only, and read again.", "bad");
+    setStatus(kind.status, `Nothing found in the ${kind.what} box: draw it round the ${kind.what} only, and read again.`, "bad");
     return;
   }
   const c = await call({ op: "clusterGlyphs", vectors });
-  state.glyphs = { times, glyphFrame, vectors, ids: c.ids, groups: c.centroids.length };
-  el("digits").replaceChildren(
+  state[kind.key] = { times, glyphFrame, vectors, ids: c.ids, groups: c.centroids.length };
+  el(kind.tiles).replaceChildren(
     ...c.centroids.map((centroid, i) => {
       const tile = Object.assign(document.createElement("div"), { className: "digit" });
       const canvas = document.createElement("canvas");
@@ -418,19 +436,25 @@ async function showDigits(times, vectors, glyphFrame) {
       return tile;
     }),
   );
-  setStatus("digits-status", `${c.centroids.length} shapes. Name the digits, then Read speeds.`);
+  setStatus(kind.status, `${c.centroids.length} shapes. Name the ${kind.names}, then ${kind.then}.`);
+}
+
+/** What each group was named: a digit, "" to skip it, null if the tile was never shown. N is neutral, 0. */
+function namedGroups(kind) {
+  const gl = state[kind.key];
+  const labels = Array.from({ length: Math.max(gl.groups, 1 + Math.max(0, ...gl.ids)) }, () => null);
+  for (const input of el(kind.tiles).querySelectorAll("input")) {
+    const v = input.value.trim().toLowerCase();
+    labels[Number(input.dataset.group)] = /^\d$/.test(v) ? v : kind === READS.gear && v === "n" ? "0" : "";
+  }
+  return labels;
 }
 
 el("read-speeds").addEventListener("click", async () => {
   const gl = state.glyphs;
   if (gl === null) return;
-  const labels = Array.from({ length: Math.max(gl.groups, 1 + Math.max(0, ...gl.ids)) }, () => null);
-  for (const input of el("digits").querySelectorAll("input")) {
-    const v = input.value.trim();
-    labels[Number(input.dataset.group)] = /^\d$/.test(v) ? v : "";
-  }
   try {
-    const speeds = await call({ op: "readSpeeds", times: gl.times, glyphFrame: gl.glyphFrame, ids: gl.ids, labels, mph: el("units").value === "mph" });
+    const speeds = await call({ op: "readSpeeds", times: gl.times, glyphFrame: gl.glyphFrame, ids: gl.ids, labels: namedGroups(READS.speed), mph: el("units").value === "mph" });
     const byTime = new Map();
     gl.times.forEach((t, i) => byTime.set(t, speeds[i]));
     state.samples = state.samples.map((s) => ({ ...s, speedKph: byTime.get(s.t) ?? null }));
@@ -440,6 +464,22 @@ el("read-speeds").addEventListener("click", async () => {
     applyLapTime();
   } catch (err) {
     setStatus("digits-status", err.message, "bad");
+  }
+  updateButtons();
+});
+
+el("read-gears").addEventListener("click", async () => {
+  const gl = state.gearGlyphs;
+  if (gl === null) return;
+  try {
+    const gears = await call({ op: "readGears", times: gl.times, glyphFrame: gl.glyphFrame, ids: gl.ids, labels: namedGroups(READS.gear) });
+    const byTime = new Map();
+    gl.times.forEach((t, i) => byTime.set(t, gears[i]));
+    state.samples = state.samples.map((s) => ({ ...s, gear: byTime.get(s.t) ?? null }));
+    const read = gears.filter((v) => v !== null).length;
+    setStatus("gears-status", `Gear read on ${Math.round((read / gears.length) * 100)}% of frames.`, read / gears.length > 0.5 ? "good" : "bad");
+  } catch (err) {
+    setStatus("gears-status", err.message, "bad");
   }
   updateButtons();
 });
@@ -605,7 +645,7 @@ el("build").addEventListener("click", async () => {
   setStatus("build-status", "Building…");
   try {
     // Only the lap's frames, and a little either side.
-    const samples = state.samples.filter((f) => f.t >= lap.s - 1 && f.t <= lap.e + 1).map((f) => ({ speedKph: null, ...f }));
+    const samples = state.samples.filter((f) => f.t >= lap.s - 1 && f.t <= lap.e + 1).map((f) => ({ speedKph: null, gear: null, ...f }));
     state.built = await call({ op: "build", trackKey: target.trackKey, carId: target.carId, lapStartS: lap.s, lapEndS: lap.e, samples });
     setStatus("build-status", state.built.summary, state.built.doubt ? "bad" : "good");
     drawChart(state.built);
@@ -665,6 +705,7 @@ function drawChart(b) {
   const top = Math.max(...b.speed.base, ...b.speed.video, 1);
   line(b.speed.base.map((v) => v / top), "rgba(210, 168, 255, 0.35)", 1);
   if (b.bySpeed) line(b.speed.video.map((v) => v / top), "#d2a8ff", 1.6);
+  line(b.gear.map((v) => v / Math.max(...b.gear, 1) / 2), "#79c0ff", 1);
 }
 
 // ---------------------------------------------------------------------------

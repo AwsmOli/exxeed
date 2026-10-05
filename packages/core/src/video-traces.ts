@@ -434,17 +434,46 @@ export function cleanSpeeds(times: ArrayLike<number>, values: readonly (number |
   return out;
 }
 
+/**
+ * Gears with one-frame misreads taken out and gaps filled: a gear held for
+ * less than `minHoldS` between two stretches of the same other gear is that
+ * other gear (a digit caught changing), and a frame with no reading has the
+ * gear before it. A moment of neutral between two gears — the lever passing
+ * through — is the gear it was on its way to. Null only before the first reading.
+ */
+export function cleanGears(times: ArrayLike<number>, values: readonly (number | null)[], minHoldS = 0.1, neutralS = 0.75): (number | null)[] {
+  const out: (number | null)[] = [];
+  let last: number | null = null;
+  for (const v of values) {
+    if (v !== null && v !== undefined) last = v;
+    out.push(last);
+  }
+  for (let i = 0; i < out.length; ) {
+    let j = i;
+    while (j < out.length && out[j] === out[i]) j++;
+    const before = i > 0 ? out[i - 1]! : null;
+    if (before !== null && j < out.length && out[j] === before && times[j]! - times[i]! < minHoldS) out.fill(before, i, j);
+    // Neutral on the way from one gear to the next is the gear being taken.
+    else if (out[i] === 0 && before !== null && j < out.length && times[j]! - times[i]! < neutralS) out.fill(out[j]!, i, j);
+    i = j;
+  }
+  return out;
+}
+
 export interface VideoLapSample extends VideoInputSample {
   /** Speed read off the overlay, km/h; null where it could not be. */
   readonly speedKph: number | null;
+  /** Gear read off the overlay (0 neutral); null or absent where it was not. */
+  readonly gear?: number | null;
 }
 
 /**
  * A reference lap entirely from the video: where the car is at each moment
  * comes from its own speed, added up over the lap and scaled to the track's
  * length, so a point is placed by how far the car had gone — not by another
- * driver's timing. Speed, throttle and brake are the video's; gear and
- * steering, which it does not read, come from `base` at the same place.
+ * driver's timing. Speed, throttle and brake are the video's, and the gear
+ * where it was read; steering, and the gear otherwise, come from `base` at
+ * the same place.
  */
 export function referenceFromVideoSpeed(o: Omit<VideoReferenceOptions, "samples"> & { readonly samples: readonly VideoLapSample[] }): ReferenceLap {
   const { base } = o;
@@ -504,8 +533,21 @@ export function referenceFromVideoSpeed(o: Omit<VideoReferenceOptions, "samples"
     throttle.push(Math.max(0, Math.min(1, at.throttle)));
     brake.push(Math.max(0, Math.min(1, at.brake)));
   }
+  // The video's gear where it was read over (nearly) the whole lap: the one
+  // showing at that moment. Otherwise the base lap's.
+  const geared = o.samples.filter((s) => s.t >= o.lapStartS && s.t <= o.lapEndS && s.gear !== null && s.gear !== undefined);
+  const all = o.samples.filter((s) => s.t >= o.lapStartS && s.t <= o.lapEndS).length;
+  let gear = base.channels.gear;
+  if (geared.length >= all * 0.8) {
+    let g = 0;
+    gear = timeAt.map((t) => {
+      while (g < geared.length - 1 && geared[g + 1]!.t <= t) g++;
+      return geared[g]!.gear!;
+    });
+  }
   const channels = {
     ...base.channels,
+    gear,
     speedMps: timeAt.map((t) => (speedAt(t) / 3.6) * scale),
     throttle,
     brake,

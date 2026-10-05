@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   barFill,
   calibratePedals,
+  cleanGears,
   cleanSpeeds,
   clusterGlyphs,
   findCrossings,
@@ -232,5 +233,21 @@ describe("reading the overlay's speed", () => {
     expect(lap.channels.brake[49]).toBe(1);
     expect(lap.channels.brake[46]).toBe(0);
     expect(lap.lapTimeS).toBe(75);
+    // No gear was read: the base lap's.
+    expect(lap.channels.gear[10]).toBe(3);
+
+    // Fourth gear for the fast half, second after the braking.
+    const geared = samples.map((s) => ({ ...s, gear: s.t < 25 ? 4 : 2 }));
+    const withGear = referenceFromVideoSpeed({ base, samples: geared, lapStartS: 0, lapEndS: 75, lengthM: 1000 as Metres, corners: [] });
+    expect(withGear.channels.gear[25]).toBe(4);
+    expect(withGear.channels.gear[75]).toBe(2);
+  });
+
+  it("takes a gear's one-frame blips out and holds it over frames not read", () => {
+    const times = Array.from({ length: 10 }, (_, i) => i / 30);
+    expect(cleanGears(times, [null, 3, 3, 8, 3, null, null, 4, 4, 4])).toEqual([null, 3, 3, 3, 3, 3, 3, 4, 4, 4]);
+    // Through neutral on the way down to second; a long neutral stays.
+    expect(cleanGears(times, [3, 3, 0, 0, 0, 2, 2, 2, 2, 2])).toEqual([3, 3, 2, 2, 2, 2, 2, 2, 2, 2]);
+    expect(cleanGears([0, 1, 2, 3, 4], [3, 0, 0, 0, 2])).toEqual([3, 0, 0, 0, 2]);
   });
 });

@@ -25,6 +25,7 @@ import {
   type Metres,
   type ReferenceLap,
   type TrackKey,
+  cleanGears,
   cleanSpeeds,
   clusterGlyphs,
   readNumbers,
@@ -73,6 +74,8 @@ type Request =
   | { op: "clusterGlyphs"; vectors: Float32Array }
   /** Each frame's speed from the named groups, misreads taken out; km/h. */
   | { op: "readSpeeds"; times: Float64Array; glyphFrame: Int32Array; ids: Int32Array; labels: (string | null)[]; mph: boolean }
+  /** Each frame's gear from the named groups (0 neutral), blips taken out. */
+  | { op: "readGears"; times: Float64Array; glyphFrame: Int32Array; ids: Int32Array; labels: (string | null)[] }
   | { op: "build"; trackKey: TrackKey; carId: string; lapStartS: number; lapEndS: number; samples: readonly VideoLapSample[] }
   | { op: "save"; token: string };
 
@@ -146,6 +149,8 @@ async function build(deps: VideoTracesDeps, r: Extract<Request, { op: "build" }>
       : doubt
         ? ` But its speed adds up to ${metres(distanceM)} and the track is ${metres(map.lengthM)}: this stretch is not one whole lap of this layout in real time. Do not save it.`
         : ` Its speed adds up to ${metres(distanceM)} of the track's ${metres(map.lengthM)}.`;
+  const withGear = r.samples.filter((x) => x.t >= r.lapStartS && x.t <= r.lapEndS && x.gear !== null && x.gear !== undefined).length;
+  const lends = bySpeed && withGear >= inLap * 0.8 ? "is not used but for its steering" : "lends only its gear";
   const token = randomUUID();
   built = { token, lap, doubt };
   return {
@@ -155,9 +160,10 @@ async function build(deps: VideoTracesDeps, r: Extract<Request, { op: "build" }>
     bySpeed,
     doubt,
     summary: bySpeed
-      ? `${fmtLap(lap.lapTimeS)} from the video, placed by its own speed — the ${fmtLap(base.lapTimeS)} reference lap of ${r.carId} lends only its gear.${check}`
+      ? `${fmtLap(lap.lapTimeS)} from the video, placed by its own speed — the ${fmtLap(base.lapTimeS)} reference lap of ${r.carId} ${lends}.${check}`
       : `${fmtLap(lap.lapTimeS)} from the video, placed by the ${fmtLap(base.lapTimeS)} reference lap of ${r.carId}'s timing — read the speed for an exact placing.`,
     speed: { base: base.channels.speedMps, video: lap.channels.speedMps },
+    gear: lap.channels.gear,
     base: { throttle: base.channels.throttle, brake: base.channels.brake },
     video: { throttle: lap.channels.throttle, brake: lap.channels.brake },
   };
@@ -212,6 +218,8 @@ export function installVideoTracesIpc(deps: VideoTracesDeps): void {
           const kph = read.map((v) => (v === null ? null : request.mph ? v * 1.609344 : v));
           return { ok: true, value: cleanSpeeds(request.times, kph) };
         }
+        case "readGears":
+          return { ok: true, value: cleanGears(request.times, readNumbers(request.times.length, request.glyphFrame, request.ids, request.labels)) };
         case "calibrate": {
           const frames = { width: request.width, height: request.height, times: request.times, runs: request.runs };
           const calibration = calibratePedals(frames);

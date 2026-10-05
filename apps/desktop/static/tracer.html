@@ -78,6 +78,7 @@
           <button type="button" data-box="pedals"><span class="box-chip" style="background: linear-gradient(90deg, #f85149 50%, #3fb950 50%)"></span>Pedal bars</button>
           <button type="button" data-box="line"><span class="box-chip" style="background: #58a6ff"></span>Changes at the line</button>
           <button type="button" data-box="speed"><span class="box-chip" style="background: #d2a8ff"></span>Speed number</button>
+          <button type="button" data-box="gear"><span class="box-chip" style="background: #79c0ff"></span>Gear</button>
         </div>
         <p class="note" style="margin-top: 6px">
           <b>Pedal bars:</b> one box round the throttle and brake bars together — loosely, with room to spare above and below.
@@ -89,6 +90,7 @@
           so the inputs land exactly where the video's driver used them. Without it, another lap's timing is borrowed.
           <label class="small" style="margin-left: 4px"><select id="units"><option value="kph">km/h</option><option value="mph">mph</option></select></label>
         </p>
+        <p class="note" style="margin-top: 6px"><b>Gear:</b> a box round just the gear, inside any ring drawn round it. Without it, the gears are the reference lap's.</p>
       </section>
       <section>
         <h2>2. Read the video</h2>
@@ -102,6 +104,13 @@
         <div class="digits" id="digits"></div>
         <div class="row" style="margin-top: 6px"><button type="button" class="primary" id="read-speeds">Read speeds</button></div>
         <div class="status small" id="digits-status"></div>
+      </section>
+      <section id="gears-section" hidden>
+        <h2>Gear</h2>
+        <p class="note">The shapes found in the gear box. Type the gear each one is — N for neutral; leave a box empty for anything else.</p>
+        <div class="digits" id="gears"></div>
+        <div class="row" style="margin-top: 6px"><button type="button" class="primary" id="read-gears">Read gears</button></div>
+        <div class="status small" id="gears-status"></div>
       </section>
       <section>
         <h2>3. The lap</h2>
@@ -122,11 +131,11 @@
       <section>
         <h2>4. Build</h2>
         <label class="small">Track and car <select id="target"></select></label>
-        <p class="note">With the speed read, everything but the gear comes from the video. Without it, speed and timing are that reference lap’s, stretched to the video’s lap time.</p>
+        <p class="note">With the speed read, everything comes from the video — the gear too, if it was read. Without it, speed and timing are that reference lap’s, stretched to the video’s lap time.</p>
         <div class="row" style="margin-top: 6px"><button type="button" class="primary" id="build" disabled>Build</button><button type="button" id="save" disabled>Save as reference</button></div>
         <div class="status small" id="build-status"></div>
         <canvas id="chart"></canvas>
-        <p class="note">Faint: the current reference. Bright: from the video. Purple: speed.</p>
+        <p class="note">Faint: the current reference. Bright: from the video. Purple: speed. Blue: gear.</p>
       </section>
     </aside>
     <script type="module" src="./tracer.js"></script>
