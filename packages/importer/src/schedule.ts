@@ -48,7 +48,8 @@ const CONDITIONS_COLUMN_X = 330;
 export async function pdfRows(data: Uint8Array): Promise<PdfRow[]> {
   // The legacy build is the one that runs outside a browser.
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const doc = await getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+  const task = getDocument({ data, useSystemFonts: true });
+  const doc = await task.promise;
   const rows: PdfRow[] = [];
   try {
     for (let p = 1; p <= doc.numPages; p++) {
@@ -68,7 +69,7 @@ export async function pdfRows(data: Uint8Array): Promise<PdfRow[]> {
       }
     }
   } finally {
-    await doc.destroy();
+    await task.destroy();
   }
   return rows;
 }

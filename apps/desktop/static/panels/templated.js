@@ -18,8 +18,12 @@ import "./icons.js";
  * panel off the race channel only needs redoing when a race update arrives —
  * and `rate` caps how often it is redone, in ms. No deps: every paint.
  * Blocks are painted every paint regardless.
+ *
+ * `fit(el, data, local)` is called after the template is filled, to measure
+ * what came out — for a panel that shows as much as fits its box. It returns
+ * true when it changed `local` so the model should be run again.
  */
-export function templated({ template, model, local = () => ({}), frame = null, deps = [], rate = 0 }) {
+export function templated({ template, model, local = () => ({}), frame = null, fit = null, deps = [], rate = 0 }) {
   const make = (override = null) => {
     let compiled = null;
     if (override !== null) {
@@ -52,6 +56,10 @@ export function templated({ template, model, local = () => ({}), frame = null, d
           at = now;
           data = model(s, mine);
           view.update(data);
+          for (let i = 0; fit !== null && i < 4 && fit(view.el, data, mine); i++) {
+            data = model(s, mine);
+            view.update(data);
+          }
           // What the template was given, for a theme author in the overlay's
           // developer tools (Inspect in the theme editor): type overlayData.
           window.overlayData = data;

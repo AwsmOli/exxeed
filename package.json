@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Sim racing pacenotes for iRacing — landmark-anchored voice callouts that fade as you learn the track",
   "license": "MIT",
-  "packageManager": "pnpm@9.12.3",
+  "packageManager": "pnpm@12.8.1",
   "engines": {
     "node": ">=20.11"
   },
@@ -25,19 +25,13 @@
     "db:types": "supabase gen types typescript --local --schema public > packages/repo/src/cloud/db.generated.ts"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
-    "@types/node": "^20.14.0",
-    "eslint": "^9.13.0",
-    "supabase": "^2.118.0",
-    "typescript": "^5.6.3",
-    "typescript-eslint": "^8.11.0",
-    "vitest": "^2.1.4"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "@irsdk-node/native",
-      "esbuild"
-    ]
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.4",
+    "eslint": "^10.12.0",
+    "supabase": "^2.119.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
   }
 }

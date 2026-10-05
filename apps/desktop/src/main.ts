@@ -15,11 +15,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } from "electron";
 
 import { classOf, deltaSeconds, LapTimer, mps, pct, radians } from "@exxeed/core";
 import {
@@ -38,6 +38,13 @@ import {
   THEME_GET_CHANNEL,
   themeView,
   MIRROR_PAIRS,
+  mirrorBounds,
+  PANEL_SPECS,
+  OVERLAY_EDITOR_CHANNEL,
+  OVERLAY_LAYOUT_CHANGED_CHANNEL,
+  type OverlayEditorLayout,
+  type OverlayEditorRequest,
+  type ScreenRect,
   type Theme,
   type ThemeAssets,
   type ThemeView,
@@ -77,8 +84,8 @@ import {
 import { audioKey, countForCombo, LocalContentIndex, localRepositories, type TrackSummary } from "@exxeed/repo";
 
 import { buildApplicationMenu } from "./menu.js";
-import { FULLSCREEN_WARNING, isOverlayWindow, OverlayLayout, sendTo } from "./overlay.js";
-import { OverlayProfileStore } from "./overlay-profiles.js";
+import { FULLSCREEN_WARNING, isOverlayWindow, OverlayLayout, placeInProfile, profilePlaces, sendTo, type PlacedBounds } from "./overlay.js";
+import { backgroundPath, OverlayProfileStore } from "./overlay-profiles.js";
 import { sampleDash, sampleRaceSnapshot, startOverlayPreview, type OverlayPreview } from "./overlay-preview.js";
 import { ReferenceLapSource, type TestLap } from "./test-lap.js";
 import { installThemeContentIpc } from "./theme-content.js";
@@ -90,7 +97,7 @@ import { watchSimFocus, type ForegroundWatcher } from "./foreground.js";
 import { cloudClient, installAccount, onAccountChange } from "./account.js";
 import { canonicalTrackKey, shareCut, shareOnSignIn, syncBeforeSession } from "./cloud-sync.js";
 import { installPublishIpc } from "./publish.js";
-import { checkUpdatesNow, installLibrary, knownItem, remoteMinePacks } from "./library.js";
+import { checkUpdatesNow, installLibrary, isRendering, knownItem, remoteMinePacks } from "./library.js";
 import { installContentIpc } from "./content.js";
 import { installLapImport } from "./lap-import.js";
 import { installImporterIpc, openImporter } from "./importer.js";
@@ -536,6 +543,26 @@ let packs: NoteSetPack[] = [];
 /** The mapped tracks behind `packs`, for commands that name one by key. */
 let listedTracks: TrackSummary[] = [];
 
+/**
+ * How many of a set's callouts have no audio in this voice, or audio of words
+ * that have changed since: what a render would redo. A set nobody has
+ * rendered counts every callout.
+ */
+async function staleCallouts(repos: ReturnType<typeof localRepositories>, noteSetId: string, voiceId: string): Promise<number> {
+  try {
+    const [set, pack] = await Promise.all([repos.noteSets.get(noteSetId), repos.audio.getPack(noteSetId, voiceId)]);
+    if (set === null) return 0;
+    return set.notes.filter(
+      (n) =>
+        n.dirty ||
+        pack?.files[audioKey(n.id, "full")]?.text !== n.text ||
+        pack?.files[audioKey(n.id, "short")]?.text !== n.textShort,
+    ).length;
+  } catch {
+    return 0;
+  }
+}
+
 async function refreshPacks(): Promise<void> {
   try {
     const dataDir = resolveDataDir(settings().get());
@@ -546,6 +573,9 @@ async function refreshPacks(): Promise<void> {
       new LocalContentIndex(dataDir).all(),
     ]);
     listedTracks = tracks;
+
+    const voiceId = settings().get().voiceId;
+    const stale = new Map(await Promise.all(summaries.map(async (p) => [p.id, await staleCallouts(repos, p.id, voiceId)] as const)));
 
     const written = summaries.map((p) => {
       const link = links[p.id];
@@ -559,6 +589,7 @@ async function refreshPacks(): Promise<void> {
         trackId: p.trackKey.trackId,
         configId: p.trackKey.configId,
         active: false,
+        audio: { stale: stale.get(p.id) ?? 0, rendering: isRendering(p.id) },
         content:
           link === undefined
             ? null
@@ -590,6 +621,7 @@ async function refreshPacks(): Promise<void> {
         trackId: t.key.trackId,
         configId: t.key.configId,
         active: false,
+        audio: null,
         content: null,
       }));
 
@@ -1008,9 +1040,9 @@ function chosenPanels(): PanelId[] {
  * to look in.
  */
 function forwardRendererConsole(window: BrowserWindow): void {
-  window.webContents.on("console-message", (_event, level, message, line, source) => {
-    if (level < 2) return; // warnings and errors only
-    const where = source === "" ? "" : ` (${source.split("/").pop() ?? source}:${String(line)})`;
+  window.webContents.on("console-message", ({ level, message, lineNumber, sourceId }) => {
+    if (level !== "warning" && level !== "error") return;
+    const where = sourceId === "" ? "" : ` (${sourceId.split("/").pop() ?? sourceId}:${String(lineNumber)})`;
     process.stderr.write(`renderer: ${message}${where}\n`);
   });
 }
@@ -1102,6 +1134,12 @@ function syncOverlayPreview(): void {
   }
 }
 
+/** The theme a profile wears: its own, else the one set before themes were per profile. */
+const profileThemeId = (profileId: string): string =>
+  themes().find(profileStore().profiles.find((p) => p.id === profileId)?.theme ?? settings().get().overlayTheme).id;
+/** The theme the open overlays wear: the active profile's. */
+const activeThemeId = (): string => profileThemeId(profileStore().activeId);
+
 let themeStore: ThemeStore | null = null;
 /**
  * The custom themes, read on first use and watched from then on: a save from
@@ -1110,7 +1148,7 @@ let themeStore: ThemeStore | null = null;
 function themes(): ThemeStore {
   themeStore ??= new ThemeStore(() => {
     {
-      const view = overlayTheme(themes().find(settings().get().overlayTheme));
+      const view = overlayTheme(themes().find(activeThemeId()));
       overlayLayout?.broadcast(THEME_CHANNEL, view);
       overlayLayout?.setDesignSizes(view.sizes);
     }
@@ -1119,14 +1157,183 @@ function themes(): ThemeStore {
   return themeStore;
 }
 
-/** Wear a theme: remembered, sent to the open overlays (never a restart), shown in the picker. */
-function applyTheme(id: string): void {
+/**
+ * Give a profile a theme (the active one's when none is named): remembered,
+ * and if that profile is on screen, sent to its overlays (never a restart).
+ */
+function applyTheme(id: string, profileId: string = profileStore().activeId): void {
   const theme = themes().find(id);
-  settings().updateQuietly({ overlayTheme: theme.id });
-  const view = overlayTheme(theme);
-  overlayLayout?.broadcast(THEME_CHANNEL, view);
-  overlayLayout?.setDesignSizes(view.sizes);
+  profileStore().setTheme(profileId, theme.id);
+  if (profileId === profileStore().activeId) {
+    // Kept in step for anything still reading the old global setting.
+    settings().updateQuietly({ overlayTheme: theme.id });
+    const view = overlayTheme(theme);
+    overlayLayout?.broadcast(THEME_CHANNEL, view);
+    overlayLayout?.setDesignSizes(view.sizes);
+  }
   broadcastProfiles();
+}
+
+/**
+ * The main display: what the profile editor's screen stands for. Positions
+ * are kept in its DIPs; the editor works in the profile's resolution, scaled
+ * onto it.
+ */
+function editorDisplay(): { bounds: Electron.Rectangle; pixels: { width: number; height: number } } {
+  const display = screen.getPrimaryDisplay();
+  return {
+    bounds: display.bounds,
+    pixels: {
+      width: Math.round(display.bounds.width * display.scaleFactor),
+      height: Math.round(display.bounds.height * display.scaleFactor),
+    },
+  };
+}
+
+/** A profile's resolution: its own, else the main display's. */
+function profileScreen(profileId: string): { width: number; height: number } {
+  return profileStore().profiles.find((p) => p.id === profileId)?.screen ?? editorDisplay().pixels;
+}
+
+/** Screen pixels in a profile's resolution to desktop DIPs on the main display. */
+function toDesktop(profileId: string, r: ScreenRect): PlacedBounds {
+  const { bounds } = editorDisplay();
+  const res = profileScreen(profileId);
+  const fx = bounds.width / res.width;
+  const fy = bounds.height / res.height;
+  return { x: bounds.x + r.x * fx, y: bounds.y + r.y * fy, width: r.width * fx, height: r.height * fy };
+}
+
+/** Desktop DIPs to screen pixels in a profile's resolution. */
+function toScreen(profileId: string, b: PlacedBounds): ScreenRect {
+  const { bounds } = editorDisplay();
+  const res = profileScreen(profileId);
+  const fx = res.width / bounds.width;
+  const fy = res.height / bounds.height;
+  return {
+    x: Math.round((b.x - bounds.x) * fx),
+    y: Math.round((b.y - bounds.y) * fy),
+    width: Math.round(b.width * fx),
+    height: Math.round(b.height * fy),
+  };
+}
+
+/** Every overlay a profile could show, enabled or not, for the editor to place. */
+const editablePanels = (): PanelId[] => PANELS.filter((p) => p !== "telemetry" || debugEnabled());
+
+/** Where a profile's overlays are, on its screen. */
+function editorLayout(profileId: string): OverlayEditorLayout {
+  const view = overlayTheme(themes().find(profileThemeId(profileId)));
+  const designOf = (p: PanelId): readonly [number, number] => view.sizes[p] ?? [PANEL_SPECS[p].width, PANEL_SPECS[p].height];
+  const profile = profileStore().profiles.find((p) => p.id === profileId);
+  // Enabled first, in their order, so default places stack the way the windows would open.
+  const enabled = profile?.panels ?? [];
+  const panels = [...enabled, ...editablePanels().filter((p) => !enabled.includes(p))];
+  const places =
+    profileId === profileStore().activeId && overlayLayout !== null
+      ? overlayLayout.places(panels)
+      : profilePlaces(profileId, panels, designOf);
+  const rects: Partial<Record<PanelId, ScreenRect>> = {};
+  const designs: Record<string, readonly [number, number]> = {};
+  for (const panel of panels) {
+    const b = places[panel];
+    if (b !== undefined) rects[panel] = toScreen(profileId, b);
+    designs[panel] = designOf(panel);
+  }
+  return {
+    profileId,
+    screen: profileScreen(profileId),
+    display: editorDisplay().pixels,
+    rects,
+    designs,
+    background: profile?.hasBackground === true ? readBackground(profileId) : null,
+  };
+}
+
+/** A profile's editor screenshot as a data: URL, typed by its first bytes. */
+function readBackground(profileId: string): string | null {
+  const path = backgroundPath(profileId);
+  if (!existsSync(path)) return null;
+  try {
+    const bytes = readFileSync(path);
+    const type =
+      bytes[0] === 0x89 && bytes[1] === 0x50
+        ? "image/png"
+        : bytes[0] === 0xff && bytes[1] === 0xd8
+          ? "image/jpeg"
+          : bytes.subarray(8, 12).toString("ascii") === "WEBP"
+            ? "image/webp"
+            : null;
+    return type === null ? null : `data:${type};base64,${bytes.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+/** A data: URL from the editor's file picker to image bytes, if it is a PNG, JPEG or WebP under 25 MB. */
+function decodeImage(dataUrl: string): Buffer | null {
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (match === null) return null;
+  const bytes = Buffer.from(match[2]!, "base64");
+  return bytes.byteLength > 0 && bytes.byteLength <= 25 * 1024 * 1024 ? bytes : null;
+}
+
+/**
+ * Place an overlay of a profile from the editor, and its mirrored partner
+ * with it, as dragging the window itself would.
+ */
+function placePanel(profileId: string, panel: PanelId, rect: ScreenRect | null): void {
+  const live = profileId === profileStore().activeId ? overlayLayout : null;
+  const put = (p: PanelId, b: PlacedBounds | null): void => {
+    if (live !== null) live.place(p, b);
+    else placeInProfile(profileId, p, b);
+  };
+  const bounds = rect === null ? null : toDesktop(profileId, rect);
+  put(panel, bounds);
+  const partner = MIRROR_PAIRS[panel];
+  const mirrored = (p: PanelId): boolean => profileStore().settingsOf(profileId, p).style !== "free";
+  // An open window's partner follows by itself (OverlayLayout#mirrorFrom).
+  if (live === null && partner !== undefined && bounds !== null && mirrored(panel) && mirrored(partner)) {
+    put(partner, mirrorBounds(bounds, editorDisplay().bounds));
+  }
+}
+
+/** The control window's size before the profile editor made it bigger, to go back to. */
+let beforeEditor: Electron.Rectangle | null = null;
+/** The sample lap the profile editor previews with: to the control window only. */
+let editorPreview: OverlayPreview | null = null;
+
+function setEditorOpen(open: boolean): void {
+  const window = controlWindow;
+  if (open && editorPreview === null && window !== null) {
+    editorPreview = startOverlayPreview((channel, payload) => {
+      if (!window.isDestroyed()) window.webContents.send(channel, payload);
+    });
+  } else if (!open && editorPreview !== null) {
+    editorPreview.stop();
+    editorPreview = null;
+  }
+  if (window === null || window.isDestroyed()) return;
+  // Three columns and a screen between them need room; the editor asks for it.
+  const want = { width: 1360, height: 860 };
+  if (open && !window.isMaximized()) {
+    const now = window.getBounds();
+    const area = screen.getDisplayMatching(now).workArea;
+    if (now.width < want.width || now.height < want.height) {
+      beforeEditor ??= now;
+      const width = Math.min(area.width, Math.max(now.width, want.width));
+      const height = Math.min(area.height, Math.max(now.height, want.height));
+      window.setBounds({
+        x: Math.round(area.x + (area.width - width) / 2),
+        y: Math.round(area.y + (area.height - height) / 2),
+        width,
+        height,
+      });
+    }
+  } else if (!open && beforeEditor !== null) {
+    if (!window.isMaximized()) window.setBounds(beforeEditor);
+    beforeEditor = null;
+  }
 }
 
 /** What the Overlays section of the control window shows. */
@@ -1147,7 +1354,7 @@ function overlayProfilesView(): OverlayProfilesView {
         problems,
       })),
     ],
-    themeId: themes().find(settings().get().overlayTheme).id,
+    themeId: activeThemeId(),
     panelParts: PANEL_PARTS,
     panelStyles: PANEL_STYLES,
   };
@@ -1178,7 +1385,14 @@ function startOverlays(enterEditing = false): void {
   // A left/right pair moves together unless the driver set it free.
   layout.setMirrorTest((panel) => profileStore().settingsOf(profileStore().activeId, panel).style !== "free");
   // Before any window opens: each takes its overlay's shape from the theme.
-  layout.setDesignSizes(overlayTheme(themes().find(settings().get().overlayTheme)).sizes);
+  layout.setDesignSizes(overlayTheme(themes().find(activeThemeId())).sizes);
+  // An overlay dragged or sized on screen: the profile editor redraws its place.
+  const profileId = profileStore().activeId;
+  layout.onLayoutSaved(() => {
+    if (controlWindow !== null && !controlWindow.isDestroyed()) {
+      controlWindow.webContents.send(OVERLAY_LAYOUT_CHANGED_CHANNEL, { profileId });
+    }
+  });
 
   const panels = chosenPanels();
 
@@ -1695,6 +1909,10 @@ void app.whenReady().then(() => {
   profiles = new OverlayProfileStore(
     settings().get().panels.length === 0 ? [...DEFAULT_PANELS] : settings().get().panels,
   );
+  // Themes became per profile: every profile from before keeps the theme it was wearing.
+  for (const profile of profiles.profiles) {
+    if (profile.theme === undefined) profiles.setTheme(profile.id, settings().get().overlayTheme);
+  }
   // One random id per copy of the app, for counting downloads once (M8).
   if (settings().get().installationId === null) {
     settings().updateQuietly({ installationId: randomUUID() });
@@ -1712,7 +1930,8 @@ void app.whenReady().then(() => {
     }
   });
   installAccount();
-  installEditorIpc(() => settings().get(), resolveDataDir);
+  // Saving or rendering in the editor changes what the pack list says about its audio.
+  installEditorIpc(() => settings().get(), resolveDataDir, () => void refreshPacks());
   installPublishIpc({ getSettings: () => settings().get(), resolveDataDir });
   installThemeContentIpc({ themes, getSettings: () => settings().get(), apply: applyTheme, builtinAssets: builtinThemeAssets });
   installContentIpc({ getSettings: () => settings().get(), resolveDataDir });
@@ -1845,7 +2064,16 @@ void app.whenReady().then(() => {
   );
 
   // An overlay window asks what to wear as it loads; changes arrive on THEME_CHANNEL.
-  ipcMain.handle(THEME_GET_CHANNEL, () => overlayTheme(themes().find(settings().get().overlayTheme)));
+  ipcMain.handle(THEME_GET_CHANNEL, () => overlayTheme(themes().find(activeThemeId())));
+
+  // The profile editor's reads (control window).
+  ipcMain.handle(OVERLAY_EDITOR_CHANNEL, (_event, raw: unknown) => {
+    const request = raw as OverlayEditorRequest;
+    if (request.op === "layout") return editorLayout(request.profileId);
+    if (request.op === "theme") return overlayTheme(themes().find(request.id));
+    if (request.op === "open") setEditorOpen(request.open === true);
+    return null;
+  });
 
   // Renderer → main: the Overlays section of the control window.
   ipcMain.on(OVERLAY_PROFILE_COMMAND_CHANNEL, (_event, raw: unknown) => {
@@ -1915,12 +2143,23 @@ void app.whenReady().then(() => {
     } else if (command.kind === "setTheme") {
       // Live: the open overlays restyle themselves. Never a restart — they
       // hold decoded audio and the reference arrays.
-      applyTheme(command.id);
+      applyTheme(command.id, command.profileId);
+    } else if (command.kind === "setScreen") {
+      profileStore().setScreen(command.id, command.width, command.height);
+      broadcastProfiles();
+    } else if (command.kind === "setBackground") {
+      const image = command.image === null ? null : decodeImage(command.image);
+      if (command.image === null || image !== null) profileStore().setBackground(command.id, image);
+      broadcastProfiles();
+    } else if (command.kind === "placePanel" || command.kind === "resetPanel") {
+      if (isPanelId(command.panel)) placePanel(command.id, command.panel, command.kind === "placePanel" ? command.rect : null);
+      broadcastProfiles();
     } else if (command.kind === "newTheme") {
       // A copy of what is on screen now, selected and opened: the quickest way
       // to a theme is changing one that already works.
-      const id = themes().create(themes().find(settings().get().overlayTheme), command.name.trim() || "My theme");
-      applyTheme(id);
+      const profileId = command.profileId ?? profileStore().activeId;
+      const id = themes().create(themes().find(profileThemeId(profileId)), command.name.trim() || "My theme");
+      applyTheme(id, profileId);
     } else if (command.kind === "editTheme") {
       // Shown in its folder, not opened: handing a .json to whatever app the
       // system picks is how an editor ended up crashing. The app's own editor
@@ -1928,8 +2167,11 @@ void app.whenReady().then(() => {
       if (themes().isCustom(command.id)) shell.showItemInFolder(themes().pathOf(command.id));
     } else if (command.kind === "deleteTheme") {
       themes().remove(command.id);
-      // Falls back to the default if the deleted one was in use.
-      applyTheme(settings().get().overlayTheme);
+      // Every profile that wore it falls back to the default.
+      for (const profile of profileStore().profiles) {
+        if (profile.theme === command.id) profileStore().setTheme(profile.id, themes().find(command.id).id);
+      }
+      applyTheme(activeThemeId());
     } else if (command.kind === "openThemesFolder") {
       void shell.openPath(themes().dir);
     } else if (command.kind === "inspectOverlay") {
@@ -1970,6 +2212,14 @@ void app.whenReady().then(() => {
   // That is what "the app crashes when I open the editor" was: Edit selects the
   // note set, which is a settings change. Ending the running loop and letting the
   // supervisor start the next one means one adapter at a time, always.
+  // Audio is per voice: another voice can leave every pack needing a render.
+  let listedVoice = settings().get().voiceId;
+  settings().onChange(() => {
+    if (settings().get().voiceId === listedVoice) return;
+    listedVoice = settings().get().voiceId;
+    void refreshPacks();
+  });
+
   settings().onChange(() => {
     // Nothing to reload while stopped; the next Start reads the new settings.
     if (!wantRunning) return;

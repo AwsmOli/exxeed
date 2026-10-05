@@ -138,7 +138,6 @@ export function triggerWindow(
     const nextBack = back + stepM;
     if (nextBack >= leadDistanceM(speedAt(lap, next), leadS)) {
       index = next;
-      back = nextBack;
       break;
     }
     index = next;

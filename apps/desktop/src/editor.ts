@@ -318,6 +318,8 @@ const canRender = async (settings: Settings): Promise<boolean> =>
 export function installEditorIpc(
   getSettings: () => Settings,
   resolveDataDir: (settings: Settings) => string,
+  /** A set's notes or audio changed on disk. */
+  changed: () => void = () => {},
 ): void {
   /**
    * The open set's clips, for Play lap. In the voice set in preferences —
@@ -424,6 +426,7 @@ export function installEditorIpc(
           event.sender.send(EDITOR_RENDER_PROGRESS_CHANNEL, progress);
         },
       });
+      changed();
       return {
         ok: true,
         message: `rendered ${result.clips.length} clips`,
@@ -471,6 +474,7 @@ export function installEditorIpc(
     const notes = applyPatches(noteSet, patches);
 
     await repos.noteSets.put({ ...noteSet, notes });
+    changed();
     // A published pack's working copy follows its owner to their other machines.
     void pushDraft(dataDir, noteSet.id);
     return buildPayload(

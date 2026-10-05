@@ -50,6 +50,41 @@ const isOverlay = params.get("overlay") === "1";
 if (isOverlay) document.body.classList.add("overlay");
 
 /**
+ * Where the data comes from. An overlay window has the preload's `exxeed`;
+ * the profile editor's preview (`&preview=1`, an iframe in the control
+ * window) has no preload, so the page around it posts the same channels in
+ * as `{ channel, payload }` messages, and this stands in for `exxeed`.
+ */
+function previewBridge() {
+  const listeners = new Map();
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent || typeof event.data?.channel !== "string") return;
+    for (const cb of listeners.get(event.data.channel) ?? []) cb(event.data.payload);
+  });
+  const on = (channel) => (cb) => {
+    listeners.set(channel, [...(listeners.get(channel) ?? []), cb]);
+  };
+  return {
+    onEditMode: on("edit-mode"),
+    onAudioPreload: on("audio-preload"),
+    onAudioPlay: on("audio-play"),
+    onEngineEvent: on("engine-event"),
+    onStateFrame: on("frame"),
+    onMap: on("map"),
+    onReference: on("reference"),
+    onRace: on("race"),
+    onSessionStatus: on("status"),
+    onTheme: on("theme"),
+    onPanelSettings: on("panel-settings"),
+    // Sent in by the page around it as soon as it loads, rather than asked for.
+    getTheme: () => Promise.resolve(null),
+    getPanelSettings: () => Promise.resolve(null),
+    moveWindow: () => {},
+  };
+}
+const bridge = params.get("preview") === "1" ? previewBridge() : window.exxeed;
+
+/**
  * Everything the panels draw from. Replaced field by field as channels
  * arrive; `v` counts updates so a panel that rebuilds DOM can tell whether
  * anything changed since it last did.
@@ -181,7 +216,7 @@ if (isOverlay) {
 let editing = true;
 document.body.classList.add("editing");
 
-window.exxeed?.onEditMode((on) => {
+bridge?.onEditMode((on) => {
   editing = on === true;
   document.body.classList.toggle("editing", editing);
 });
@@ -207,7 +242,7 @@ document.addEventListener("mousemove", (event) => {
   const dx = event.movementX;
   const dy = event.movementY;
   if (dx === 0 && dy === 0) return;
-  window.exxeed?.moveWindow(dx, dy);
+  bridge?.moveWindow(dx, dy);
 });
 
 function endDrag() {
@@ -228,7 +263,7 @@ const decoded = new Map();
 // Decode once, at preload. §3 chose WAV over MP3 precisely so no decode
 // happens at trigger time; doing it here rather than on play is the other
 // half of that.
-window.exxeed?.onAudioPreload(async (clips) => {
+bridge?.onAudioPreload(async (clips) => {
   for (const clip of clips) {
     try {
       const copy = new Uint8Array(clip.wav).buffer;
@@ -245,7 +280,7 @@ const log = (text, className) => {
   state.v.events++;
 };
 
-window.exxeed?.onAudioPlay((command) => {
+bridge?.onAudioPlay((command) => {
   const buffer = decoded.get(command.key);
   if (buffer === undefined) {
     log(`${command.key} — no clip rendered`, "drop");
@@ -259,7 +294,7 @@ window.exxeed?.onAudioPlay((command) => {
 });
 
 // §7.3: what the engine decided, including what it withheld.
-window.exxeed?.onEngineEvent((e) => {
+bridge?.onEngineEvent((e) => {
   if (e.kind === "play") {
     log(`${e.noteId} ${e.detail} · lead ${(e.leadM ?? 0).toFixed(0)}m`, "play");
   } else {
@@ -271,7 +306,7 @@ window.exxeed?.onEngineEvent((e) => {
 // Channels → state.
 // ---------------------------------------------------------------------------
 
-window.exxeed?.onStateFrame((f) => {
+bridge?.onStateFrame((f) => {
   state.frames++;
   state.frame = f;
   if (typeof f.lapDistPct === "number" && f.connected) {
@@ -304,8 +339,8 @@ function applyPanelSettings(settings) {
   state.v.race++;
 }
 if (isOverlay && wanted !== null) {
-  window.exxeed?.getPanelSettings?.(wanted).then(applyPanelSettings);
-  window.exxeed?.onPanelSettings?.((message) => {
+  bridge?.getPanelSettings?.(wanted).then(applyPanelSettings);
+  bridge?.onPanelSettings?.((message) => {
     if (message?.panel === wanted) applyPanelSettings(message.settings);
   });
 }
@@ -347,25 +382,25 @@ function applyTheme(theme) {
   state.v.reference++;
   state.v.events++;
 }
-window.exxeed?.getTheme?.().then(applyTheme);
-window.exxeed?.onTheme?.(applyTheme);
+bridge?.getTheme?.().then(applyTheme);
+bridge?.onTheme?.(applyTheme);
 
-window.exxeed?.onMap((view) => {
+bridge?.onMap((view) => {
   state.map = view;
   state.v.map++;
 });
 
-window.exxeed?.onReference((view) => {
+bridge?.onReference((view) => {
   state.reference = view;
   state.v.reference++;
 });
 
-window.exxeed?.onRace?.((view) => {
+bridge?.onRace?.((view) => {
   state.race = view ?? null;
   state.v.race++;
 });
 
-window.exxeed?.onSessionStatus((status) => {
+bridge?.onSessionStatus((status) => {
   state.status = status;
 });
 

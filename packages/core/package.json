@@ -12,11 +12,13 @@
   },
   "types": "./dist/index.d.ts",
   "main": "./dist/index.js",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc --build"
   },
   "dependencies": {
-    "zod": "^3.23.8"
+    "zod": "^4.6.5"
   }
 }

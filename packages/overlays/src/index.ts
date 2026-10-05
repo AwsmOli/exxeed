@@ -472,6 +472,12 @@ export interface NoteSetPack {
   /** Set while this is the pack a running session actually loaded. */
   readonly active: boolean;
   /**
+   * Whether the callouts have audio in the voice set in preferences: `stale`
+   * is how many callouts have none, or audio of words since changed. Null for
+   * a track with no notes yet.
+   */
+  readonly audio: { readonly stale: number; readonly rendering: boolean } | null;
+  /**
    * Published content this set belongs to (M8), or null for a set that has
    * never been published or installed — an import, or one written by hand.
    */
@@ -675,7 +681,9 @@ export type LibraryRequest =
   | { readonly op: "versions"; readonly itemId: string }
   /** One of your own packs from your account onto this machine. */
   | { readonly op: "downloadMine"; readonly itemId: string }
-  | { readonly op: "checkUpdates" };
+  | { readonly op: "checkUpdates" }
+  /** Render a pack's audio in this machine's voice, keeping clips whose words are unchanged. */
+  | { readonly op: "render"; readonly noteSetId: string };
 
 export interface LibraryVersion {
   readonly id: string;
@@ -1315,7 +1323,53 @@ export interface OverlayProfile {
   readonly panels: readonly PanelId[];
   /** What each overlay shows and how it is built (panel-options.ts). Absent means all defaults. */
   readonly settings?: Readonly<Partial<Record<PanelId, PanelSettings>>>;
+  /** The theme this profile's overlays wear. Absent: the default theme. */
+  readonly theme?: string;
+  /**
+   * The screen resolution the profile is laid out for, in pixels, as the
+   * profile editor shows it. Absent: the main display's own.
+   */
+  readonly screen?: { readonly width: number; readonly height: number };
+  /** Whether a screenshot is set as the editor's backdrop (OVERLAY_EDITOR_CHANNEL "layout" returns it). */
+  readonly hasBackground?: boolean;
 }
+
+/** A rectangle on the profile's screen, in its resolution's pixels. */
+export interface ScreenRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** What the profile editor needs to draw one profile's screen. */
+export interface OverlayEditorLayout {
+  readonly profileId: string;
+  /** The resolution the editor lays out in: the profile's, else the display's. */
+  readonly screen: { readonly width: number; readonly height: number };
+  /** The main display's own resolution, in pixels, to prefill and reset to. */
+  readonly display: { readonly width: number; readonly height: number };
+  /** Where each overlay of the profile sits, enabled or not: saved, else a default place. */
+  readonly rects: Readonly<Partial<Record<PanelId, ScreenRect>>>;
+  /** The size each overlay is designed at in the profile's theme. */
+  readonly designs: Readonly<Record<string, readonly [number, number]>>;
+  /** The backdrop screenshot as a data: URL, or null. */
+  readonly background: string | null;
+}
+
+/**
+ * Control window → main, invoke: the profile editor's reads, and turning the
+ * sample lap it previews with on and off.
+ */
+export type OverlayEditorRequest =
+  | { readonly op: "layout"; readonly profileId: string }
+  /** A theme as an overlay wears it, for previewing a profile whose theme is not on screen. */
+  | { readonly op: "theme"; readonly id: string }
+  /** The editor opened (sample lap to this window, window made big enough) or closed. */
+  | { readonly op: "open"; readonly open: boolean };
+export const OVERLAY_EDITOR_CHANNEL = "exxeed:overlay-editor";
+/** Main → control window: an overlay of this profile was moved or resized on screen. */
+export const OVERLAY_LAYOUT_CHANGED_CHANNEL = "exxeed:overlay-layout-changed";
 
 /** What the Overlays section of the control window draws. */
 export interface OverlayProfilesView {
@@ -1366,9 +1420,18 @@ export type OverlayProfileCommand =
   | { readonly kind: "setPanelPart"; readonly id: string; readonly panel: PanelId; readonly part: string; readonly shown: boolean }
   /** Pick the structure of one overlay, in one profile. */
   | { readonly kind: "setPanelStyle"; readonly id: string; readonly panel: PanelId; readonly style: string }
-  | { readonly kind: "setTheme"; readonly id: string }
+  /** The theme a profile wears; the active one's when `profileId` is left out. */
+  | { readonly kind: "setTheme"; readonly id: string; readonly profileId?: string }
+  /** The resolution a profile is laid out for (profile editor). */
+  | { readonly kind: "setScreen"; readonly id: string; readonly width: number; readonly height: number }
+  /** A screenshot behind the profile editor's screen, as a data: URL; null removes it. */
+  | { readonly kind: "setBackground"; readonly id: string; readonly image: string | null }
+  /** Place one overlay of a profile, on its screen (profile editor). Height follows the design's shape. */
+  | { readonly kind: "placePanel"; readonly id: string; readonly panel: PanelId; readonly rect: ScreenRect }
+  /** Forget where an overlay was put: it goes back to its default place. */
+  | { readonly kind: "resetPanel"; readonly id: string; readonly panel: PanelId }
   /** A new custom theme, copied from the one in use, and opened for editing. */
-  | { readonly kind: "newTheme"; readonly name: string }
+  | { readonly kind: "newTheme"; readonly name: string; readonly profileId?: string }
   /** Open a custom theme's file in the system's editor for JSON. */
   | { readonly kind: "editTheme"; readonly id: string }
   | { readonly kind: "deleteTheme"; readonly id: string }

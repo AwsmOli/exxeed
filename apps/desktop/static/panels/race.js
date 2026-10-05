@@ -43,16 +43,72 @@ function sessionLetter(race) {
 //                    behindS (for your row: the car behind's interval to you)
 // ---------------------------------------------------------------------------
 
-/** Past this many rows a class is condensed to its top and the player's neighbourhood. */
-const MAX_ROWS = 8;
+/**
+ * Which rows to show when the whole field does not fit: `budget` rows across
+ * all classes, in this order of importance — you, each class's leader, the
+ * cars either side of you, each class's podium, then the rest of your class,
+ * then the rest of the others. Returns a set of row indices per class.
+ */
+function pickRows(classes, budget) {
+  const keep = classes.map(() => new Set());
+  let left = budget;
+  const take = (c, i) => {
+    if (left > 0 && i >= 0 && i < classes[c].length && !keep[c].has(i)) {
+      keep[c].add(i);
+      left--;
+    }
+  };
+  const mine = classes.findIndex((rows) => rows.some((r) => r.isPlayer));
+  const me = mine >= 0 ? classes[mine].findIndex((r) => r.isPlayer) : -1;
+  if (mine >= 0) take(mine, me);
+  classes.forEach((_, c) => take(c, 0));
+  if (mine >= 0) for (const d of [1, -1, 2, -2]) take(mine, me + d);
+  for (let i = 1; i <= 2; i++) classes.forEach((_, c) => take(c, i));
+  if (mine >= 0) for (let i = 0; i < classes[mine].length; i++) take(mine, i);
+  classes.forEach((rows, c) => rows.forEach((_, i) => take(c, i)));
+  return keep;
+}
 
-function condense(rows) {
-  if (rows.length <= MAX_ROWS) return rows;
-  const me = rows.findIndex((r) => r.isPlayer);
-  const keep = new Set([0, 1, 2]);
-  if (me >= 0) for (let i = me - 2; i <= me + 2; i++) if (i >= 0 && i < rows.length) keep.add(i);
-  for (let i = 3; keep.size < MAX_ROWS && i < rows.length; i++) keep.add(i);
-  return rows.filter((_, i) => keep.has(i));
+/**
+ * After the standings are drawn: shrink the row budget if anything is cut
+ * off — past the bottom of the panel, or clipped inside a card that ran out
+ * of room — and grow it if there is room for another row. So the panel shows
+ * as many rows as its size and the theme's row height allow, whatever the
+ * theme's layout.
+ */
+function fitStandings(el, data, local) {
+  if (data.empty) return false;
+  const box = el.getBoundingClientRect();
+  if (box.height === 0) return false;
+  const floor = box.bottom - parseFloat(getComputedStyle(el).paddingBottom || "0");
+  // The bottom edge each element is clipped at, by its clipping ancestors.
+  const edges = new Map([[el, floor]]);
+  const edge = (node) => {
+    if (edges.has(node)) return edges.get(node);
+    const up = edge(node.parentElement);
+    const own = getComputedStyle(node).overflowY !== "visible" ? node.getBoundingClientRect().bottom : Infinity;
+    const at = Math.min(up, own);
+    edges.set(node, at);
+    return at;
+  };
+  let hidden = 0;
+  let reach = box.top;
+  for (const child of el.querySelectorAll("*")) {
+    if (child.closest(".empty")) continue;
+    const r = child.getBoundingClientRect();
+    if (r.height === 0) continue;
+    hidden = Math.max(hidden, r.bottom - edge(child.parentElement));
+    reach = Math.max(reach, r.bottom);
+  }
+  const rowH = el.querySelector(".me")?.getBoundingClientRect().height || 24;
+  const shown = data.classes.reduce((n, c) => n + c.rows.length, 0);
+  const least = Math.min(data.carCount, data.classes.length + 1);
+  let budget = local.budget;
+  if (hidden > 0.5) budget = Math.max(least, shown - Math.ceil(hidden / rowH));
+  else if (shown < data.carCount && floor - reach >= rowH + 2) budget = shown + Math.floor((floor - reach - 2) / rowH);
+  if (Math.min(budget, data.carCount) === Math.min(local.budget, data.carCount)) return false;
+  local.budget = budget;
+  return true;
 }
 
 /** The columns switched on, for a template's data-if. */
@@ -79,7 +135,7 @@ function raceBasics(s) {
   };
 }
 
-function standingsModel(s) {
+function standingsModel(s, local) {
   const basics = raceBasics(s);
   const race = s.race;
   const show = shown(s.options.hidden, ["header", "number", "license", "irating", "gap", "interval", "last", "best"]);
@@ -97,12 +153,16 @@ function standingsModel(s) {
   let player = null;
   let playerClass = null;
   let fieldSize = 0;
-  const classes = (race?.classes ?? []).map((sim) => {
+  const picked = pickRows(
+    (race?.classes ?? []).map((sim) => sim.rows),
+    local.budget,
+  );
+  const classes = (race?.classes ?? []).map((sim, c) => {
     const colour = classColour(race, sim.classColor);
     const all = sim.rows;
     const me = all.findIndex((r) => r.isPlayer);
     if (me >= 0) fieldSize = all.length;
-    const rows = condense(all).map((r) => {
+    const rows = all.filter((_, i) => picked[c].has(i)).map((r) => {
       const at = all.indexOf(r);
       const row = {
         colour,
@@ -170,7 +230,15 @@ const STANDINGS = `
   <div class="empty">{{ empty }}</div>
 </div>`;
 
-export const standings = templated({ template: STANDINGS, model: standingsModel, deps: ["race"], rate: 250 });
+export const standings = templated({
+  template: STANDINGS,
+  model: standingsModel,
+  // How many rows fit, measured after each draw (fitStandings). Everything to start with.
+  local: () => ({ budget: Infinity }),
+  fit: fitStandings,
+  deps: ["race"],
+  rate: 250,
+});
 
 // ---------------------------------------------------------------------------
 // Relatives: who is around you on the road, by time, between a header of the
@@ -324,6 +392,12 @@ function radarBlock(el) {
 
   return {
     paint(s) {
+      // Nothing on the radar: the panel is marked idle, and overlay.css hides it.
+      const spot = s.race?.radar.spotter ?? "off";
+      const spotting = spot !== "off" && spot !== "clear";
+      const inView = (s.race?.radar.nearby ?? []).some((car) => Math.abs(car.aheadM) <= RADAR_RANGE_M / 0.85);
+      el.closest(".panel")?.classList.toggle("idle", !spotting && !inView);
+
       const c = fit(canvas);
       if (c === null) return;
       const { ctx, w, h, r } = c;

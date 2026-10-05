@@ -9,7 +9,7 @@
 <div class="panel pedals-panel rl-tele">
   <div class="rl-tele-top">
     <div class="rl-dots" data-part="revlights"><x-shift-lights count="15" fill="left"></x-shift-lights></div>
-    <div class="rl-tele-delta" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
+    <div class="rl-tele-delta" data-part="delta" style="color:{{ deltaTint }}">{{ deltaS | signed:3 | or:— }}</div>
   </div>
   <div class="rl-strip">
     <div class="rl-strip-title"><span>Telemetry</span></div>
@@ -29,5 +29,5 @@
       </div>
     </div>
   </div>
-  <div class="rl-ffb" data-part="ffb"><div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
+  <div class="rl-ffb" data-part="ffb" data-class="clip: ffbClip"><div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
 </div>

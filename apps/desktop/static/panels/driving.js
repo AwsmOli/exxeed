@@ -6,7 +6,7 @@
 
 import { canvasIn, numberAttr, registerBlock } from "./blocks.js";
 import { templated } from "./templated.js";
-import { alpha, areaLine, COLORS, fit, kph, mix, pctDelta, sample, wrap01 } from "./util.js";
+import { alpha, areaLine, COLORS, deltaTint, fit, kph, liveTone, mix, pctDelta, sample, wrap01 } from "./util.js";
 
 const gearText = (g) => (g === -1 ? "R" : g === 0 ? "N" : typeof g === "number" ? String(g) : "–");
 const font = () => COLORS.font;
@@ -547,12 +547,14 @@ function revsModel(s) {
   return { rpm: s.frame?.rpm ?? null, shiftFraction: r === null ? 0 : unit(r.fraction), shifting: r?.shift ?? false };
 }
 
+/** Force feedback at this share of the wheel's maximum is clipping: the bar blinks red. */
+const FFB_CLIP = 0.99;
+
 function pedalsModel(s) {
   const f = s.frame;
   const ref = s.reference;
   const atRef = ref !== null && f !== null;
   const d = f?.deltaS;
-  const timed = typeof d === "number" && Math.abs(d) >= 0.005;
   return {
     ...inputsModel(s),
     ...revsModel(s),
@@ -562,16 +564,20 @@ function pedalsModel(s) {
     refGearDiffers:
       atRef && ref.gear ? gearText(sample(ref.gear, ref.gridSize, f.lapDistPct)) !== gearText(f?.gear) : false,
     deltaS: typeof d === "number" ? d : null,
-    // Gaining is good, losing is bad; under 5 ms is neither.
-    gaining: timed && d < 0,
-    losing: timed && d > 0,
+    // Gaining is good, losing is bad; near ±0 is neither, so it does not flick.
+    gaining: liveTone(d).good,
+    losing: liveTone(d).bad,
+    /** The delta's colour, fading in with its size (util.js deltaTint). */
+    deltaTint: deltaTint(d),
     ffbPct: Math.round(unit(f?.ffb) * 100),
+    /** The wheel at full torque: the force feedback is clipping. */
+    ffbClip: unit(f?.ffb) >= FFB_CLIP,
   };
 }
 
 const PEDALS = `
 <div class="panel tab-wrap pedals-panel">
-  <div class="tab n" data-part="delta" data-class="good: gaining; bad: losing">{{ deltaS | signed:3 | or:— }}</div>
+  <div class="tab n" data-part="delta" style="color:{{ deltaTint }}">{{ deltaS | signed:3 | or:— }}</div>
   <div class="card grow">
     <x-shift-lights data-part="revlights"></x-shift-lights>
     <x-sweep data-part="revlights"></x-sweep>
@@ -586,7 +592,7 @@ const PEDALS = `
           <span class="gear good"><x-icon name="gearbox"></x-icon><span class="xl n gr">{{ gear }}</span></span></div>
         <div class="line ref" data-part="reference"><span class="xl n spd">{{ refSpeedKph | or:— }}</span><span class="u">km/h</span>
           <span class="gear"><x-icon name="gearbox"></x-icon><span class="xl n gr">{{ refGear | or:– }}</span></span></div>
-        <div class="ffb" data-part="ffb">FF<div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
+        <div class="ffb" data-part="ffb" data-class="clip: ffbClip">FF<div class="pill-h"><i style="width:{{ ffbPct }}%"></i></div></div>
       </div>
       <div class="wheel dial" data-part="wheel">
         <x-wheel-dial></x-wheel-dial>

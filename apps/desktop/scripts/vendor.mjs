@@ -6,7 +6,9 @@
 // people's release artefacts, and node_modules has the exact versions the
 // lockfile pins.
 
-import { copyFileSync, cpSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+
+import { build } from "esbuild";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,18 +31,53 @@ mkdirSync(out, { recursive: true });
 for (const [from, to] of files) copyFileSync(from, join(out, to));
 
 // Monaco, the editor inside VS Code, for the theme editor (M9). Its prebuilt
-// AMD build runs with no bundler: a loader script, the editor, its worker and
-// the three languages a theme is written in — JSON, CSS and HTML (templates).
-// Only those are copied: the TypeScript service and the other languages are
-// most of its 13 MB, and nothing here edits them.
-const monaco = join(packageDir("monaco-editor"), "min", "vs");
-const monacoOut = join(out, "monaco", "vs");
-rmSync(join(out, "monaco"), { recursive: true, force: true });
-mkdirSync(join(monacoOut, "language"), { recursive: true });
-copyFileSync(join(monaco, "loader.js"), join(monacoOut, "loader.js"));
-const languages = ["json", "css", "html"].map((l) => join("language", l));
-// The syntax colouring for CSS and HTML; JSON's comes with its language service.
-const tokenizers = ["css", "html"].map((l) => join("basic-languages", l));
-for (const dir of ["editor", "base", ...languages, ...tokenizers]) {
-  cpSync(join(monaco, dir), join(monacoOut, dir), { recursive: true });
-}
+// AMD build is deprecated and its workers no longer load under it, so the ES
+// module build is bundled here with esbuild: the editor with the three
+// languages a theme is written in — JSON, CSS and HTML (templates) — as one
+// module, its stylesheet and font beside it, and a worker per language.
+// Everything else (TypeScript's service, the other grammars) is left out:
+// it is most of the package, and nothing here edits it.
+const monacoEsm = join(packageDir("monaco-editor"), "esm", "vs");
+const monacoOut = join(out, "monaco");
+rmSync(monacoOut, { recursive: true, force: true });
+mkdirSync(monacoOut, { recursive: true });
+
+// The package's own entry, minus what is not needed: its import list is the
+// source of truth for which editor features exist, so it is filtered rather
+// than copied out by hand and left to drift on the next upgrade.
+const main = readFileSync(join(monacoEsm, "editor", "editor.main.js"), "utf8");
+const entry = main
+  .split("\n")
+  .filter((line) => {
+    if (line.includes("languages/definitions/")) return /definitions\/(css|html)\//.test(line);
+    return !/features_typescript|features\/typescript|monaco-lsp-client|as lsp\b|as typescript\b/.test(line);
+  })
+  .join("\n");
+
+await build({
+  stdin: { contents: entry, resolveDir: join(monacoEsm, "editor"), sourcefile: "monaco-entry.js", loader: "js" },
+  bundle: true,
+  format: "esm",
+  minify: true,
+  outfile: join(monacoOut, "monaco.mjs"),
+  // The icon font its stylesheet points at, copied beside it.
+  loader: { ".ttf": "file" },
+  assetNames: "[name]",
+  logLevel: "warning",
+});
+
+// The workers, named as the bundle asks for them (`new URL("json.worker.js",
+// import.meta.url)`), so they sit beside monaco.mjs.
+await build({
+  entryPoints: {
+    "editor.worker": join(monacoEsm, "editor", "editor.worker.js"),
+    "json.worker": join(monacoEsm, "language", "json", "json.worker.js"),
+    "css.worker": join(monacoEsm, "language", "css", "css.worker.js"),
+    "html.worker": join(monacoEsm, "language", "html", "html.worker.js"),
+  },
+  bundle: true,
+  format: "esm",
+  minify: true,
+  outdir: monacoOut,
+  logLevel: "warning",
+});

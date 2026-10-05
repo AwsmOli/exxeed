@@ -154,6 +154,33 @@ on macOS against `ReplayAdapter`. Two things worth knowing that came out of buil
   the scheduler's fit tolerance scales with the tick) but the code says 60 and
   reality says half that. Seen again at Snetterton: ~4,400 frames for a 137 s lap.
 
+- [x] `pnpm dev` failed with "Electron failed to install correctly"
+  The Electron binary was half-installed: `dist/` held one licence file and no
+  `electron.exe`. The cached download was whole; `extract-zip`, which Electron's
+  installer unzips with, stops after the first entry under Node 26 and still
+  exits 0, so deleting `node_modules` and reinstalling does the same again.
+  Unzipped by hand and `path.txt` written, which is a one-off.
+- [x] Make the Electron install survive a reinstall on Node 26
+  Electron 44 unpacks with its own zip library, and downloads its binary on
+  first run instead of at install. Done as part of moving every dependency to
+  its latest version:
+  - **Electron 33 → 44**, electron-builder 25 → 26. The renderer-console
+    listener moved to the event object. The installer builds; `package.mjs` runs
+    pnpm and npm through a shell, since pnpm 12 and npm are `.cmd` shims on
+    Windows.
+  - **TypeScript 5 → 7** for `tsc`, with the TypeScript 6 API installed as
+    `typescript` (`@typescript/typescript6`) because typescript-eslint cannot
+    run on 7 yet. `baseUrl` is gone from tsconfig.test.json, which TS 7 dropped.
+  - **Monaco 0.52 → 0.57**: its AMD build is deprecated and its workers no
+    longer load under it, so `vendor.mjs` now bundles the ES module build with
+    esbuild: the editor with JSON, CSS and HTML only, its stylesheet and a
+    worker per language, 7 MB instead of the package's 25 MB.
+  - **pdf.js 4 → 6** (`destroy` is on the loading task now), **ESLint 9 → 10**
+    (two new rules: errors rethrown keep their `cause`), **Vitest 2 → 5**,
+    **Zod 3 → 4** (no changes needed), `@types/node` 20 → 26.
+- [x] pnpm 12: dropped the `"pnpm"` field from package.json
+  pnpm 10+ ignores it and warned on every run; `allowBuilds` in
+  pnpm-workspace.yaml is where the same list lives now.
 - [x] Replay CLI needs an absolute path
   Fixed: paths now resolve against `INIT_CWD`, the directory the command was invoked from.
 - [x] Fold the §4.7 corner-lookup correction back into docs/SPEC.md
@@ -437,6 +464,28 @@ Three findings from running it rather than unit-testing it:
   keep. **Revisit at M6**, when there is a form-heavy surface to justify adding a
   bundler to the Electron app — not before, on the strength of two canvases.
 
+**After driving with them** — fixes from a first multiclass race:
+
+- [x] Standings show as many rows as fit, and always your own
+  It was 8 rows per class in a 420 px panel, so a three-class field overflowed and
+  only the top of the first class showed. Now the rows are budgeted across the
+  field after measuring what the theme actually drew (`fitStandings` in
+  panels/race.js, via a `fit` hook in templated.js), in order: you, each class's
+  leader, the cars either side of you, each class's top three, then the rest.
+  Last in the slowest class is on screen. Works with any theme's row height and
+  layout, RaceLab's included.
+- [x] Radar is faint, and hidden when there is nothing on it
+  45% opacity by default (`--radar-opacity` for a theme), fading out when no car
+  is in range and the spotter is clear. Fully shown while arranging.
+- [x] Force feedback bar blinks red at the wheel's maximum
+  `ffbClip` at 99% of `SteeringWheelPctTorque`, in the built-in pedals panel and
+  the iRacing, Gran Turismo and RaceLab templates.
+- [x] Delta colours fade instead of blinking around ±0
+  The number's colour is now by the gap's size (`deltaTint`: white at zero, full
+  green or red from ±0.3 s) instead of flipping at ±5 ms. The bar and dial's trend
+  colour eases in with a wider dead band and slower smoothing. Themes that colour
+  by class (`good`/`bad`) stay neutral within ±0.05 s.
+
 **M3 is done**, minus the Vue question, which is deferred rather than dropped.
 
 Renderer console output is forwarded to the terminal, which is not cosmetic: a
@@ -651,6 +700,23 @@ learning state to persist.
 - [x] Resize overlays, not just move them
   Overlays are `resizable` with OS-level hit-testing on the border, and the size is
   remembered per panel along with the position.
+- [x] Overlay profile editor, RaceLab-style
+  A profile is which overlays are on, where each sits and how big, what each
+  shows, and its theme. Edit opens a page with every overlay and an on/off switch
+  on the left; the screen in the middle at the profile's resolution (prefilled
+  with the display's), each overlay as a live preview on the sample lap, dragged
+  and sized there with snapping to edges; and the chosen overlay's position,
+  layout and parts on the right, or the profile's theme when none is chosen.
+  A screenshot from the sim can go behind it. Overlays stay one window each:
+  placing one in the editor moves its window when the profile is in use.
+  The previews are the real overlay page in an iframe (`&preview=1`), fed by the
+  page around it, since an iframe gets no preload (`static/profile-editor.js`).
+- [ ] Profile editor: second monitors
+  The editor's screen is the main display. Overlays on another monitor fall
+  outside it; a display picker would place them there.
+- [ ] Profile editor: zoom on the screen
+  At 5120×1440 the whole screen fits in the middle column and the previews are
+  small. A zoom and pan would make fine placement easier.
 
 ## M7 — Race summary
 
@@ -1054,6 +1120,15 @@ the version they already know.
   someone else's voice would play silent. Durations are measured again either
   way, so timing stays correct. Until the render finishes, notes carry the
   author's measured durations and are marked stale.
+- [x] Show which packs are not rendered, with Render now
+  Install already rendered, but when that failed (no Piper yet, no voice) nothing
+  in the list said so. A pack whose callouts have no audio in the current voice,
+  or audio of words that changed since, now shows "⚠ Not rendered" or "⚠ N
+  callouts not rendered" and a Render now button (library op `render`, one at a
+  time, keeping unchanged clips). Rechecked on a voice change and after saving or
+  rendering in the note editor.
+- [ ] Render flagged packs automatically
+  At start-up and after a voice change, rather than waiting for Render now.
 - [x] Update, roll back, uninstall
   Following Step 3b's policy. An update installs the new version beside the old
   one and switches only when not in a session: changing callouts mid-stint would
@@ -1346,10 +1421,11 @@ join Content.
   also why the default is called Exxeed and not after what it was modelled on.
   Either way we bundle only fonts we are licensed to ship (OFL), so there are no
   GT or iRacing fonts, and no logos.
-- [ ] Theme picker in preferences, and optionally per overlay profile
-  An overlay profile can override the app theme. Someone might want iRacing
-  overlays for racing and Synthwave for streaming, and profiles already exist
-  for exactly that kind of split.
+- [x] ~~Theme picker in preferences, and optionally per overlay profile~~ — **the theme is per profile**
+  Rather than an app theme a profile can override, every profile has its own
+  (`OverlayProfile.theme`), picked in the profile editor. Profiles from before
+  kept the theme that was in use. iRacing for racing and Synthwave for streaming
+  is two profiles.
 
 **Step 2 — Legibility guard rails**
 
@@ -1732,8 +1808,8 @@ user sees first.
 
 **Preferences (changes)**
 
-- [ ] Theme picker with a swatch per theme [M9.1], plus the per-overlay-profile
-  override, in the Overlays tab's profile row.
+- [ ] Theme picker with a swatch per theme [M9.1]. **The per-profile part is
+  done**: the theme is chosen in the profile editor, not in preferences.
 - [ ] iRacing account connection for official results (OAuth) [M7.4]. It is
   separate from the Exxeed sign-in and says why.
 - [ ] Content settings: default update policy, cache size and a clear-cache
@@ -1776,6 +1852,9 @@ user sees first.
 
 **Overlays (changes)**
 
+- [x] Overlays tab: profile cards (overlay count, theme, resolution; Edit, Use,
+  Delete) and the profile editor (overlay list, screen with live previews,
+  options) [M6].
 - [ ] Everything re-themed [M9.0]. There are no new panels, but every panel has
   to be checked in all four built-in themes.
 
