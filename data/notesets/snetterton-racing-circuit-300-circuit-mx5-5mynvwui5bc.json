@@ -19,8 +19,8 @@
   "notes": [
     {
       "id": "g4vifu",
-      "pct": 0.06725000000000003,
-      "text": "Left side, brake just before the 100 board, light pressure, trail down to third, right tyres over the kerb, flat and wide on exit.",
+      "pct": 0.0565,
+      "text": "brake before the 100 board, down to third, right tyres over the kerb, flat and wide on exit.",
       "textShort": "Before 100, third",
       "priority": 1,
       "leadAdjustS": 0,
@@ -28,7 +28,7 @@
       "sourceTs": "2:46",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/g4vifu.wav",
-        "durationMs": 10043
+        "durationMs": 7047
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/g4vifu_short.wav",
@@ -38,8 +38,8 @@
     },
     {
       "id": "esklt5",
-      "pct": 0.15975000000000006,
-      "text": "Brake halfway between 200 and 100, firm, first gear early, stay wide of the sausage kerb, late apex over the rumble strip, exit wide.",
+      "pct": 0.141,
+      "text": "Brake between 200 and 100, first gear early, stay of the sausage kerb",
       "textShort": "Halfway, first, late",
       "priority": 1,
       "leadAdjustS": 0,
@@ -47,7 +47,7 @@
       "sourceTs": "3:16",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/esklt5.wav",
-        "durationMs": 9555
+        "durationMs": 5108
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/esklt5_short.wav",
@@ -57,8 +57,8 @@
     },
     {
       "id": "3fewlm",
-      "pct": 0.22124999999999995,
-      "text": "Turn in flat, light brake as you pass the turn-left sign, throttle before the apex, left tyres on the kerb, use all the exit.",
+      "pct": 0.222,
+      "text": "Turn in flat, light brake as you pass the turn-left sign, throttle before the apex, left tyres on the kerb",
       "textShort": "Lift at sign",
       "priority": 1,
       "leadAdjustS": 0,
@@ -66,7 +66,7 @@
       "sourceTs": "3:51",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/3fewlm.wav",
-        "durationMs": 8777
+        "durationMs": 7198
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/3fewlm_short.wav",
@@ -76,8 +76,8 @@
     },
     {
       "id": "2nafyr",
-      "pct": 0.3427500000000001,
-      "text": "Brake halfway between 200 and 100, firm, down to first, left tyres over the kerb to the grass, exit wide.",
+      "pct": 0.3285,
+      "text": "Brake between 200 and 100, down to first, left tyres over the kerb to the grass",
       "textShort": "Halfway, first",
       "priority": 1,
       "leadAdjustS": 0,
@@ -85,7 +85,7 @@
       "sourceTs": "4:28",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/2nafyr.wav",
-        "durationMs": 7465
+        "durationMs": 5468
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/2nafyr_short.wav",
@@ -95,7 +95,7 @@
     },
     {
       "id": "ka08zq",
-      "pct": 0.40575000000000006,
+      "pct": 0.3925,
       "text": "Past the Hamilton sign, turn in with a light touch of the brake, flat again before the bollards, just clear them, exit left.",
       "textShort": "Touch brake, flat",
       "priority": 1,
@@ -114,8 +114,8 @@
     },
     {
       "id": "erpseq",
-      "pct": 0.46124999999999994,
-      "text": "Brake at the turn-left board, firm, down to first, cut the corner hard, keep the left tyres just on track, exit wide.",
+      "pct": 0.4505,
+      "text": "Brake at the turn-left board, down to first, cut the corner, keep the left tyres just on track",
       "textShort": "Turn-left board, first",
       "priority": 1,
       "leadAdjustS": 0,
@@ -123,7 +123,7 @@
       "sourceTs": "5:16",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/erpseq.wav",
-        "durationMs": 7860
+        "durationMs": 5851
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/erpseq_short.wav",
@@ -133,8 +133,8 @@
     },
     {
       "id": "45a1l0",
-      "pct": 0.50675,
-      "text": "Turn in at the Williams sign, quick light brake, flat in second early, right tyres to the grass edge, run wide on exit.",
+      "pct": 0.5095,
+      "text": "Turn in at the Williams sign, quick light brake, flat in second early, right tyres to the grass edge",
       "textShort": "Williams sign, second",
       "priority": 1,
       "leadAdjustS": 0,
@@ -142,7 +142,7 @@
       "sourceTs": "5:35",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/45a1l0.wav",
-        "durationMs": 8173
+        "durationMs": 6536
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/45a1l0_short.wav",
@@ -152,8 +152,8 @@
     },
     {
       "id": "50rfhr",
-      "pct": 0.76525,
-      "text": "Brake at the 100 board before the bridge, don't brake late, second gear, add a little pressure then trail off, no throttle until tight to the right sausage kerb, then flat.",
+      "pct": 0.683,
+      "text": "Brake at the 100 board before the bridge, second gear, add a then trail off, no throttle until tight to the right sausage kerb, then flat.",
       "textShort": "100 board, second",
       "priority": 1,
       "leadAdjustS": 0,
@@ -161,7 +161,7 @@
       "sourceTs": "6:16",
       "audio": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/50rfhr.wav",
-        "durationMs": 11297
+        "durationMs": 9451
       },
       "audioShort": {
         "file": "snetterton-racing-circuit-300-circuit-mx5-5mynvwui5bc/en_test/50rfhr_short.wav",
@@ -171,7 +171,7 @@
     },
     {
       "id": "uwhnxr",
-      "pct": 0.89175,
+      "pct": 0.879,
       "text": "Flat through Bomb Hole, right tyres tight to the grass, wide exit.",
       "textShort": "Flat, tight right",
       "priority": 1,
