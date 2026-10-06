@@ -259,6 +259,14 @@ document.addEventListener("mouseup", endDrag);
 
 const audio = new AudioContext();
 const decoded = new Map();
+/**
+ * The same clips as media elements, for playing faster or slower than they
+ * were rendered. A buffer source played at another rate changes pitch with it
+ * — a quarter faster is four semitones up, a different voice. A media element
+ * keeps the pitch (`preservesPitch`), which is what "speak faster" means.
+ * At a rate of 1 the buffer source is still used: nothing about it changed.
+ */
+const stretched = new Map();
 
 // Decode once, at preload. §3 chose WAV over MP3 precisely so no decode
 // happens at trigger time; doing it here rather than on play is the other
@@ -267,6 +275,12 @@ bridge?.onAudioPreload(async (clips) => {
   for (const clip of clips) {
     try {
       const copy = new Uint8Array(clip.wav).buffer;
+      const old = stretched.get(clip.key);
+      if (old !== undefined) URL.revokeObjectURL(old.src);
+      const element = new Audio(URL.createObjectURL(new Blob([new Uint8Array(clip.wav)], { type: "audio/wav" })));
+      element.preload = "auto";
+      element.preservesPitch = true;
+      stretched.set(clip.key, element);
       decoded.set(clip.key, await audio.decodeAudioData(copy));
     } catch (err) {
       console.error(`could not decode ${clip.key}`, err);
@@ -284,6 +298,14 @@ bridge?.onAudioPlay((command) => {
   const buffer = decoded.get(command.key);
   if (buffer === undefined) {
     log(`${command.key} — no clip rendered`, "drop");
+    return;
+  }
+  const rate = command.rate ?? 1;
+  const element = stretched.get(command.key);
+  if (rate !== 1 && element !== undefined) {
+    element.playbackRate = rate;
+    element.currentTime = 0;
+    void element.play().catch((err) => log(`${command.key} — could not play: ${err.message}`, "drop"));
     return;
   }
   if (audio.state === "suspended") void audio.resume();

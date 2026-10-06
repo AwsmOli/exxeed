@@ -44,6 +44,7 @@ import { pushDraft } from "./publish.js";
 import type { Note, NoteSet, ReferenceLap, TrackKey, TrackMap } from "@exxeed/core";
 import {
   aheadM,
+  atSpeechRate,
   classOf,
   metres,
   nearestBrakeOnset,
@@ -90,12 +91,14 @@ async function load(dataDir: string, noteSetId: string): Promise<Loaded> {
   return { noteSet, map, reference };
 }
 
-function buildNotes(loaded: Loaded, leadAdjustS: number): EditorNote[] {
+function buildNotes(loaded: Loaded, leadAdjustS: number, speechRate: number): EditorNote[] {
   const { noteSet, reference } = loaded;
   const lengthM = metres(noteSet.lengthM);
   const profile = { leadAdjustS };
 
-  const notes: EditorNote[] = noteSet.notes.map((note) => {
+  // As they will be heard: the arcs and durations the editor shows are the
+  // ones a session at this speech rate will produce.
+  const notes: EditorNote[] = atSpeechRate(noteSet.notes, speechRate).map((note) => {
     const base = {
       id: note.id,
       pct: note.pct,
@@ -224,6 +227,7 @@ async function buildPayload(
   dataDir: string,
   noteSetId: string,
   leadAdjustS: number,
+  speechRate: number,
   canRender: boolean,
 ): Promise<EditorPayload> {
   const loaded = await load(dataDir, noteSetId);
@@ -231,6 +235,7 @@ async function buildPayload(
 
   return {
     noteSetId: loaded.noteSet.id,
+    speechRate,
     lapElapsedS: loaded.reference === null ? null : [...loaded.reference.channels.elapsedS],
     title:
       loaded.map?.trackName ??
@@ -240,7 +245,7 @@ async function buildPayload(
     x: view?.x ?? [],
     y: view?.y ?? [],
     corners: loaded.map === null ? [] : editorCorners(loaded.map),
-    notes: buildNotes(loaded, leadAdjustS),
+    notes: buildNotes(loaded, leadAdjustS, speechRate),
     hasReference: loaded.reference !== null,
     canRender,
     braking: loaded.reference === null ? null : buildBraking(loaded.reference, loaded.noteSet.lengthM),
@@ -378,6 +383,7 @@ export function installEditorIpc(
       resolveDataDir(settings),
       settings.noteSetId,
       settings.leadAdjustS,
+      settings.speechRate,
       await canRender(settings),
     );
   });
@@ -434,6 +440,7 @@ export function installEditorIpc(
           dataDir,
           settings.noteSetId,
           settings.leadAdjustS,
+          settings.speechRate,
           await canRender(settings),
         ),
       };
@@ -459,7 +466,7 @@ export function installEditorIpc(
     if (settings.noteSetId === null) return null;
     const loaded = await load(resolveDataDir(settings), settings.noteSetId);
     const noteSet = { ...loaded.noteSet, notes: applyPatches(loaded.noteSet, patches) };
-    return buildNotes({ ...loaded, noteSet }, settings.leadAdjustS);
+    return buildNotes({ ...loaded, noteSet }, settings.leadAdjustS, settings.speechRate);
   });
 
   ipcMain.handle(EDITOR_SAVE_CHANNEL, async (_event, patches: EditorNotePatch[]) => {
@@ -481,6 +488,7 @@ export function installEditorIpc(
       dataDir,
       settings.noteSetId,
       settings.leadAdjustS,
+      settings.speechRate,
       await canRender(settings),
     );
   });

@@ -84,6 +84,17 @@
     </div>
 
     <div class="row">
+      <label class="name" for="speechRate">Speaking speed</label>
+      <input type="number" id="speechRate" step="0.05" min="0.5" max="2" />
+      <span style="color:#6f7885">× as rendered</span>
+    </div>
+    <div class="hint">
+      1.25 is a quarter faster, at the same pitch. No re-render: the audio is
+      played back quicker, and each callout starts later to match, so it still
+      ends where it did.
+    </div>
+
+    <div class="row">
       <label class="name" for="car">Reference car</label>
       <select id="car"></select>
     </div>

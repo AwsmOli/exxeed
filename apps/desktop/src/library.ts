@@ -9,9 +9,12 @@
  * All of it works signed out except finding your own packs on your account.
  */
 
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { ipcMain } from "electron";
 
-import { describeDiff, type NoteSet } from "@exxeed/core";
+import { describeDiff, NOTE_SET_NAME_MAX, type NoteSet } from "@exxeed/core";
 import {
   LIBRARY_CHANNEL,
   type LibraryRequest,
@@ -99,6 +102,9 @@ async function placeLocally(
   await repos.noteSets.put({
     ...noteSet,
     id: localId,
+    // A name given on this machine outlives an update: it is this driver's
+    // word for the pack, not part of what the author published.
+    ...(previous?.name === undefined ? {} : { name: previous.name }),
     notes: noteSet.notes.map((n) => {
       // A note whose words are unchanged since the copy already here keeps its
       // local audio and stays clean; the renderer's reuse keeps its clip.
@@ -197,6 +203,69 @@ async function uninstall(deps: LibraryDeps, noteSetId: string): Promise<string> 
   deps.unselect(noteSetId);
   deps.changed();
   return "uninstalled";
+}
+
+/**
+ * Give a pack a name to be listed by, or take it away with an empty one.
+ *
+ * Only the name: the id stays, and with it the audio, the link to a published
+ * item and every setting that points at the pack.
+ */
+async function rename(deps: LibraryDeps, noteSetId: string, name: string): Promise<string> {
+  const repos = localRepositories(deps.resolveDataDir(deps.getSettings()));
+  const noteSet = await repos.noteSets.get(noteSetId);
+  if (noteSet === null) throw new Error("that pack is no longer here");
+
+  const wanted = name.replace(/\s+/g, " ").trim();
+  if (wanted.length > NOTE_SET_NAME_MAX) throw new Error(`a name can be ${NOTE_SET_NAME_MAX} characters at most`);
+  if (wanted === (noteSet.name ?? "")) return "";
+
+  const { name: _old, ...rest } = noteSet;
+  await repos.noteSets.put(wanted === "" ? rest : { ...rest, name: wanted });
+  deps.changed();
+  return wanted === "" ? `"${noteSetId}" has no name now` : `Renamed to "${wanted}"`;
+}
+
+/**
+ * Remove a pack of your own from this machine: the note set, its audio, and
+ * its link to anything published.
+ *
+ * Someone else's pack goes through `uninstall`, which also takes its setups
+ * out of the sim. This is for what was written or imported here — which is
+ * work, so the note set is not destroyed but moved to notesets-deleted/, the
+ * way a replaced reference lap is kept. Audio is not: it is rendered from the
+ * words, and can be again.
+ */
+async function deletePack(deps: LibraryDeps, noteSetId: string): Promise<string> {
+  const dataDir = deps.resolveDataDir(deps.getSettings());
+  const index = new LocalContentIndex(dataDir);
+  const link = await index.get(noteSetId);
+  if (link?.origin === "installed") return uninstall(deps, noteSetId);
+  if (rendering.has(noteSetId)) throw new Error("that pack is being rendered — delete it when that has finished");
+
+  const repos = localRepositories(dataDir);
+  const noteSet = await repos.noteSets.get(noteSetId);
+  if (noteSet === null) throw new Error("that pack is no longer here");
+
+  const dir = join(dataDir, "notesets-deleted");
+  await mkdir(dir, { recursive: true });
+  const kept = join(dir, `${noteSetId}-${new Date().toISOString().replaceAll(":", "-")}.json`);
+  await writeFile(kept, `${JSON.stringify(noteSet, null, 2)}\n`);
+
+  await repos.noteSets.remove(noteSetId);
+  await repos.audio.removeAll(noteSetId);
+  if (link !== null) await index.remove(noteSetId);
+  deps.unselect(noteSetId);
+  deps.changed();
+
+  const what = noteSet.name ?? noteSetId;
+  log(`deleted ${noteSetId}; kept as ${kept}`);
+  return (
+    `Deleted "${what}". The note set is kept in ${kept}.` +
+    // Deleting here does not reach the server; saying so is the difference
+    // between "gone" and "gone from this machine".
+    (link !== null && link.version !== null ? " What you published is still on your account, under Mine." : "")
+  );
 }
 
 async function setPolicy(deps: LibraryDeps, noteSetId: string, policy: "auto" | "pinned"): Promise<string> {
@@ -396,6 +465,10 @@ export function installLibrary(deps: LibraryDeps): void {
           return { ok: true, value: await checkUpdates(deps) };
         case "render":
           return { ok: true, value: await render(deps, request.noteSetId) };
+        case "rename":
+          return { ok: true, value: await rename(deps, request.noteSetId, request.name) };
+        case "delete":
+          return { ok: true, value: await deletePack(deps, request.noteSetId) };
       }
     } catch (err) {
       deps.busy(null);

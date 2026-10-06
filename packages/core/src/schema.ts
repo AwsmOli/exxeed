@@ -233,8 +233,18 @@ export const NoteSetSourceSchema = z.object({
   channel: z.string().optional(),
 });
 
+/** The longest name a pack can be given: a row in a list, not a description. */
+export const NOTE_SET_NAME_MAX = 80;
+
 export const NoteSetSchema = z.object({
   id: z.string().min(1),
+  /**
+   * What the driver calls this pack. For reading only: `id` is what the audio,
+   * the content index and the settings are keyed by, and it never changes — so
+   * renaming a pack is one field, and cannot orphan its audio or unpick it.
+   * Absent on every set made before packs could be named; those show their id.
+   */
+  name: z.string().min(1).max(NOTE_SET_NAME_MAX).optional(),
   /**
    * TrackKey, NOT TrackRef. A note set holds lap positions, not corner indices,
    * so re-cutting the track map cannot invalidate it — the same reasoning §4.0
@@ -301,6 +311,8 @@ export type AudioPack = z.infer<typeof AudioPackSchema>;
  *  carry `notes`, so a picker can list a track's sets without loading them. */
 export interface NoteSetSummary {
   id: string;
+  /** The name it was given, or null: show the id. */
+  name: string | null;
   trackKey: z.infer<typeof TrackKeySchema>;
   carClass: string;
   title: string;
@@ -313,6 +325,7 @@ export interface NoteSetSummary {
 
 export const summariseNoteSet = (set: NoteSet): NoteSetSummary => ({
   id: set.id,
+  name: set.name ?? null,
   trackKey: set.trackKey,
   carClass: set.carClass,
   title: set.source.title ?? "(untitled)",

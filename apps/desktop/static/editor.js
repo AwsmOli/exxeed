@@ -450,6 +450,8 @@ const sim = {
   ctx: null,
   /** Decoded clips by audio key; null until loaded, cleared when audio changes. */
   buffers: null,
+  /** Each clip as a blob URL, for playing at a speech rate other than 1. */
+  urls: new Map(),
   busyUntil: 0,
   source: null,
   speakingId: null,
@@ -511,11 +513,15 @@ async function loadAudio() {
   if (sim.buffers !== null) return;
   sim.ctx ??= new AudioContext();
   sim.buffers = new Map();
+  sim.urls = new Map();
   const audio = await window.exxeed.loadNoteAudio();
   if (audio === null) return;
   for (const [key, bytes] of Object.entries(audio.clips)) {
     try {
       const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      // Before decoding, which takes the buffer: the same bytes as a media
+      // element, to play at another speed with the pitch kept (renderer.js).
+      sim.urls.set(key, URL.createObjectURL(new Blob([copy.slice(0)], { type: "audio/wav" })));
       sim.buffers.set(key, await sim.ctx.decodeAudioData(copy));
     } catch {
       // A clip that will not decode just plays nothing.
@@ -548,13 +554,24 @@ function fire(note) {
     speaking(note.id, 2);
     return;
   }
-  const source = sim.ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(sim.ctx.destination);
-  source.start();
-  sim.source = source;
-  sim.busyUntil = now + buffer.duration;
-  speaking(note.id, buffer.duration);
+  // At the driver's speech rate, as a session would say it.
+  const rate = payload.speechRate ?? 1;
+  const url = sim.urls.get(note.id);
+  if (rate !== 1 && url !== undefined) {
+    const element = new Audio(url);
+    element.preservesPitch = true;
+    element.playbackRate = rate;
+    void element.play().catch(() => {});
+    sim.source = { stop: () => element.pause() };
+  } else {
+    const source = sim.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(sim.ctx.destination);
+    source.start();
+    sim.source = source;
+  }
+  sim.busyUntil = now + buffer.duration / rate;
+  speaking(note.id, buffer.duration / rate);
 }
 
 /**
@@ -1243,6 +1260,52 @@ $("show-braking").addEventListener("change", () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Speaking speed
+// ---------------------------------------------------------------------------
+//
+// The driver's setting, not the note set's: the field here writes the same
+// setting Preferences does, and follows it when it is changed there. A faster
+// callout is a shorter one, and a shorter one starts later — so every blue
+// section on the map is re-timed by main, the way a session will time it.
+
+/** Main's timing at a new rate: the notes as saved, and as edited. */
+async function retime(rate) {
+  if (payload === null) return;
+  const saved = await window.exxeed.previewNotes([]);
+  if (saved === null) return;
+  // The notes as saved keep their words and places; only their timing is new.
+  // Edits not yet saved stay edits, and get the same timing through `preview`.
+  payload = { ...payload, speechRate: rate, notes: saved };
+  if (dirty()) {
+    const edited = await window.exxeed.previewNotes(patchList());
+    preview = edited === null ? null : new Map(edited.map((n) => [n.id, n]));
+  } else {
+    preview = null;
+  }
+  // A lap already playing was planned at the old rate; the next one is right.
+  sim.pending = sim.started;
+  draw();
+  renderPanel();
+}
+
+$("speech-rate").addEventListener("change", (e) => {
+  const v = Number(e.target.value);
+  // Main brings an out-of-range value back in, and says what it kept below.
+  if (Number.isFinite(v) && v > 0) void window.exxeed.setSettings({ speechRate: v });
+  else e.target.value = String(payload?.speechRate ?? 1);
+});
+
+// Changed here, or in Preferences while this window is open: either way main
+// tells every window, and this is the one place the editor acts on it.
+window.exxeed.onSettingsChanged((changed) => {
+  const rate = changed?.settings?.speechRate;
+  if (typeof rate !== "number") return;
+  // Also when it was typed here: main may have brought it into range.
+  if (Number($("speech-rate").value) !== rate) $("speech-rate").value = String(rate);
+  if (payload !== null && rate !== payload.speechRate) void retime(rate);
+});
+
 window.exxeed.loadNotes().then((data) => {
   payload = data;
   if (payload === null) {
@@ -1252,6 +1315,7 @@ window.exxeed.loadNotes().then((data) => {
   $("title").textContent =
     `${payload.title} · ${payload.notes.length} callouts · ${payload.status}` +
     (payload.hasReference ? "" : " · no reference lap, so no speaking windows");
+  $("speech-rate").value = String(payload.speechRate ?? 1);
 
 
   // Play lap drives the reference lap over the map: it needs both.

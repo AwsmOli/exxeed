@@ -9,7 +9,7 @@
 
 import type { DriverProfile, NoteSet } from "@exxeed/core";
 import type { LeadModel } from "@exxeed/core";
-import { carEntry, constantSpeedLead, matchesClass, metres, NoteEngine, referenceLead } from "@exxeed/core";
+import { atSpeechRate, carEntry, constantSpeedLead, matchesClass, metres, NoteEngine, referenceLead } from "@exxeed/core";
 import type { SessionIdentity } from "@exxeed/telemetry";
 import type { ReferenceView, TrackMapView } from "@exxeed/overlays";
 
@@ -23,6 +23,8 @@ export interface SessionConfig {
   readonly noteSetId: string;
   readonly voiceId: string;
   readonly profile: DriverProfile;
+  /** How fast callouts are played back, 1 as rendered. Shortens what the engine times them by. */
+  readonly speechRate?: number;
   /**
    * Skip §6.4's out-lap gate. Only ever set for a replay — main refuses to pass
    * it for a live source, because on track the gate is not friction, it is the
@@ -125,7 +127,9 @@ export async function loadSession(config: SessionConfig): Promise<LoadedSession>
   }
 
   return {
-    engine: new NoteEngine(noteSet.notes, metres(noteSet.lengthM), config.profile, {
+    // The engine gets the notes as they will be heard. `noteSet` itself, and
+    // the clip check above, stay as rendered: the files have not changed.
+    engine: new NoteEngine(atSpeechRate(noteSet.notes, config.speechRate ?? 1), metres(noteSet.lengthM), config.profile, {
       assumeLapComplete: config.assumeLapComplete ?? false,
     }, lead),
     noteSet,

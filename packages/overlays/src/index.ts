@@ -10,6 +10,7 @@
  */
 
 import type { Mps, NoteState, Pct, Radians, Seconds, SuppressionReason } from "@exxeed/core";
+import { clampSpeechRate, SPEECH_RATE_DEFAULT } from "@exxeed/core";
 
 import { DEFAULT_THEME_ID } from "./themes.js";
 
@@ -463,6 +464,8 @@ export type SessionPhase = "stopped" | "waiting" | "running";
 export interface NoteSetPack {
   /** Empty for a track that has a map but no notes written for it yet. */
   readonly id: string;
+  /** The name the pack was given, or null — then the id is what there is to show. */
+  readonly name: string | null;
   readonly trackName: string;
   readonly carClass: string;
   readonly noteCount: number;
@@ -683,7 +686,11 @@ export type LibraryRequest =
   | { readonly op: "downloadMine"; readonly itemId: string }
   | { readonly op: "checkUpdates" }
   /** Render a pack's audio in this machine's voice, keeping clips whose words are unchanged. */
-  | { readonly op: "render"; readonly noteSetId: string };
+  | { readonly op: "render"; readonly noteSetId: string }
+  /** Give a pack a name to be listed by. Empty takes the name away again. Its id does not change. */
+  | { readonly op: "rename"; readonly noteSetId: string; readonly name: string }
+  /** Remove a pack of your own and its audio from this machine. The note set is kept in a deleted folder. */
+  | { readonly op: "delete"; readonly noteSetId: string };
 
 export interface LibraryVersion {
   readonly id: string;
@@ -770,6 +777,12 @@ export interface Settings {
   readonly carId: string | null;
   /** Seconds added to every callout's lead. This driver's, not the note set's. */
   readonly leadAdjustS: number;
+  /**
+   * How fast callouts are spoken: 1 is as rendered, 1.25 a quarter faster.
+   * Applied at playback, with the pitch kept — and to the timing, because a
+   * shorter callout has to start later (core `atSpeechRate`).
+   */
+  readonly speechRate: number;
   readonly panels: readonly PanelId[];
   /**
    * Where Piper lives, so the editor can re-render a callout after editing it.
@@ -903,6 +916,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceId: "en_test",
   carId: null,
   leadAdjustS: 0,
+  speechRate: SPEECH_RATE_DEFAULT,
   panels: [...DEFAULT_PANELS],
   piperBinary: null,
   renderVoiceId: null,
@@ -957,6 +971,7 @@ export function withDefaults(stored: Partial<Settings> | null | undefined): Sett
     voiceId: typeof s.voiceId === "string" && s.voiceId !== "" ? s.voiceId : DEFAULT_SETTINGS.voiceId,
     carId: typeof s.carId === "string" && s.carId !== "" ? s.carId : DEFAULT_SETTINGS.carId,
     leadAdjustS: number(s.leadAdjustS, DEFAULT_SETTINGS.leadAdjustS),
+    speechRate: clampSpeechRate(s.speechRate),
     // An empty list would open no windows at all, with no way back from inside
     // the app. Treat it as "not set".
     panels: panels.length === 0 ? DEFAULT_SETTINGS.panels : panels,
@@ -1048,6 +1063,7 @@ export function withEnvOverrides(
     voiceId: get("EXXEED_VOICE") ?? settings.voiceId,
     carId: get("EXXEED_CAR") ?? settings.carId,
     leadAdjustS: num("EXXEED_LEAD_ADJUST") ?? settings.leadAdjustS,
+    speechRate: settings.speechRate,
     panels: panels.length === 0 ? settings.panels : panels,
     piperBinary: get("EXXEED_PIPER") ?? settings.piperBinary,
     renderVoiceId: get("EXXEED_VOICE_MODEL") ?? settings.renderVoiceId,
@@ -1250,6 +1266,8 @@ export interface EditorNote {
 
 export interface EditorPayload {
   readonly noteSetId: string;
+  /** The driver's speech rate: Play lap speaks at it, and every duration and arc here already allows for it. */
+  readonly speechRate: number;
   readonly title: string;
   readonly lengthM: number;
   readonly status: string;
@@ -1562,7 +1580,10 @@ export interface AudioClip {
 export interface AudioPlayCommand {
   readonly key: string;
   readonly noteId: string;
+  /** How long it will be heard for, at `rate`. */
   readonly durationMs: number;
+  /** Playback speed, 1 as rendered. The same rate the engine's durations were scaled by. */
+  readonly rate: number;
 }
 
 /**

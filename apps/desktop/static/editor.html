@@ -8,7 +8,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: https://mxxexxhcftzjvaihhaph.supabase.co http://127.0.0.1:54321" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; media-src 'self' blob:; img-src 'self' data: https://mxxexxhcftzjvaihhaph.supabase.co http://127.0.0.1:54321" />
     <title>Exxeed — Notes</title>
     <style>
       :root { color-scheme: dark; }
@@ -125,6 +125,10 @@
       .brake-point-hit { stroke: transparent; stroke-width: 14; }
       .braking-inferred .brake-zone { stroke-dasharray: 4 3; }
       .braking-off .brake-zone, .braking-off .brake-point, .braking-off .brake-point-hit { display: none; }
+      .toggle input[type="number"] {
+        width: 52px; background: #171a1f; color: #e6e9ee; font: inherit;
+        border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; padding: 2px 4px;
+      }
       .toggle { display: inline-flex; gap: 5px; align-items: center; color: #8a93a0; font-size: 12px; cursor: pointer; user-select: none; }
       /* Render audio: a bar under the toolbar, and the row being spoken into a clip. */
       #render-progress {
@@ -238,6 +242,7 @@
         <input type="range" id="scrub" min="0" max="1000" value="0" title="Position in the lap — drag to jump" />
         <span class="meta" id="clock">0:00.0</span>
       </span>
+      <label class="toggle" title="How fast callouts are spoken, here and in a session — 1 is as rendered, 1.25 a quarter faster, at the same pitch. A faster callout starts later, so the blue sections get shorter. Your setting, the same one as in Preferences; it is not saved with the note set.">Speed <input type="number" id="speech-rate" step="0.05" min="0.5" max="2" value="1" />×</label>
       <label class="toggle" title="Where your reference lap braked: red = brake on, bar = braking starts"><input type="checkbox" id="show-braking" checked /> Braking</label>
       <label class="toggle" title="Throttle, brake and speed along the reference lap, under the map"><input type="checkbox" id="show-inputs" checked /> Inputs</label>
       <span class="grow"></span>

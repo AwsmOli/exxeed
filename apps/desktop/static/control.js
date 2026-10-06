@@ -96,6 +96,46 @@ const confirmButton = (text, confirmText, title, onConfirm) => {
   return b;
 };
 
+/**
+ * The pack being renamed, and what has been typed so far. Kept here because
+ * the list is redrawn whenever the app's status changes — a render finishing,
+ * a session starting — and a half-typed name must survive that.
+ */
+let renaming = null;
+
+/** The name field a pack's title turns into while it is being renamed. */
+function renameField(pack) {
+  const input = make("input", {
+    type: "text",
+    className: "pack-rename",
+    value: renaming.value,
+    maxLength: 80,
+    placeholder: pack.id,
+    title: "Enter to save, Esc to cancel. Empty goes back to the id.",
+  });
+  const done = () => {
+    renaming = null;
+    renderPacks(lastStatus);
+  };
+  input.addEventListener("input", () => (renaming.value = input.value));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") done();
+    if (e.key !== "Enter") return;
+    const name = input.value;
+    // The list redraws with the new name when main says the packs changed.
+    // Refused (too long, say): the field stays, with what was typed and the reason under the list.
+    void act({ op: "rename", noteSetId: pack.id, name }, null).then((answer) => {
+      if (answer !== null) done();
+    });
+  });
+  // After this redraw has put it in the page.
+  setTimeout(() => {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }, 0);
+  return input;
+}
+
 function packRow(s, pack) {
   const c = pack.content;
   const li = make("li", { className: pack.active ? "active" : "" });
@@ -114,10 +154,15 @@ function packRow(s, pack) {
     if (c.downloads !== null) facts.push(`${c.downloads} ↓`);
   }
 
+  const beingRenamed = renaming !== null && renaming.id === pack.id;
+  // Named, the id moves to the small print: it is still what files are called.
+  if (pack.name !== null && !beingRenamed) facts.push(pack.id);
   const main = make(
     "div",
     { className: "pack-main" },
-    make("div", { className: "pack-id", textContent: pack.id }),
+    beingRenamed
+      ? renameField(pack)
+      : make("div", { className: "pack-id", textContent: pack.name ?? pack.id, title: pack.id }),
     make("div", { className: "pack-sub", textContent: facts.join(" · ") }),
   );
 
@@ -179,6 +224,24 @@ function packRow(s, pack) {
       button("Edit", "Open in the note editor — publish from there", () => {
         window.exxeed?.sendSessionCommand({ kind: "editNoteSet", id: pack.id });
       }),
+    );
+  }
+
+  actions.append(
+    button("Rename", "Give this pack a name to be listed by — its files keep their id", () => {
+      renaming = { id: pack.id, value: pack.name ?? "" };
+      renderPacks(lastStatus);
+    }),
+  );
+  // Someone else's pack has Uninstall, above. This is for your own.
+  if (c?.origin !== "installed") {
+    actions.append(
+      confirmButton(
+        "Delete",
+        "Really delete?",
+        "Remove this pack and its audio from this machine. The note set is kept in the notesets-deleted folder.",
+        (b) => act({ op: "delete", noteSetId: pack.id }, b),
+      ),
     );
   }
   return li;

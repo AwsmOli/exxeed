@@ -82,3 +82,6 @@ apps/desktop/release/
 # Guide videos downloaded by the experimental tracer.
 data/video-cache/
 data/reflaps-replaced/
+
+# Note sets deleted from the pack list, kept so a delete can be undone.
+data/notesets-deleted/

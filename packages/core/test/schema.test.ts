@@ -95,6 +95,25 @@ describe("NoteSchema", () => {
   });
 });
 
+describe("a note set's name", () => {
+  it("is optional: every set made before packs could be named still parses", () => {
+    expect(NoteSetSchema.parse(spaGt3Notes).name).toBeUndefined();
+    expect(summariseNoteSet(NoteSetSchema.parse(spaGt3Notes)).name).toBeNull();
+  });
+
+  it("travels with the set and into its summary, leaving the id alone", () => {
+    const named = NoteSetSchema.parse({ ...spaGt3Notes, name: "Spa, wet weekend" });
+    expect(named.id).toBe(spaGt3Notes.id);
+    expect(summariseNoteSet(named).name).toBe("Spa, wet weekend");
+  });
+
+  it("is a row in a list, not a description", () => {
+    expect(() => NoteSetSchema.parse({ ...spaGt3Notes, name: "" })).toThrow();
+    expect(() => NoteSetSchema.parse({ ...spaGt3Notes, name: "x".repeat(81) })).toThrow();
+    expect(() => NoteSetSchema.parse({ ...spaGt3Notes, name: "x".repeat(80) })).not.toThrow();
+  });
+});
+
 describe("summariseNoteSet", () => {
   it("drops the notes but keeps the count, so a picker can list without loading", () => {
     const summary = summariseNoteSet(spaGt3Notes);

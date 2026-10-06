@@ -420,6 +420,7 @@ async function createSession(noteSetId: string | null): Promise<LoadedSession | 
     ...(current.carId === null ? {} : { carId: current.carId }),
     voiceId: current.voiceId,
     profile: { leadAdjustS: current.leadAdjustS },
+    speechRate: current.speechRate,
   });
 }
 
@@ -597,6 +598,7 @@ async function refreshPacks(): Promise<void> {
       const item = link === undefined ? undefined : knownItem(link.itemId);
       return {
         id: p.id,
+        name: p.name,
         trackName: trackNameFor(tracks, p.trackKey.trackId, p.trackKey.configId),
         carClass: p.carClass,
         noteCount: p.noteCount,
@@ -629,6 +631,7 @@ async function refreshPacks(): Promise<void> {
       .filter((t) => !authored.has(`${t.key.trackId}:${t.key.configId}`))
       .map((t) => ({
         id: "",
+        name: null,
         trackName: `${t.trackName}${t.configName === "" ? "" : ` — ${t.configName}`}`,
         carClass: "",
         noteCount: 0,
@@ -928,6 +931,9 @@ async function runTelemetryLoop(surfaces: Surfaces): Promise<void> {
               key,
               noteId: event.noteId,
               durationMs: event.durationMs,
+              // A change of rate reloads the session, so this is the rate the
+              // engine's durations were made with.
+              rate: settings().get().speechRate,
             };
             surfaces.audio(AUDIO_PLAY_CHANNEL, command);
           }

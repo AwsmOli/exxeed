@@ -11,6 +11,7 @@ export * from "./units.js";
 export * from "./pct.js";
 export * from "./track.js";
 export * from "./schema.js";
+export * from "./speech-rate.js";
 export * from "./cars.js";
 export * from "./wav.js";
 export * from "./resample.js";

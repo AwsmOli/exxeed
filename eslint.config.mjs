@@ -73,6 +73,8 @@ export default tseslint.config(
         console: "readonly",
         URLSearchParams: "readonly",
         AudioContext: "readonly",
+        Audio: "readonly",
+        Blob: "readonly",
         Uint8Array: "readonly",
         Path2D: "readonly",
         requestAnimationFrame: "readonly",

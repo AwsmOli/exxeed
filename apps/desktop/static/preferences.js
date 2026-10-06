@@ -47,6 +47,7 @@ function render(payload) {
   fill($("car"), options.cars, current.carId, "— first available —");
 
   $("leadAdjust").value = String(current.leadAdjustS);
+  $("speechRate").value = String(current.speechRate);
   renderVoices(payload.options);
 
   $("debug").hidden = !options.debugEnabled;
@@ -145,6 +146,12 @@ $("car").addEventListener("change", (e) =>
 $("leadAdjust").addEventListener("change", (e) => {
   const v = Number(e.target.value);
   if (Number.isFinite(v)) save({ leadAdjustS: v });
+});
+
+$("speechRate").addEventListener("change", (e) => {
+  const v = Number(e.target.value);
+  // Out of range is brought back in by main; the field then shows what was kept.
+  if (Number.isFinite(v) && v > 0) save({ speechRate: v });
 });
 
 $("renderVoice").addEventListener("change", (e) =>

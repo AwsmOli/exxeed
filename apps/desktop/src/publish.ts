@@ -74,7 +74,8 @@ async function suggestedFields(dataDir: string, noteSet: NoteSet): Promise<Publi
         ". The callouts are rewritten, not transcribed."
       : "";
   return {
-    title: `${track} · ${noteSet.carClass.toUpperCase()}`.slice(0, 80),
+    // The name it was given here, if it was: the driver has already said what to call it.
+    title: (noteSet.name ?? `${track} · ${noteSet.carClass.toUpperCase()}`).slice(0, 80),
     summary: `${noteSet.notes.length} callouts for ${track}.`.slice(0, 160),
     readme: `Callouts for ${track} in the ${noteSet.carClass.toUpperCase()}.${source}`,
     visibility: "public",
